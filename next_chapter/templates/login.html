@@ -1,0 +1,2 @@
+{% extends 'base.html' %}
+{% block content %}<header class="page-heading"><div><div class="eyebrow">WELCOME BACK</div><h1>A quiet place for your books.</h1><p>Sign in to your personal reading room.</p></div></header><form class="panel stack login" method="post"><input type="hidden" name="csrf" value="{{ csrf }}"><label>Your app password<input type="password" name="password" autocomplete="current-password" required autofocus></label><button class="button primary">Open my library →</button></form>{% endblock %}

@@ -1,0 +1,24 @@
+services:
+  next-chapter:
+    build: .
+    image: next-chapter:local
+    ports:
+      - "127.0.0.1:8000:8000"
+    environment:
+      APP_PASSWORD: ${APP_PASSWORD:?Set APP_PASSWORD in .env}
+      APP_SECRET_KEY: ${APP_SECRET_KEY:?Set APP_SECRET_KEY in .env}
+      COOKIE_SECURE: ${COOKIE_SECURE:-0}
+      DATABASE_PATH: /data/next-chapter.sqlite3
+    volumes:
+      - library:/data
+    read_only: true
+    tmpfs:
+      - /tmp:mode=1777,size=64m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    restart: unless-stopped
+    stop_grace_period: 30s
+volumes:
+  library:
