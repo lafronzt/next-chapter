@@ -1,7 +1,7 @@
+-- Schema version 1 baseline, applied by migration 1 in migrate.go. Do not edit:
+-- change the schema by appending a migration instead.
 
 CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
-INSERT OR IGNORE INTO meta VALUES ('revision', '0');
-INSERT OR IGNORE INTO meta VALUES ('schema_version', '1');
 CREATE TABLE IF NOT EXISTS books (
  id INTEGER PRIMARY KEY, title TEXT NOT NULL, author TEXT NOT NULL, identity TEXT NOT NULL UNIQUE,
  isbn TEXT NOT NULL DEFAULT '', goodreads_id TEXT NOT NULL DEFAULT '', pages INTEGER,

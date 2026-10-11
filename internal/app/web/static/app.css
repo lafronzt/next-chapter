@@ -260,6 +260,15 @@ h2 {
   background:#3c6152;
 }
 
+.button.danger {
+  color:#955136;
+  border-color:#e8cbbb;
+}
+
+.button.danger:hover {
+  background:#f6e9e0;
+}
+
 .button-row {
   display:flex;
   gap:10px;
@@ -377,6 +386,15 @@ h2 {
   font-size:11px;
   width:100%;
   padding:8px;
+}
+
+.merge-search {
+  max-width:420px;
+  margin-bottom:18px;
+  border:1px solid var(--line);
+  border-radius:5px;
+  background:#fff;
+  padding:4px 8px;
 }
 
 .search button {

@@ -3,8 +3,10 @@ package app
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"log"
 	"math"
 	"net/http"
 	"strconv"
@@ -99,7 +101,11 @@ func (a *App) newBook(w http.ResponseWriter, r *http.Request) error {
 		if id != 0 {
 			return conflict("This book is already in your library. Edit its existing entry.")
 		}
-		if _, _, _, err = importRecords(tx, []Record{{Book: b}}); err != nil {
+		// Adding a deleted book again by hand is an explicit choice that wins.
+		if err = clearTombstones(tx, Record{Book: b}); err != nil {
+			return err
+		}
+		if _, err = importRecords(tx, []Record{{Book: b}}); err != nil {
 			return err
 		}
 		id, err = findBook(tx, Record{Book: b})
@@ -154,7 +160,8 @@ func (a *App) editBook(w http.ResponseWriter, r *http.Request) error {
 		if err != nil {
 			return err
 		}
-		match, err := findBook(tx, Record{Book: b})
+		// Title and author must be unique among live books only.
+		match, _, err := lookupBook(tx, Record{Book: b}, false)
 		if err != nil {
 			return err
 		}
@@ -262,7 +269,7 @@ func (a *App) loan(w http.ResponseWriter, r *http.Request) error {
 		}
 		b.Source = source
 		event := &Event{Source: source, Format: format, Status: status, Activity: status, At: canonicalTime(time.Now()), DueDate: due}
-		if _, _, _, err = importRecords(tx, []Record{{Book: b, Event: event}}); err != nil {
+		if _, err = importRecords(tx, []Record{{Book: b, Event: event}}); err != nil {
 			return err
 		}
 		return bump(tx)
@@ -323,9 +330,16 @@ func (a *App) plan(w http.ResponseWriter, r *http.Request) error {
 		if len(preview) > 100 {
 			preview = preview[:100]
 		}
-		return a.render(w, r, "plan.html", page{"Kind": kind, "Plan": p, "PreviewRecords": preview, "Stale": rev != state(r).Revision}, 200)
+		skipped := 0
+		if kind == "import" {
+			if skipped, err = countTombstoned(a.store.DB, p.Records); err != nil {
+				return err
+			}
+		}
+		return a.render(w, r, "plan.html", page{"Kind": kind, "Plan": p, "PreviewRecords": preview, "Skipped": skipped, "Stale": rev != state(r).Revision}, 200)
 	}
 	notice := "ordered"
+	skipped := 0
 	err := a.store.Write(func(tx *sql.Tx) error {
 		kind, p, rev, err := readPlan(tx, id)
 		if err != nil {
@@ -339,11 +353,12 @@ func (a *App) plan(w http.ResponseWriter, r *http.Request) error {
 			return conflict("Your library changed. Generate a fresh preview before applying it.")
 		}
 		if kind == "import" {
-			_, _, changed, err := importRecords(tx, p.Records)
+			summary, err := importRecords(tx, p.Records)
 			if err != nil {
 				return err
 			}
-			if changed {
+			skipped = summary.Skipped
+			if summary.Changed {
 				if err = bump(tx); err != nil {
 					return err
 				}
@@ -389,6 +404,9 @@ func (a *App) plan(w http.ResponseWriter, r *http.Request) error {
 	})
 	if err != nil {
 		return err
+	}
+	if skipped > 0 {
+		return redirect(w, r, fmt.Sprintf("/?notice=%s&skipped=%d", notice, skipped))
 	}
 	return redirect(w, r, "/?notice="+notice)
 }
@@ -528,11 +546,29 @@ func (a *App) settings(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
-	return a.render(w, r, "settings.html", page{"Prefs": prefs, "Connection": conn, "LastSync": last}, 200)
+	poll, err := readMeta(a.store.DB, "poll_state", PollState{})
+	if err != nil {
+		return err
+	}
+	version, _, err := schemaVersion(a.store.DB)
+	if err != nil {
+		return err
+	}
+	return a.render(w, r, "settings.html", page{"Prefs": prefs, "Connection": conn, "LastSync": last, "Poll": poll, "SchemaVersion": version}, 200)
 }
 func (a *App) syncNow(w http.ResponseWriter, r *http.Request) error {
-	if _, err := a.syncOnce(r.Context()); err != nil {
-		return bad("Goodreads could not be checked. Verify your public shelf and saved user ID, or use CSV import.")
+	if _, err := a.safeSync(r.Context(), a.now()); err != nil {
+		var s *syncError
+		if !errors.As(err, &s) {
+			return err
+		}
+		status := 400
+		if errors.Is(err, errSyncBusy) {
+			status = 409
+		} else if errors.Is(err, errFeedUnavailable) {
+			log.Printf("Goodreads check failed (class=%s)", s.class)
+		}
+		return httpError{status, syncMessage(err, true)}
 	}
 	return redirect(w, r, "/settings?notice=synced")
 }
@@ -558,7 +594,15 @@ func (a *App) export(w http.ResponseWriter, r *http.Request) error {
 		if err != nil {
 			return err
 		}
-		data, err = json.MarshalIndent(map[string]any{"schema_version": 1, "exported_at": canonicalTime(time.Now()), "books": books, "events": events, "preferences": prefs}, "", "  ")
+		version, _, err := schemaVersion(tx)
+		if err != nil {
+			return err
+		}
+		aliases, err := loadAliases(tx)
+		if err != nil {
+			return err
+		}
+		data, err = json.MarshalIndent(map[string]any{"schema_version": version, "aliases": aliases, "exported_at": canonicalTime(time.Now()), "books": books, "events": events, "preferences": prefs}, "", "  ")
 		return err
 	})
 	if err != nil {
@@ -599,7 +643,7 @@ func (a *App) demo(w http.ResponseWriter, r *http.Request) error {
 		for _, t := range titles {
 			records = append(records, Record{Book: Book{Title: t[0], Author: t[1], Tags: t[2], Status: "to-read", Source: "demo"}})
 		}
-		if _, _, _, err = importRecords(tx, records); err != nil {
+		if _, err = importRecords(tx, records); err != nil {
 			return err
 		}
 		if _, err = tx.Exec("UPDATE books SET needs_placement=0; UPDATE books SET pinned=1 WHERE id=1; UPDATE books SET interest=5,needs_placement=1 WHERE id=5"); err != nil {
@@ -608,7 +652,7 @@ func (a *App) demo(w http.ResponseWriter, r *http.Request) error {
 		r := records[1]
 		r.Source = "nypl"
 		r.Event = &Event{Format: "print", Status: "borrowed", Activity: "borrowed", At: canonicalTime(time.Now()), DueDate: time.Now().UTC().AddDate(0, 0, 4).Format(time.DateOnly)}
-		if _, _, _, err = importRecords(tx, []Record{r}); err != nil {
+		if _, err = importRecords(tx, []Record{r}); err != nil {
 			return err
 		}
 		return bump(tx)
@@ -617,4 +661,85 @@ func (a *App) demo(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	return redirect(w, r, "/")
+}
+
+func (a *App) deleteBook(w http.ResponseWriter, r *http.Request) error {
+	id, err := requestID(r)
+	if err != nil {
+		return err
+	}
+	if r.Method == http.MethodGet {
+		p, err := previewDelete(a.store.DB, id)
+		if err != nil {
+			return err
+		}
+		return a.render(w, r, "delete.html", page{"Preview": p}, 200)
+	}
+	err = a.store.Write(func(tx *sql.Tx) error {
+		if err := current(tx, r); err != nil {
+			return err
+		}
+		if err := deleteBook(tx, id); err != nil {
+			return err
+		}
+		return bump(tx)
+	})
+	if err != nil {
+		return err
+	}
+	return redirect(w, r, "/?view=all&notice=deleted")
+}
+func (a *App) mergeBook(w http.ResponseWriter, r *http.Request) error {
+	id, err := requestID(r)
+	if err != nil {
+		return err
+	}
+	if r.Method == http.MethodGet {
+		if raw := r.URL.Query().Get("target"); raw != "" {
+			target, err := strconv.ParseInt(raw, 10, 64)
+			if err != nil || target < 1 {
+				return bad("Choose a valid book to merge into.")
+			}
+			preview, err := mergeBooks(a.store.DB, id, target, false)
+			if err != nil {
+				return err
+			}
+			return a.render(w, r, "merge.html", page{"Preview": preview, "Book": preview.Source}, 200)
+		}
+		all, err := loadBooks(a.store.DB)
+		if err != nil {
+			return err
+		}
+		var source Book
+		query := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("q")))
+		results := []Book{}
+		for _, b := range all {
+			if b.ID == id {
+				source = b
+			} else if query != "" && matchesQuery(b, query) && len(results) < 50 {
+				results = append(results, b)
+			}
+		}
+		if source.ID == 0 {
+			return sql.ErrNoRows
+		}
+		return a.render(w, r, "merge.html", page{"Book": source, "Query": query, "Results": results}, 200)
+	}
+	target, err := strconv.ParseInt(r.FormValue("target"), 10, 64)
+	if err != nil || target < 1 {
+		return bad("Choose a valid book to merge into.")
+	}
+	err = a.store.Write(func(tx *sql.Tx) error {
+		if err := current(tx, r); err != nil {
+			return err
+		}
+		if _, err := mergeBooks(tx, id, target, true); err != nil {
+			return err
+		}
+		return bump(tx)
+	})
+	if err != nil {
+		return err
+	}
+	return redirect(w, r, fmt.Sprintf("/books/%d?notice=merged", target))
 }

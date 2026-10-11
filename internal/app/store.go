@@ -6,7 +6,6 @@ import (
 	_ "embed"
 	"encoding/json"
 	"errors"
-	"fmt"
 	_ "modernc.org/sqlite"
 	"os"
 	"path/filepath"
@@ -27,75 +26,20 @@ func OpenStore(path string) (*Store, error) {
 	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
 		return nil, err
 	}
-	db, err := sql.Open("sqlite", path)
+	if err := migrateFile(path, migrations); err != nil {
+		return nil, err
+	}
+	db, err := sql.Open("sqlite", path+"?_pragma=busy_timeout(15000)&_pragma=foreign_keys(1)")
 	if err != nil {
 		return nil, err
 	}
 	db.SetMaxOpenConns(1)
 	db.SetMaxIdleConns(1)
-	fail := func(e error) (*Store, error) { db.Close(); return nil, e }
-	for _, stmt := range []string{"PRAGMA busy_timeout=15000", "PRAGMA foreign_keys=ON", "PRAGMA journal_mode=WAL", schema} {
-		if _, err = db.Exec(stmt); err != nil {
-			return fail(err)
-		}
+	if err = db.Ping(); err != nil {
+		db.Close()
+		return nil, err
 	}
-	s := &Store{db}
-	// Existing v0.1 libraries retain their schema and content. Normalize timestamps
-	// once so chronological comparisons remain consistent across both runtimes.
-	err = s.Write(func(tx *sql.Tx) error {
-		version, e := readMeta(tx, "go_data_version", 0)
-		if e != nil {
-			return e
-		}
-		if version >= 1 {
-			return nil
-		}
-		for _, table := range []string{"events", "loans"} {
-			column := "at"
-			if table == "loans" {
-				column = "observed_at"
-			}
-			rows, e := tx.Query("SELECT rowid," + column + " FROM " + table)
-			if e != nil {
-				return e
-			}
-			type item struct {
-				id int64
-				at string
-			}
-			items := []item{}
-			for rows.Next() {
-				var x item
-				if e = rows.Scan(&x.id, &x.at); e != nil {
-					rows.Close()
-					return e
-				}
-				items = append(items, x)
-			}
-			e = rows.Err()
-			rows.Close()
-			if e != nil {
-				return e
-			}
-			for _, x := range items {
-				at, e := parseTime(x.at)
-				if e != nil {
-					return fmt.Errorf("migrate %s timestamp: %w", table, e)
-				}
-				if _, e = tx.Exec("UPDATE "+table+" SET "+column+"=? WHERE rowid=?", at, x.id); e != nil {
-					return e
-				}
-			}
-		}
-		if _, e = tx.Exec("DELETE FROM plans; DELETE FROM undo_queue"); e != nil {
-			return e
-		}
-		return setMeta(tx, "go_data_version", 1)
-	})
-	if err != nil {
-		return fail(err)
-	}
-	return s, nil
+	return &Store{db}, nil
 }
 func (s *Store) Close() error { return s.DB.Close() }
 func (s *Store) Write(fn func(*sql.Tx) error) error {
@@ -205,94 +149,140 @@ func loadEvents(q queryer, bid int64, limit int) ([]Event, error) {
 	}
 	return result, rows.Err()
 }
-func findBook(q queryer, r Record) (int64, error) {
-	var id int64
-	for _, pair := range [][2]string{{"goodreads_id", r.GoodreadsID}, {"isbn", r.ISBN}, {"identity", identity(r.Title, r.Author)}} {
+
+// lookupBook matches a record to a local book: Goodreads ID, then ISBN, then
+// normalized title+author, each only when exactly one row matches. With aliases,
+// the same keys are then tried against merged-away and deleted books; a merge
+// alias returns its target and a deletion tombstone reports tombstoned.
+func lookupBook(q queryer, r Record, aliases bool) (id int64, tombstoned bool, err error) {
+	keys := [][2]string{{"goodreads_id", r.GoodreadsID}, {"isbn", r.ISBN}, {"identity", identity(r.Title, r.Author)}}
+	for _, pair := range keys {
 		if pair[1] == "" {
 			continue
 		}
 		// ISBN matches are accepted only when they identify one local book.
 		err := q.QueryRow("SELECT MIN(id) FROM books WHERE "+pair[0]+"=? HAVING count(*)=1", pair[1]).Scan(&id)
 		if err == nil {
-			return id, nil
+			return id, false, nil
 		}
 		if !errors.Is(err, sql.ErrNoRows) {
-			return 0, err
+			return 0, false, err
 		}
 	}
-	return 0, nil
+	if !aliases {
+		return 0, false, nil
+	}
+	for _, pair := range keys {
+		if pair[1] == "" {
+			continue
+		}
+		var target sql.NullInt64
+		var live int
+		err := q.QueryRow("SELECT MIN(a.target_book_id),count(b.id) FROM book_aliases a LEFT JOIN books b ON b.id=a.target_book_id WHERE a."+pair[0]+"=? HAVING count(*)=1", pair[1]).Scan(&target, &live)
+		if err == nil {
+			if target.Valid && live == 1 {
+				return target.Int64, false, nil
+			}
+			return 0, true, nil
+		}
+		if !errors.Is(err, sql.ErrNoRows) {
+			return 0, false, err
+		}
+	}
+	return 0, false, nil
 }
-func importRecords(q queryer, records []Record) (added, eventCount int, changed bool, err error) {
+
+// findBook returns the live book a record refers to, following merge aliases,
+// or 0 when there is none (including deleted books).
+func findBook(q queryer, r Record) (int64, error) {
+	id, _, err := lookupBook(q, r, true)
+	return id, err
+}
+
+type importSummary struct {
+	Added, Events, Skipped int
+	Changed                bool
+}
+
+func importRecords(q queryer, records []Record) (importSummary, error) {
+	var s importSummary
 	for _, r := range records {
-		id, e := findBook(q, r)
-		if e != nil {
-			return 0, 0, false, e
+		id, tombstoned, err := lookupBook(q, r, true)
+		if err != nil {
+			return s, err
+		}
+		if tombstoned {
+			// The reader deleted this book; re-imports must not resurrect it.
+			s.Skipped++
+			continue
 		}
 		if id == 0 {
-			result, e := q.Exec(`INSERT INTO books(title,author,identity,isbn,goodreads_id,pages,tags,interest,reading_status,position,series,series_number,added_at,source)
+			result, err := q.Exec(`INSERT INTO books(title,author,identity,isbn,goodreads_id,pages,tags,interest,reading_status,position,series,series_number,added_at,source)
     VALUES(?,?,?,?,?,?,?,?,?,(SELECT COALESCE(MAX(position),-1)+1 FROM books),?,?,?,?)`, r.Title, r.Author, identity(r.Title, r.Author), r.ISBN, r.GoodreadsID, r.Pages, r.Tags, 3, r.Status, r.Series, r.SeriesNumber, canonicalTime(time.Now()), r.Source)
-			if e != nil {
-				return 0, 0, false, e
+			if err != nil {
+				return s, err
 			}
-			id, e = result.LastInsertId()
-			if e != nil {
-				return 0, 0, false, e
+			if id, err = result.LastInsertId(); err != nil {
+				return s, err
 			}
-			added++
-			changed = true
+			s.Added++
+			s.Changed = true
 		} else {
 			for _, pair := range [][2]string{{"goodreads_id", r.GoodreadsID}, {"isbn", r.ISBN}} {
 				if pair[1] != "" {
-					res, e := q.Exec("UPDATE books SET "+pair[0]+"=? WHERE id=? AND "+pair[0]+"=''", pair[1], id)
-					if e != nil {
-						return 0, 0, false, e
+					changed, err := execChanged(q, "UPDATE books SET "+pair[0]+"=? WHERE id=? AND "+pair[0]+"=''", pair[1], id)
+					if err != nil {
+						return s, err
 					}
-					n, e := res.RowsAffected()
-					if e != nil {
-						return 0, 0, false, e
-					}
-					changed = changed || n > 0
+					s.Changed = s.Changed || changed
 				}
 			}
 			if r.Pages != nil {
-				res, e := q.Exec("UPDATE books SET pages=? WHERE id=? AND pages IS NULL", *r.Pages, id)
-				if e != nil {
-					return 0, 0, false, e
+				changed, err := execChanged(q, "UPDATE books SET pages=? WHERE id=? AND pages IS NULL", *r.Pages, id)
+				if err != nil {
+					return s, err
 				}
-				n, e := res.RowsAffected()
-				if e != nil {
-					return 0, 0, false, e
-				}
-				changed = changed || n > 0
+				s.Changed = s.Changed || changed
 			}
 		}
 		if r.Event != nil {
 			e := r.Event
 			var existing int
 			if err = q.QueryRow(`SELECT count(*) FROM events WHERE fingerprint=? OR (book_id=? AND source=? AND format=? AND status=? AND at=? AND due_date=?)`, fingerprint(r), id, r.Source, e.Format, e.Status, e.At, e.DueDate).Scan(&existing); err != nil {
-				return 0, 0, false, err
+				return s, err
 			}
 			if existing == 0 {
 				if _, err = q.Exec(`INSERT INTO events(book_id,source,format,status,activity,at,due_date,fingerprint) VALUES(?,?,?,?,?,?,?,?)`, id, r.Source, e.Format, e.Status, e.Activity, e.At, e.DueDate, fingerprint(r)); err != nil {
-					return 0, 0, false, err
+					return s, err
 				}
-				eventCount++
-				changed = true
+				s.Events++
+				s.Changed = true
 			}
 			// Identical reimports do not invalidate queue previews or undo.
-			res, err := q.Exec(`INSERT INTO loans VALUES(?,?,?,?,?,?) ON CONFLICT(book_id,source,format) DO UPDATE SET status=excluded.status,due_date=excluded.due_date,observed_at=excluded.observed_at
-    WHERE excluded.observed_at>loans.observed_at OR (excluded.observed_at=loans.observed_at AND excluded.status=loans.status AND excluded.due_date!=loans.due_date)`, id, r.Source, e.Format, e.Status, e.DueDate, e.At)
+			changed, err := upsertLoan(q, id, r.Source, *e)
 			if err != nil {
-				return 0, 0, false, err
+				return s, err
 			}
-			n, err := res.RowsAffected()
-			if err != nil {
-				return 0, 0, false, err
-			}
-			changed = changed || n > 0
+			s.Changed = s.Changed || changed
 		}
 	}
-	return added, eventCount, changed, nil
+	return s, nil
+}
+func execChanged(q queryer, statement string, args ...any) (bool, error) {
+	res, err := q.Exec(statement, args...)
+	if err != nil {
+		return false, err
+	}
+	n, err := res.RowsAffected()
+	return n > 0, err
+}
+
+// upsertLoan keeps the newest known state per book, source, and format: a later
+// observation wins, and at the same time only a changed due date for the same
+// status updates it, so the first of several conflicting same-time events stays.
+func upsertLoan(q queryer, bookID int64, source string, e Event) (bool, error) {
+	return execChanged(q, `INSERT INTO loans VALUES(?,?,?,?,?,?) ON CONFLICT(book_id,source,format) DO UPDATE SET status=excluded.status,due_date=excluded.due_date,observed_at=excluded.observed_at
+    WHERE excluded.observed_at>loans.observed_at OR (excluded.observed_at=loans.observed_at AND excluded.status=loans.status AND excluded.due_date!=loans.due_date)`, bookID, source, e.Format, e.Status, e.DueDate, e.At)
 }
 func reorder(q queryer, ids []int64) error {
 	for pos, id := range ids {

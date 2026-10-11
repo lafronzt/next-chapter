@@ -38,7 +38,7 @@ func testApp(t *testing.T, demo bool) *App {
 }
 func addRecords(t *testing.T, a *App, records []Record) {
 	t.Helper()
-	if err := a.store.Write(func(tx *sql.Tx) error { _, _, _, err := importRecords(tx, records); return err }); err != nil {
+	if err := a.store.Write(func(tx *sql.Tx) error { _, err := importRecords(tx, records); return err }); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -155,8 +155,8 @@ func TestImportReconciliationAndBackup(t *testing.T) {
 	r.Event = &Event{Format: "ebook", Status: "returned", Activity: "Returned", At: "2026-10-10T00:00:00.000000000+00:00"}
 	addRecords(t, a, []Record{r})
 	err := a.store.Write(func(tx *sql.Tx) error {
-		added, events, changed, e := importRecords(tx, []Record{r})
-		if added != 0 || events != 0 || changed {
+		summary, e := importRecords(tx, []Record{r})
+		if summary.Added != 0 || summary.Events != 0 || summary.Changed {
 			t.Fatal("duplicate changed state")
 		}
 		return e
@@ -195,7 +195,7 @@ func TestImportReconciliationAndBackup(t *testing.T) {
 		rs := records("Other", "Book")
 		rs[0].GoodreadsID = "same"
 		rs[1].GoodreadsID = "same"
-		_, _, _, e := importRecords(tx, rs)
+		_, e := importRecords(tx, rs)
 		if e != nil {
 			return e
 		}
@@ -210,24 +210,7 @@ func TestImportReconciliationAndBackup(t *testing.T) {
 	}
 }
 func TestLegacyMigration(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "legacy.sqlite3")
-	db, err := sql.Open("sqlite", path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err = db.Exec(schema); err != nil {
-		t.Fatal(err)
-	}
-	r := records("Legacy")[0]
-	r.Source = "nypl"
-	r.Event = &Event{Format: "print", Status: "borrowed", Activity: "Borrowed", At: "2026-10-10T12:30:00+00:00"}
-	if _, _, _, err = importRecords(db, []Record{r}); err != nil {
-		t.Fatal(err)
-	}
-	if _, err = db.Exec("UPDATE books SET pinned=1,interest=5,needs_placement=0"); err != nil {
-		t.Fatal(err)
-	}
-	db.Close()
+	path := pythonEraDB(t)
 	s, err := OpenStore(path)
 	if err != nil {
 		t.Fatal(err)
@@ -240,9 +223,11 @@ func TestLegacyMigration(t *testing.T) {
 	if len(books) != 1 || !books[0].Pinned || books[0].Interest != 5 || books[0].Loans[0].ObservedAt != "2026-10-10T12:30:00.000000000+00:00" {
 		t.Fatal(books)
 	}
-	r.Event.At = books[0].Loans[0].ObservedAt
-	if _, events, changed, err := importRecords(s.DB, []Record{r}); err != nil || events != 0 || changed {
-		t.Fatalf("legacy duplicate: %d %v %v", events, changed, err)
+	r := records("Legacy")[0]
+	r.Source = "nypl"
+	r.Event = &Event{Format: "print", Status: "borrowed", Activity: "Borrowed", At: books[0].Loans[0].ObservedAt}
+	if summary, err := importRecords(s.DB, []Record{r}); err != nil || summary.Events != 0 || summary.Changed {
+		t.Fatalf("legacy duplicate: %+v %v", summary, err)
 	}
 }
 
