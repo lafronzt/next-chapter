@@ -38,7 +38,7 @@ func testApp(t *testing.T, demo bool) *App {
 }
 func addRecords(t *testing.T, a *App, records []Record) {
 	t.Helper()
-	if err := a.store.Write(func(tx *sql.Tx) error { _, _, _, err := importRecords(tx, records); return err }); err != nil {
+	if err := a.store.Write(func(tx *sql.Tx) error { _, err := importRecords(tx, records); return err }); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -155,8 +155,8 @@ func TestImportReconciliationAndBackup(t *testing.T) {
 	r.Event = &Event{Format: "ebook", Status: "returned", Activity: "Returned", At: "2026-10-10T00:00:00.000000000+00:00"}
 	addRecords(t, a, []Record{r})
 	err := a.store.Write(func(tx *sql.Tx) error {
-		added, events, changed, e := importRecords(tx, []Record{r})
-		if added != 0 || events != 0 || changed {
+		result, e := importRecords(tx, []Record{r})
+		if result.Added != 0 || result.Events != 0 || result.Changed {
 			t.Fatal("duplicate changed state")
 		}
 		return e
@@ -195,7 +195,7 @@ func TestImportReconciliationAndBackup(t *testing.T) {
 		rs := records("Other", "Book")
 		rs[0].GoodreadsID = "same"
 		rs[1].GoodreadsID = "same"
-		_, _, _, e := importRecords(tx, rs)
+		_, e := importRecords(tx, rs)
 		if e != nil {
 			return e
 		}
@@ -221,7 +221,7 @@ func TestLegacyMigration(t *testing.T) {
 	r := records("Legacy")[0]
 	r.Source = "nypl"
 	r.Event = &Event{Format: "print", Status: "borrowed", Activity: "Borrowed", At: "2026-10-10T12:30:00+00:00"}
-	if _, _, _, err = importRecords(db, []Record{r}); err != nil {
+	if _, err = importRecords(db, []Record{r}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err = db.Exec("UPDATE books SET pinned=1,interest=5,needs_placement=0"); err != nil {
@@ -241,8 +241,8 @@ func TestLegacyMigration(t *testing.T) {
 		t.Fatal(books)
 	}
 	r.Event.At = books[0].Loans[0].ObservedAt
-	if _, events, changed, err := importRecords(s.DB, []Record{r}); err != nil || events != 0 || changed {
-		t.Fatalf("legacy duplicate: %d %v %v", events, changed, err)
+	if result, err := importRecords(s.DB, []Record{r}); err != nil || result.Events != 0 || result.Changed {
+		t.Fatalf("legacy duplicate: %+v %v", result, err)
 	}
 }
 
@@ -251,6 +251,7 @@ type browser struct {
 	handler   http.Handler
 	cookie    *http.Cookie
 	csrf, rev string
+	remote    string // client address; httptest's default when empty
 }
 
 var csrfPattern = regexp.MustCompile(`name="csrf" value="([^"]+)"`)
@@ -277,6 +278,9 @@ func (b *browser) request(method, path string, values url.Values) *httptest.Resp
 }
 func (b *browser) serve(req *http.Request) *httptest.ResponseRecorder {
 	b.t.Helper()
+	if b.remote != "" {
+		req.RemoteAddr = b.remote
+	}
 	if b.cookie != nil {
 		req.AddCookie(b.cookie)
 	}
@@ -403,10 +407,19 @@ func TestDemoAndLoginLimit(t *testing.T) {
 	expect(t, b.request("GET", "/", nil), 200)
 	expect(t, b.request("POST", "/demo", nil), 400)
 	prod := testApp(t, false)
-	p := browser{t: t, handler: prod.Handler()}
+	p := browser{t: t, handler: prod.Handler(), remote: "198.51.100.1:4000"}
 	expect(t, p.request("GET", "/login", nil), 200)
-	for range 10 {
+	for range loginClientLimit {
 		expect(t, p.request("POST", "/login", url.Values{"password": {"wrong"}}), 401)
 	}
-	expect(t, p.request("POST", "/login", url.Values{"password": {"correct-password"}}), 429)
+	rr := p.request("POST", "/login", url.Values{"password": {"correct-password"}})
+	expect(t, rr, 429)
+	if rr.Header().Get("Retry-After") == "" {
+		t.Fatal("429 without Retry-After")
+	}
+	// Another client is not locked out by the first client's failures.
+	other := browser{t: t, handler: prod.Handler(), remote: "198.51.100.2:4000"}
+	expect(t, other.request("GET", "/login", nil), 200)
+	expect(t, other.request("POST", "/login", url.Values{"password": {"correct-password"}}), 303)
+	expect(t, other.request("GET", "/", nil), 200)
 }

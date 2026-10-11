@@ -26,3 +26,7 @@ CREATE TABLE IF NOT EXISTS plans (
 );
 CREATE TABLE IF NOT EXISTS undo_queue (id INTEGER PRIMARY KEY CHECK(id=1), payload TEXT NOT NULL, revision INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS login_attempts (at REAL NOT NULL);
+
+-- Failed logins per client. login_attempts above is no longer used.
+CREATE TABLE IF NOT EXISTS login_failures (client TEXT NOT NULL, at REAL NOT NULL);
+CREATE INDEX IF NOT EXISTS login_failures_client ON login_failures(client, at);

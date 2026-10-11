@@ -49,6 +49,9 @@ spec:
             # Set 1 for HTTPS ingress. 0 supports localhost port-forward testing.
             - name: COOKIE_SECURE
               value: "0"
+            # Set 1 behind an Ingress controller so login limits apply per visitor.
+            - name: TRUSTED_PROXY_HOPS
+              value: "0"
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
