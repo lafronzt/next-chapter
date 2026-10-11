@@ -25,6 +25,7 @@ var migrations = []migration{
 	{1, "Python-era baseline schema", migrateBaseline},
 	{2, "canonical Go timestamps", migrateGoTimestamps},
 	{3, "book aliases for merges and deletions", migrateBookAliases},
+	{4, "per-client login failures", migrateLoginFailures},
 }
 
 func migrateBaseline(tx *sql.Tx) error {
@@ -88,6 +89,14 @@ func migrateBookAliases(tx *sql.Tx) error {
 );
 CREATE INDEX book_aliases_goodreads_id ON book_aliases(goodreads_id) WHERE goodreads_id != '';
 CREATE INDEX book_aliases_isbn ON book_aliases(isbn) WHERE isbn != '';`)
+	return err
+}
+
+// Failed logins per client; login_attempts is no longer used. IF NOT EXISTS
+// because builds before the migration runner created this table at startup.
+func migrateLoginFailures(tx *sql.Tx) error {
+	_, err := tx.Exec(`CREATE TABLE IF NOT EXISTS login_failures (client TEXT NOT NULL, at REAL NOT NULL);
+CREATE INDEX IF NOT EXISTS login_failures_client ON login_failures(client, at);`)
 	return err
 }
 

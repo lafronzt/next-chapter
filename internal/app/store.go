@@ -199,74 +199,144 @@ func findBook(q queryer, r Record) (int64, error) {
 	return id, err
 }
 
-type importSummary struct {
-	Added, Events, Skipped int
-	Changed                bool
+type importResult struct {
+	Added, Events int
+	// Skipped counts records for books the reader deleted.
+	Skipped int
+	// Upgraded counts books that left unreviewed, keyed by their new status.
+	Upgraded map[string]int
+	Changed  bool
 }
 
-func importRecords(q queryer, records []Record) (importSummary, error) {
-	var s importSummary
+func (r importResult) upgradedTotal() int {
+	total := 0
+	for _, n := range r.Upgraded {
+		total += n
+	}
+	return total
+}
+
+// upgradesUnreviewed reports whether a record may move a matching unreviewed
+// book to the record's status. Only a Goodreads shelf (CSV or RSS) expresses
+// reading intent; library events, manual entries, and the demo never do.
+func upgradesUnreviewed(r Record) bool {
+	return r.Source == "goodreads" && r.Event == nil && in(r.Status, []string{"to-read", "reading", "read", "archived"})
+}
+
+// statusChange returns the pin, placement, and position a book gets when its
+// reading status changes: the pin is cleared, and a book entering the queue
+// is appended and marked Needs placement.
+func statusChange(q queryer, old Book, status string) (pinned, needs bool, position int, err error) {
+	if old.Status == status {
+		return old.Pinned, old.NeedsPlacement, old.Position, nil
+	}
+	position = old.Position
+	if status == "to-read" {
+		err = q.QueryRow("SELECT COALESCE(MAX(position),-1)+1 FROM books").Scan(&position)
+	}
+	return false, status == "to-read", position, err
+}
+
+// setStatus changes only a book's reading status and the fields that follow
+// from it.
+func setStatus(q queryer, old Book, status string) error {
+	pinned, needs, position, err := statusChange(q, old, status)
+	if err != nil {
+		return err
+	}
+	_, err = q.Exec("UPDATE books SET reading_status=?,pinned=?,needs_placement=?,position=? WHERE id=?", status, pinned, needs, position, old.ID)
+	return err
+}
+
+// previewImport runs an import inside a savepoint and rolls it back, so a
+// preview reports exactly what applying it would change.
+func previewImport(q queryer, records []Record) (importResult, error) {
+	if _, err := q.Exec("SAVEPOINT import_preview"); err != nil {
+		return importResult{}, err
+	}
+	result, err := importRecords(q, records)
+	if _, e := q.Exec("ROLLBACK TO import_preview; RELEASE import_preview"); err == nil {
+		err = e
+	}
+	return result, err
+}
+
+func importRecords(q queryer, records []Record) (out importResult, err error) {
+	out.Upgraded = map[string]int{}
 	for _, r := range records {
 		id, tombstoned, err := lookupBook(q, r, true)
 		if err != nil {
-			return s, err
+			return out, err
 		}
 		if tombstoned {
 			// The reader deleted this book; re-imports must not resurrect it.
-			s.Skipped++
+			out.Skipped++
 			continue
 		}
 		if id == 0 {
 			result, err := q.Exec(`INSERT INTO books(title,author,identity,isbn,goodreads_id,pages,tags,interest,reading_status,position,series,series_number,added_at,source)
     VALUES(?,?,?,?,?,?,?,?,?,(SELECT COALESCE(MAX(position),-1)+1 FROM books),?,?,?,?)`, r.Title, r.Author, identity(r.Title, r.Author), r.ISBN, r.GoodreadsID, r.Pages, r.Tags, 3, r.Status, r.Series, r.SeriesNumber, canonicalTime(time.Now()), r.Source)
 			if err != nil {
-				return s, err
+				return out, err
 			}
 			if id, err = result.LastInsertId(); err != nil {
-				return s, err
+				return out, err
 			}
-			s.Added++
-			s.Changed = true
+			out.Added++
+			out.Changed = true
 		} else {
 			for _, pair := range [][2]string{{"goodreads_id", r.GoodreadsID}, {"isbn", r.ISBN}} {
 				if pair[1] != "" {
 					changed, err := execChanged(q, "UPDATE books SET "+pair[0]+"=? WHERE id=? AND "+pair[0]+"=''", pair[1], id)
 					if err != nil {
-						return s, err
+						return out, err
 					}
-					s.Changed = s.Changed || changed
+					out.Changed = out.Changed || changed
 				}
 			}
 			if r.Pages != nil {
 				changed, err := execChanged(q, "UPDATE books SET pages=? WHERE id=? AND pages IS NULL", *r.Pages, id)
 				if err != nil {
-					return s, err
+					return out, err
 				}
-				s.Changed = s.Changed || changed
+				out.Changed = out.Changed || changed
+			}
+			if upgradesUnreviewed(r) {
+				var old Book
+				if err = q.QueryRow("SELECT id,reading_status,pinned,needs_placement,position FROM books WHERE id=?", id).Scan(&old.ID, &old.Status, &old.Pinned, &old.NeedsPlacement, &old.Position); err != nil {
+					return out, err
+				}
+				if old.Status == "unreviewed" {
+					if err = setStatus(q, old, r.Status); err != nil {
+						return out, err
+					}
+					out.Upgraded[r.Status]++
+					out.Changed = true
+				}
 			}
 		}
 		if r.Event != nil {
 			e := r.Event
 			var existing int
 			if err = q.QueryRow(`SELECT count(*) FROM events WHERE fingerprint=? OR (book_id=? AND source=? AND format=? AND status=? AND at=? AND due_date=?)`, fingerprint(r), id, r.Source, e.Format, e.Status, e.At, e.DueDate).Scan(&existing); err != nil {
-				return s, err
+				return out, err
 			}
 			if existing == 0 {
 				if _, err = q.Exec(`INSERT INTO events(book_id,source,format,status,activity,at,due_date,fingerprint) VALUES(?,?,?,?,?,?,?,?)`, id, r.Source, e.Format, e.Status, e.Activity, e.At, e.DueDate, fingerprint(r)); err != nil {
-					return s, err
+					return out, err
 				}
-				s.Events++
-				s.Changed = true
+				out.Events++
+				out.Changed = true
 			}
 			// Identical reimports do not invalidate queue previews or undo.
 			changed, err := upsertLoan(q, id, r.Source, *e)
 			if err != nil {
-				return s, err
+				return out, err
 			}
-			s.Changed = s.Changed || changed
+			out.Changed = out.Changed || changed
 		}
 	}
-	return s, nil
+	return out, nil
 }
 func execChanged(q queryer, statement string, args ...any) (bool, error) {
 	res, err := q.Exec(statement, args...)
@@ -308,7 +378,9 @@ func (s *Store) Backup() (data []byte, err error) {
 	if err != nil {
 		return nil, err
 	}
-	_, err = copyDB.Exec("DELETE FROM plans; DELETE FROM login_attempts")
+	// Restoring starts a new session epoch, so cookies issued by this instance
+	// are not accepted by a copy restored elsewhere.
+	_, err = copyDB.Exec("DELETE FROM plans; DELETE FROM login_attempts; DELETE FROM login_failures; DELETE FROM meta WHERE key='session_epoch'")
 	closeErr := copyDB.Close()
 	if err != nil {
 		return nil, err

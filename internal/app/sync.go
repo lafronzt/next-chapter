@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"regexp"
 	"runtime/debug"
+	"strings"
 	"time"
 )
 
@@ -214,19 +215,22 @@ func (a *App) syncOnce(ctx context.Context, now time.Time) (int, error) {
 		if current != conn {
 			return configError("Your Goodreads settings changed during the check. Try again.")
 		}
-		summary, err := importRecords(tx, records)
+		result, err := importRecords(tx, records)
 		if err != nil {
 			return err
 		}
-		added = summary.Added
-		if summary.Changed {
+		added = result.Added
+		if result.Changed {
 			if err = bump(tx); err != nil {
 				return err
 			}
 		}
 		message := fmt.Sprintf("Found %d feed entries; added %d books.", len(records), added)
-		if summary.Skipped > 0 {
-			message = fmt.Sprintf("Found %d feed entries; added %d books; skipped %d you deleted.", len(records), added, summary.Skipped)
+		if moved := result.upgradedTotal(); moved > 0 {
+			message = strings.TrimSuffix(message, ".") + fmt.Sprintf("; moved %d library-only books out of To review.", moved)
+		}
+		if result.Skipped > 0 {
+			message = strings.TrimSuffix(message, ".") + fmt.Sprintf("; skipped %d you deleted.", result.Skipped)
 		}
 		if err = setMeta(tx, "last_sync", SyncResult{canonicalTime(now), message, true}); err != nil {
 			return err

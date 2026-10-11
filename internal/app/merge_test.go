@@ -12,9 +12,9 @@ import (
 	"testing"
 )
 
-func importOnce(t *testing.T, a *App, rs []Record) importSummary {
+func importOnce(t *testing.T, a *App, rs []Record) importResult {
 	t.Helper()
-	var summary importSummary
+	var summary importResult
 	err := a.store.Write(func(tx *sql.Tx) error {
 		var err error
 		summary, err = importRecords(tx, rs)

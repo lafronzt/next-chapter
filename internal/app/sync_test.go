@@ -7,7 +7,9 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"log/slog"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"os"
 	"strings"
@@ -292,12 +294,16 @@ func TestSyncNowMessages(t *testing.T) {
 		t.Fatal(rr.Body.String())
 	}
 
+	// Handler-level recovery (TestPanicAndServerErrorShowRequestID) covers a
+	// panic here; the lock is released so the next check still runs.
 	a.fetch = func(context.Context, Connection) ([]Record, error) { panic("boom") }
-	rr = b.request("POST", "/sync", nil)
-	expect(t, rr, 400)
-	if !strings.Contains(rr.Body.String(), "could not be checked") {
-		t.Fatal(rr.Body.String())
-	}
+	a.logger = slog.New(slog.NewTextHandler(io.Discard, nil))
+	req := httptest.NewRequest("POST", "/sync", strings.NewReader(url.Values{"csrf": {b.csrf}, "revision": {b.rev}}.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.AddCookie(b.cookie)
+	panicked := httptest.NewRecorder()
+	a.Handler().ServeHTTP(panicked, req)
+	expect(t, panicked, 500)
 
 	feed, _ := stubFeed(500, "", nil)
 	a.fetch = feed.Fetch

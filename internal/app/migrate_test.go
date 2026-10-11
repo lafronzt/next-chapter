@@ -81,7 +81,7 @@ func TestMigrateFreshDatabase(t *testing.T) {
 	if v, legacy := versionOf(t, path); v != latestVersion(migrations) || legacy {
 		t.Fatalf("version %d legacy %v", v, legacy)
 	}
-	for _, table := range []string{"meta", "books", "events", "loans", "plans", "undo_queue", "login_attempts", "book_aliases"} {
+	for _, table := range []string{"meta", "books", "events", "loans", "plans", "undo_queue", "login_attempts", "book_aliases", "login_failures"} {
 		if n := scalar[int](t, path, "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='"+table+"'"); n != 1 {
 			t.Fatalf("missing table %s", table)
 		}
@@ -361,5 +361,33 @@ func TestMigrationTransactionTakesWriteLock(t *testing.T) {
 	// A deferred BEGIN would take no lock until its first write.
 	if _, err = other.Exec("INSERT INTO meta VALUES('probe','1')"); err == nil || !strings.Contains(err.Error(), "locked") {
 		t.Fatalf("write succeeded while migration transaction was open: %v", err)
+	}
+}
+
+// Builds before the migration runner created login_failures at every start, so
+// migration 4 must accept a database that already has it.
+func TestMigrateLoginFailuresAlreadyPresent(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "lib.sqlite3")
+	if err := migrateFile(path, migrations[:3]); err != nil {
+		t.Fatal(err)
+	}
+	db, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, statement := range []string{"CREATE TABLE login_failures (client TEXT NOT NULL, at REAL NOT NULL)", "CREATE INDEX login_failures_client ON login_failures(client, at)", "INSERT INTO login_failures VALUES('10.0.0.1', 1)"} {
+		if _, err = db.Exec(statement); err != nil {
+			t.Fatal(err)
+		}
+	}
+	db.Close()
+	if err = migrateFile(path, migrations); err != nil {
+		t.Fatal(err)
+	}
+	if v, _ := versionOf(t, path); v != 4 {
+		t.Fatal(v)
+	}
+	if n := scalar[int](t, path, "SELECT count(*) FROM login_failures"); n != 1 {
+		t.Fatal("lost login failures")
 	}
 }
