@@ -43,6 +43,7 @@ type App struct {
 	passwordKey []byte
 	syncMu      sync.Mutex
 	fetch       func(context.Context, Connection) ([]Record, error)
+	now         func() time.Time
 	logger      *slog.Logger
 }
 type sessionData struct {
@@ -136,6 +137,13 @@ func New(c Config) (*App, error) {
 		},
 		"activeLoan": func(s string) bool { return in(s, []string{"borrowed", "ready", "hold"}) },
 		"upper":      strings.ToUpper,
+		"join":       strings.Join,
+		"minute": func(s string) string {
+			if len(s) >= 16 {
+				return strings.Replace(s[:16], "T", " ", 1)
+			}
+			return s
+		},
 		"rankLabel": func(s Suggestion) string {
 			if s.Pinned {
 				return "Pinned"
@@ -170,7 +178,7 @@ func New(c Config) (*App, error) {
 		store.Close()
 		return nil, err
 	}
-	return &App{store: store, config: c, templates: templates, passwordKey: key, fetch: FetchGoodreads, logger: slog.New(slog.NewTextHandler(os.Stderr, nil))}, nil
+	return &App{store: store, config: c, templates: templates, passwordKey: key, fetch: FetchGoodreads, now: time.Now, logger: slog.New(slog.NewTextHandler(os.Stderr, nil))}, nil
 }
 func (a *App) Close() error { return a.store.Close() }
 func (a *App) signSession(s sessionData) string {
@@ -269,6 +277,7 @@ func (a *App) Handler() http.Handler {
 		"GET /{$}": a.index, "GET /login": a.login, "POST /login": a.login, "POST /logout": a.logout,
 		"GET /books/new": a.newBook, "POST /books/new": a.newBook, "GET /books/{id}": a.editBook, "POST /books/{id}": a.editBook,
 		"POST /books/{id}/action": a.bookAction, "POST /books/{id}/loan": a.loan,
+		"GET /books/{id}/delete": a.deleteBook, "POST /books/{id}/delete": a.deleteBook, "GET /books/{id}/merge": a.mergeBook, "POST /books/{id}/merge": a.mergeBook,
 		"POST /suggest": a.suggest, "GET /plans/{id}": a.plan, "POST /plans/{id}": a.plan, "POST /undo": a.undo,
 		"GET /imports": a.importPage, "POST /imports": a.importPage, "GET /examples/{name}": a.example,
 		"GET /settings": a.settings, "POST /settings": a.settings, "POST /sync": a.syncNow, "POST /sessions/revoke": a.revokeSessions,
@@ -383,11 +392,14 @@ func (a *App) render(w http.ResponseWriter, r *http.Request, name string, data p
 		}
 		data["UnreviewedCount"] = waiting
 	}
-	notices := map[string]string{"triaged": "Sorted. Only reading status changed; books you want to read wait at the end of your queue for placement.", "saved": "Saved to your library.", "ordered": "Your new order is saved. You can undo it until your next library change.", "undone": "Previous order restored.", "imported": "Import complete. Existing reading status and queue order were preserved.", "loan": "Library event recorded. Reading status stays the same.", "synced": "Goodreads checked. New books are marked Needs placement.", "signedout": "Signed out on every device. Sign in again to continue."}
+	notices := map[string]string{"triaged": "Sorted. Only reading status changed; books you want to read wait at the end of your queue for placement.", "saved": "Saved to your library.", "ordered": "Your new order is saved. You can undo it until your next library change.", "undone": "Previous order restored.", "imported": "Import complete. Existing reading status and queue order were preserved.", "loan": "Library event recorded. Reading status stays the same.", "synced": "Goodreads checked. New books are marked Needs placement.", "signedout": "Signed out on every device. Sign in again to continue.", "deleted": "Book deleted. Future imports will skip it.", "merged": "Books merged. Future imports of the merged book will update this one."}
 	notice := r.URL.Query().Get("notice")
 	data["Notice"] = notices[notice]
 	if moved, _ := strconv.Atoi(r.URL.Query().Get("moved")); notice == "imported" && moved > 0 {
 		data["Notice"] = fmt.Sprintf("Import complete. %d library-only books moved out of To review to match Goodreads; other books kept their reading status and queue order.", moved)
+	}
+	if skipped, _ := strconv.Atoi(r.URL.Query().Get("skipped")); notice == "imported" && skipped > 0 {
+		data["Notice"] = fmt.Sprintf("%s Skipped %d rows for books you deleted.", data["Notice"], skipped)
 	}
 	var buf bytes.Buffer
 	if err := a.templates.ExecuteTemplate(&buf, name, data); err != nil {
@@ -525,6 +537,11 @@ func (a *App) logout(w http.ResponseWriter, r *http.Request) error {
 	return redirect(w, r, "/login")
 }
 
+// matchesQuery is the list search: a lowercase substring of title, author, or tags.
+func matchesQuery(b Book, query string) bool {
+	return query == "" || strings.Contains(strings.ToLower(b.Title+" "+b.Author+" "+b.Tags), query)
+}
+
 // revokeSessions rotates the session epoch, signing out every browser. It is
 // not a library change, so the revision stays the same.
 func (a *App) revokeSessions(w http.ResponseWriter, r *http.Request) error {
@@ -574,7 +591,7 @@ func searchQuery(raw string) string { return strings.ToLower(strings.TrimSpace(r
 
 // shows reports whether a book belongs in this view for a normalized query.
 func (v listView) shows(b Book, query string) bool {
-	return (v.Status == "" || b.Status == v.Status) && (query == "" || strings.Contains(strings.ToLower(b.Title+" "+b.Author+" "+b.Tags), query))
+	return (v.Status == "" || b.Status == v.Status) && matchesQuery(b, query)
 }
 func (a *App) index(w http.ResponseWriter, r *http.Request) error {
 	all, err := loadBooks(a.store.DB)

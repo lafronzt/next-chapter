@@ -15,6 +15,7 @@ Every suggestion has a preview and reasons. Pinned books keep their positions. Y
 
 - Add and edit books; move them manually; pin positions; mark reading, finished, abandoned, or archived.
 - Separate views for Up next, Reading, Finished, To review, Set aside (abandoned), Archived, and All books.
+- Delete a book, or merge a duplicate into the entry you keep, each after a confirmation preview. Re-imports never bring them back.
 - Explainable placement and full-queue reordering, with preview, stale-preview protection, and undo.
 - Goodreads CSV imports and optional hourly public-shelf RSS checks for **new additions**.
 - Libby timeline CSV imports and a standard CSV format for physical NYPL activity.
@@ -29,6 +30,8 @@ Every suggestion has a preview and reasons. Pinned books keep their positions. Y
 **This app owns the ordered queue. It does not write order, reading status, ratings, or reviews back to Goodreads.** Goodreads stopped issuing public API keys; this project does not depend on that API or request a Goodreads password.
 
 The optional RSS adapter reads a public shelf. Feeds can be delayed, truncated, unavailable, or changed by Goodreads. Import your full Goodreads CSV first, then enable RSS for new additions. Missing entries in a feed never cause deletions. Feed removals and shelf/status changes are not synchronized, except that a feed entry for a book still waiting in To review moves it to your queue, like a CSV import does. New entries are appended and marked **Needs placement**; suggestions never silently move books. RSS is experimental and requires a real public user ID to validate against your account.
+
+Feed requests go only to `https://www.goodreads.com`. Redirects are followed for at most three hops, and only to that exact host over HTTPS. After a failed scheduled check, the checker waits 1 hour, then 2, 4, and so on, up to 24 hours; a successful check resets the wait. Preferences shows the last result, the number of consecutive failures, the last error time, and the next scheduled check. Settings problems and "a check is already running" each get their own message, separate from feed outages. Server logs give each failure a class such as `timeout`, `status-503`, `redirect`, or `parse`, without the feed URL or user ID.
 
 Libby supports exporting timeline activity but does not provide a direct Goodreads integration. Export column names and activity labels can vary. The parser accepts common variants and rejects unsupported rows with an actionable error; normalize those rows to the provided sample CSV before importing. There is no authenticated Libby connection in v0.2.
 
@@ -84,7 +87,9 @@ docker pull ghcr.io/lafronzt/next-chapter:0.2.0
 
 ### Upgrade from v0.1
 
-Download a database backup, stop the old container, and start v0.2 with the same data volume and environment settings. The Go version preserves books, queue order, preferences, and borrowing history. It normalizes event timestamps on first startup; pending previews and the last undo are cleared. Sign in again after upgrading. Keep the pre-upgrade backup if you need to roll back to v0.1.
+Download a database backup, stop the old container, and start v0.2 with the same data volume and environment settings. The Go version preserves books, queue order, preferences, and borrowing history. Sign in again after upgrading.
+
+**The first start makes a one-way change.** Schema migration 2 rewrites every event and loan timestamp into a canonical format and clears pending previews and the last undo. Before it runs, the app writes `next-chapter.sqlite3.pre-v2.bak` next to the database (see [Backup and restore](#backup-and-restore)). Never run the v0.1 Python image against the migrated file. To roll back, restore the `.bak` as described below and run v0.1 against that.
 
 ## Kubernetes
 
@@ -139,6 +144,15 @@ CSV files must be UTF-8, ≤2 MB, and ≤10,000 rows. A malformed row blocks the
 - One exception: a book that arrived through a library import and is still **unreviewed** takes its status from the first Goodreads shelf that mentions it (CSV or RSS). `to-read` appends it to the end of your queue marked **Needs placement**; `read`, `currently-reading`, and other shelves become finished, reading, or archived. The import preview says how many books will move. Books you have already sorted are never changed by an import, and library activity never changes reading status. Import order therefore no longer matters.
 - Matching by normalized title + author is conservative about spelling and subtitles. Different titles without a shared identifier may require manual cleanup. Edition-level history is represented through source/format; books are grouped into one reading-list entry when their identifiers/title match.
 
+### Deleting and merging books
+
+Both actions start from a book's edit page under **Tidy up**. Nothing is merged or deleted automatically.
+
+- **Delete** opens a confirmation page that shows how many library events and current loans will go with the book. The remaining queue keeps its order.
+- **Merge into another book…** lets you search for the entry to keep and preview the result before anything changes. The kept book keeps its title, author, reading status, interest, pin, and queue position. Its blank Goodreads ID, ISBN, pages, series, series number, and tags are filled from the merged book. Library events move over with duplicates dropped, and current loans are recalculated using the newest-wins rule. Books with different Goodreads IDs cannot be merged. If the two ISBNs differ, the preview says so and the kept book's ISBN wins.
+- Both actions leave an alias with the removed book's title/author, Goodreads ID, and ISBN. When an import matches an alias, a merged book's rows update the kept book, and a deleted book's rows are skipped. The import preview, the import notice, and the Goodreads status line all show how many rows were skipped. Adding a deleted book again by hand removes its alias, so your explicit choice wins.
+- Aliases are part of the database backup and appear under `aliases` in the JSON export. Neither action can be undone in the app; download a backup first if you might want the history.
+
 ## Backup and restore
 
 In Preferences, download a **database backup** for full recovery, or JSON for portable readable data. Backups use SQLite’s `VACUUM INTO` snapshot operation, not a potentially incomplete copy of a live WAL file. Pending previews, login-failure counters, and the session key are omitted, so a restored copy never accepts sign-in cookies issued by the original; everyone signs in again after a restore. The backup still contains personal reading history and your public Goodreads connection settings.
@@ -150,6 +164,20 @@ To restore:
 3. Point the app at that directory/volume and restart with your existing secret configuration. Keep `APP_SECRET_KEY` stable across normal restarts; changing it signs out existing sessions.
 
 Do not restore over a running database or mix an older database with newer `-wal`/`-shm` files. JSON import/restore is not implemented; use the SQLite backup for recovery.
+
+### Schema upgrades and rollback
+
+Preferences shows the database schema version. On startup, the app applies any pending schema migrations in order. Each one runs in its own transaction, so a failed step leaves the database at its previous version. Before changing an existing database, the app writes a `VACUUM INTO` snapshot next to it, named after the first pending version, for example `next-chapter.sqlite3.pre-v3.bak` (mode `0600`). An existing backup is never overwritten; a second attempt writes `.pre-v3.1.bak`. Startup fails if the snapshot cannot be written. New, empty databases are not backed up.
+
+These `.bak` files stay on the data volume until you remove them, and each one is about as large as your database. Leave enough free space for one extra copy before upgrading, and delete old `.bak` files once you are happy with the new version.
+
+The app refuses to start if the database has a newer schema version than the running image understands, so an older image never writes to a newer schema. To roll back an upgrade:
+
+1. Stop the app.
+2. Replace `next-chapter.sqlite3` with the matching `.bak` file, for example `cp next-chapter.sqlite3.pre-v3.bak next-chapter.sqlite3`, and delete any stray `next-chapter.sqlite3-wal` and `next-chapter.sqlite3-shm` files. Keep ownership `10001:10001`.
+3. Start the previous image.
+
+Changes made after the upgrade are not in the `.bak`. Export JSON first if you need a record of them.
 
 ## Local development
 
@@ -173,17 +201,19 @@ The application uses Go’s HTTP server, escaped HTML templates, plain CSS, and 
 - `cmd/next-chapter/`: executable, health check, graceful shutdown.
 - `internal/app/model.go`: deterministic ranking and constraints.
 - `internal/app/imports.go`: CSV/RSS parsing and validation.
-- `internal/app/store.go`: schema migration, transactions, matching, event reconciliation, backups.
-- `internal/app/sync.go`: fixed-host RSS fetching and optional hourly polling.
+- `internal/app/migrate.go`: ordered schema migrations with pre-migration backups.
+- `internal/app/store.go`: transactions, matching, event reconciliation, backups.
+- `internal/app/merge.go`: deleting and merging books, aliases that stop re-imports from recreating them.
+- `internal/app/sync.go`: fixed-host RSS fetching, optional hourly polling with backoff.
 - `internal/app/server.go`, `routes.go`: authentication, web routes, previews, exports.
 - `internal/app/web/`: embedded templates, assets, and import examples.
-- `internal/app/app_test.go`: ranking, import integrity, migration, authentication, and web-flow tests.
+- `internal/app/*_test.go`: ranking, import integrity, migrations, delete/merge, feed and poller, authentication, and web-flow tests.
 - `deploy/kubernetes/`: single-replica persistent deployment.
 
 ## Next steps
 
 - Validate import adapters against anonymized real exports from more Libby locales.
-- Add an explicit duplicate-merge workflow and editable event corrections.
+- Add editable library-event corrections, and a way to review or clear aliases left by merges and deletions.
 - Explore opt-in NYPL receipt/email ingestion or an authorized account connector.
 - Add optional Goodreads writeback only if a supported integration becomes available.
 - Consider multiple reader accounts and PostgreSQL after the personal workflow is proven.

@@ -210,24 +210,7 @@ func TestImportReconciliationAndBackup(t *testing.T) {
 	}
 }
 func TestLegacyMigration(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "legacy.sqlite3")
-	db, err := sql.Open("sqlite", path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err = db.Exec(schema); err != nil {
-		t.Fatal(err)
-	}
-	r := records("Legacy")[0]
-	r.Source = "nypl"
-	r.Event = &Event{Format: "print", Status: "borrowed", Activity: "Borrowed", At: "2026-10-10T12:30:00+00:00"}
-	if _, err = importRecords(db, []Record{r}); err != nil {
-		t.Fatal(err)
-	}
-	if _, err = db.Exec("UPDATE books SET pinned=1,interest=5,needs_placement=0"); err != nil {
-		t.Fatal(err)
-	}
-	db.Close()
+	path := pythonEraDB(t)
 	s, err := OpenStore(path)
 	if err != nil {
 		t.Fatal(err)
@@ -240,7 +223,9 @@ func TestLegacyMigration(t *testing.T) {
 	if len(books) != 1 || !books[0].Pinned || books[0].Interest != 5 || books[0].Loans[0].ObservedAt != "2026-10-10T12:30:00.000000000+00:00" {
 		t.Fatal(books)
 	}
-	r.Event.At = books[0].Loans[0].ObservedAt
+	r := records("Legacy")[0]
+	r.Source = "nypl"
+	r.Event = &Event{Format: "print", Status: "borrowed", Activity: "Borrowed", At: books[0].Loans[0].ObservedAt}
 	if result, err := importRecords(s.DB, []Record{r}); err != nil || result.Events != 0 || result.Changed {
 		t.Fatalf("legacy duplicate: %+v %v", result, err)
 	}

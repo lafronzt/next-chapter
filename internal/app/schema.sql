@@ -1,7 +1,7 @@
+-- Schema version 1 baseline, applied by migration 1 in migrate.go. Do not edit:
+-- change the schema by appending a migration instead.
 
 CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
-INSERT OR IGNORE INTO meta VALUES ('revision', '0');
-INSERT OR IGNORE INTO meta VALUES ('schema_version', '1');
 CREATE TABLE IF NOT EXISTS books (
  id INTEGER PRIMARY KEY, title TEXT NOT NULL, author TEXT NOT NULL, identity TEXT NOT NULL UNIQUE,
  isbn TEXT NOT NULL DEFAULT '', goodreads_id TEXT NOT NULL DEFAULT '', pages INTEGER,
@@ -26,7 +26,3 @@ CREATE TABLE IF NOT EXISTS plans (
 );
 CREATE TABLE IF NOT EXISTS undo_queue (id INTEGER PRIMARY KEY CHECK(id=1), payload TEXT NOT NULL, revision INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS login_attempts (at REAL NOT NULL);
-
--- Failed logins per client. login_attempts above is no longer used.
-CREATE TABLE IF NOT EXISTS login_failures (client TEXT NOT NULL, at REAL NOT NULL);
-CREATE INDEX IF NOT EXISTS login_failures_client ON login_failures(client, at);
