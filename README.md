@@ -9,9 +9,9 @@ Next Chapter is a **single-reader web app** with two ways to organize your list:
 
 Every suggestion has a preview and reasons. Pinned books keep their positions. You decide whether to apply a suggestion, and can undo it until another library change occurs. No AI service, API key, or subscription is required.
 
-![Next Chapter with example books](docs/preview.jpg)
+![Next Chapter with example books](docs/preview.png)
 
-## What works in v0.1
+## What works in v0.2
 
 - Add and edit books; move them manually; pin positions; mark reading, finished, abandoned, or archived.
 - Explainable placement and full-queue reordering, with preview, stale-preview protection, and undo.
@@ -29,7 +29,7 @@ Every suggestion has a preview and reasons. Pinned books keep their positions. Y
 
 The optional RSS adapter reads a public shelf. Feeds can be delayed, truncated, unavailable, or changed by Goodreads. Import your full Goodreads CSV first, then enable RSS for new additions. Missing entries in a feed never cause deletions. Feed removals and shelf/status changes are not synchronized. New entries are appended and marked **Needs placement**; suggestions never silently move books. RSS is experimental and requires a real public user ID to validate against your account.
 
-Libby supports exporting timeline activity but does not provide a direct Goodreads integration. Export column names and activity labels can vary. The parser accepts common variants and rejects unsupported rows with an actionable error; normalize those rows to the provided sample CSV before importing. There is no authenticated Libby connection in v0.1.
+Libby supports exporting timeline activity but does not provide a direct Goodreads integration. Export column names and activity labels can vary. The parser accepts common variants and rejects unsupported rows with an actionable error; normalize those rows to the provided sample CSV before importing. There is no authenticated Libby connection in v0.2.
 
 **NYPL physical history is not a live connection.** The `examples/nypl.csv` format is an app-defined template, not an official NYPL export. Capture current checkouts and holds from your account, or reconstruct records from receipts you already have. NYPL says physical loan records are normally deleted soon after return, so old history cannot be assumed recoverable. An event disappearing from a snapshot is never inferred to be a return or cancellation. No automatic NYPL account or email scraping is included.
 
@@ -46,8 +46,8 @@ Requirements: Docker Engine with Compose.
 ```sh
 cp .env.example .env
 # Generate two independent secrets and put them in .env:
-python3 -c 'import secrets; print(secrets.token_urlsafe(32))'
-python3 -c 'import secrets; print(secrets.token_urlsafe(32))'
+openssl rand -hex 32
+openssl rand -hex 32
 # Set APP_PASSWORD to the first value, APP_SECRET_KEY to the second.
 docker compose up --build -d
 ```
@@ -56,7 +56,7 @@ Open [localhost:8000](http://localhost:8000) and sign in with `APP_PASSWORD`. Yo
 
 Compose binds to loopback by default. For access from other devices, place the app behind your HTTPS reverse proxy and set `COOKIE_SECURE=1`. Configure the proxy to reach container port 8000 and preserve the host. No forwarded-header middleware is needed by the app. Keep the app password enabled. Do not publish unauthenticated demo mode.
 
-The image runs as UID/GID `10001:10001`, with a read-only root filesystem, writable `/tmp`, and persistent `/data`. There is one Gunicorn worker with four threads and one opt-in polling thread. Use one container/replica per database; SQLite storage should be on a local/block filesystem rather than a shared network filesystem.
+The image runs as UID/GID `10001:10001`, with a read-only root filesystem, writable `/tmp`, and persistent `/data`. One Go process serves requests and runs the optional polling goroutine. Use one container/replica per database; SQLite storage should be on a local/block filesystem rather than a shared network filesystem.
 
 ### Build or run without Compose
 
@@ -71,7 +71,15 @@ docker run -d --name next-chapter \
   next-chapter:local
 ```
 
-A release tag such as `v0.1.0` triggers the included workflow to build `linux/amd64` and `linux/arm64` images at `ghcr.io/<owner>/<repository>:0.1.0` and `:latest`. Make the GitHub Container Registry package public after first publication if anonymous pulls are desired. Prefer a version tag or digest in production. The Python base tag receives security updates; use `docker build --pull` when rebuilding.
+The published Go image is `ghcr.io/lafronzt/next-chapter:0.2.0` (also `:latest`), supporting `linux/amd64` and `linux/arm64`. A release tag triggers the included GitHub workflow. Prefer a version tag or digest in production. The final image contains a statically compiled Go executable and CA certificates, with no interpreter or shell. Rebuild with `docker build --pull` to refresh the Go toolchain.
+
+```sh
+docker pull ghcr.io/lafronzt/next-chapter:0.2.0
+```
+
+### Upgrade from v0.1
+
+Download a database backup, stop the old container, and start v0.2 with the same data volume and environment settings. The Go version preserves books, queue order, preferences, and borrowing history. It normalizes event timestamps on first startup; pending previews and the last undo are cleared. Sign in again after upgrading. Keep the pre-upgrade backup if you need to roll back to v0.1.
 
 ## Kubernetes
 
@@ -106,7 +114,7 @@ Each queued book starts with `interest × 10` points (10–50). Additional point
 | Exact mood tag match, case-insensitive | 15 |
 | Preferred length match (≤250 or ≥400 pages) | 10 |
 
-Only the strongest library signal is used per book; multiple formats do not stack. Library points are multiplied by the selected timing weight (0, 0.5, 1, or 2). All dates used for ranking are the container's calendar date (UTC in the default image). Holds with no pickup date get no timing boost because a request does not imply availability.
+Only the strongest library signal is used per book; multiple formats do not stack. Library points are multiplied by the selected timing weight (0, 0.5, 1, or 2). All dates used for ranking use UTC. Holds with no pickup date get no timing boost because a request does not imply availability.
 
 Full-queue suggestions sort by score while respecting pins and earlier queued books in the same series. Equal scores preserve existing order. Series metadata is supplied by the reader; Goodreads export/RSS does not reliably provide it. Insertion finds the earliest lower-scoring book, then the closest feasible slot that preserves the other books' order, pin slots, and the candidate's series dependencies. Impossible constraints produce a clear error instead of silently moving pins. Manual moves are intentional overrides of ranking; pin crossings must be unpinned first.
 
@@ -127,7 +135,7 @@ CSV files must be UTF-8, ≤2 MB, and ≤10,000 rows. A malformed row blocks the
 
 ## Backup and restore
 
-In Preferences, download a **database backup** for full recovery, or JSON for portable readable data. Backups use SQLite's online backup API, not a potentially incomplete copy of a live WAL file. Pending previews and login-attempt counters are omitted. The backup still contains personal reading history and your public Goodreads connection settings.
+In Preferences, download a **database backup** for full recovery, or JSON for portable readable data. Backups use SQLite’s `VACUUM INTO` snapshot operation, not a potentially incomplete copy of a live WAL file. Pending previews and login-attempt counters are omitted. The backup still contains personal reading history and your public Goodreads connection settings.
 
 To restore:
 
@@ -139,28 +147,31 @@ Do not restore over a running database or mix an older database with newer `-wal
 
 ## Local development
 
-Python 3.12 or later (the container uses 3.13):
+Go 1.27 or later; no frontend build step or C compiler is required:
 
 ```sh
-python3 -m venv .venv
-. .venv/bin/activate
-pip install -r requirements.txt
-python -m unittest discover -s tests -v
-LOCAL_DEMO=1 START_POLLER=0 flask --app next_chapter:create_app run --host 127.0.0.1 --port 8000
+go test -race ./...
+go vet ./...
+go build -trimpath -o ./bin/next-chapter ./cmd/next-chapter
+LOCAL_DEMO=1 START_POLLER=0 ./bin/next-chapter
 ```
 
-Demo mode has no login and uses a random session key unless one is configured. It is only for local development. The empty-library page lets you load clearly labeled example books. Production starts with an empty library and never seeds examples.
+Open [localhost:8000](http://localhost:8000). Demo mode has no login and requires a loopback `LISTEN_ADDR` (default `127.0.0.1:8000`). The empty-library page lets you load example books. Production starts with an empty library and never seeds examples.
 
-The application uses Flask/Jinja and plain CSS, without a frontend build step. The server serves its own forms and assets; no font, analytics, cover-image, or AI provider receives reading data. The only outbound app request is opt-in Goodreads RSS.
+For production, set `APP_PASSWORD` and `APP_SECRET_KEY` and omit `LOCAL_DEMO`. `DATABASE_PATH` defaults to `data/next-chapter.sqlite3`; `LISTEN_ADDR` defaults to `:8000`. `START_POLLER=0` disables the background checker. The executable includes `version` and `healthcheck` commands.
+
+The application uses Go’s HTTP server, escaped HTML templates, plain CSS, and a pure-Go SQLite driver. Templates, assets, and CSV examples are embedded in the executable. No font, analytics, cover-image, or AI provider receives reading data. The only outbound app request is opt-in Goodreads RSS.
 
 ## Project layout
 
-- `next_chapter/ranking.py`: deterministic ranking and constraints.
-- `next_chapter/imports.py`: CSV/RSS parsing and validation.
-- `next_chapter/store.py`: schema, transactions, matching, event reconciliation.
-- `next_chapter/sync.py`: fixed-host RSS fetching and optional hourly polling.
-- `next_chapter/__init__.py`: web routes, authentication, previews, backups.
-- `tests/`: ranking, import integrity, authentication, and web-flow tests.
+- `cmd/next-chapter/`: executable, health check, graceful shutdown.
+- `internal/app/model.go`: deterministic ranking and constraints.
+- `internal/app/imports.go`: CSV/RSS parsing and validation.
+- `internal/app/store.go`: schema migration, transactions, matching, event reconciliation, backups.
+- `internal/app/sync.go`: fixed-host RSS fetching and optional hourly polling.
+- `internal/app/server.go`, `routes.go`: authentication, web routes, previews, exports.
+- `internal/app/web/`: embedded templates, assets, and import examples.
+- `internal/app/app_test.go`: ranking, import integrity, migration, authentication, and web-flow tests.
 - `deploy/kubernetes/`: single-replica persistent deployment.
 
 ## Next steps

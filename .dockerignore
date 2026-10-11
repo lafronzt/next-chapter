@@ -1,12 +1,10 @@
 .git
 .github
-.venv
 .env
 .env.*
 data
-**/__pycache__
-**/*.pyc
 **/*.sqlite3*
 **/*.db*
-tests
+bin
+docs
 work

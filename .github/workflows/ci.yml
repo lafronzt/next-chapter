@@ -10,12 +10,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-go@v5
         with:
-          python-version: '3.13'
-          cache: pip
-      - run: pip install -r requirements.txt
-      - run: python -m unittest discover -s tests -v
+          go-version-file: go.mod
+          cache: true
+      - run: go test -race ./...
+      - run: go vet ./...
       - run: docker build -t next-chapter:test .
       - name: Container smoke test
         shell: bash
