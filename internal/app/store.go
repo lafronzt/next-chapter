@@ -318,7 +318,9 @@ func (s *Store) Backup() (data []byte, err error) {
 	if err != nil {
 		return nil, err
 	}
-	_, err = copyDB.Exec("DELETE FROM plans; DELETE FROM login_attempts")
+	// Restoring starts a new session epoch, so cookies issued by this instance
+	// are not accepted by a copy restored elsewhere.
+	_, err = copyDB.Exec("DELETE FROM plans; DELETE FROM login_attempts; DELETE FROM login_failures; DELETE FROM meta WHERE key='session_epoch'")
 	closeErr := copyDB.Close()
 	if err != nil {
 		return nil, err

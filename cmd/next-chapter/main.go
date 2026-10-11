@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 )
@@ -64,7 +65,11 @@ func run() error {
 			return fmt.Errorf("LOCAL_DEMO requires a loopback LISTEN_ADDR")
 		}
 	}
-	a, err := app.New(app.Config{Database: env("DATABASE_PATH", "data/next-chapter.sqlite3"), Password: os.Getenv("APP_PASSWORD"), Secret: os.Getenv("APP_SECRET_KEY"), Demo: demo, SecureCookie: os.Getenv("COOKIE_SECURE") == "1"})
+	hops, err := strconv.Atoi(env("TRUSTED_PROXY_HOPS", "0"))
+	if err != nil || hops < 0 || hops > 10 {
+		return fmt.Errorf("TRUSTED_PROXY_HOPS must be a whole number from 0 to 10")
+	}
+	a, err := app.New(app.Config{Database: env("DATABASE_PATH", "data/next-chapter.sqlite3"), Password: os.Getenv("APP_PASSWORD"), Secret: os.Getenv("APP_SECRET_KEY"), Demo: demo, SecureCookie: os.Getenv("COOKIE_SECURE") == "1", TrustedProxyHops: hops})
 	if err != nil {
 		return err
 	}

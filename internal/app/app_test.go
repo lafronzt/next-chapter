@@ -251,6 +251,7 @@ type browser struct {
 	handler   http.Handler
 	cookie    *http.Cookie
 	csrf, rev string
+	remote    string // client address; httptest's default when empty
 }
 
 var csrfPattern = regexp.MustCompile(`name="csrf" value="([^"]+)"`)
@@ -277,6 +278,9 @@ func (b *browser) request(method, path string, values url.Values) *httptest.Resp
 }
 func (b *browser) serve(req *http.Request) *httptest.ResponseRecorder {
 	b.t.Helper()
+	if b.remote != "" {
+		req.RemoteAddr = b.remote
+	}
 	if b.cookie != nil {
 		req.AddCookie(b.cookie)
 	}
@@ -403,10 +407,19 @@ func TestDemoAndLoginLimit(t *testing.T) {
 	expect(t, b.request("GET", "/", nil), 200)
 	expect(t, b.request("POST", "/demo", nil), 400)
 	prod := testApp(t, false)
-	p := browser{t: t, handler: prod.Handler()}
+	p := browser{t: t, handler: prod.Handler(), remote: "198.51.100.1:4000"}
 	expect(t, p.request("GET", "/login", nil), 200)
-	for range 10 {
+	for range loginClientLimit {
 		expect(t, p.request("POST", "/login", url.Values{"password": {"wrong"}}), 401)
 	}
-	expect(t, p.request("POST", "/login", url.Values{"password": {"correct-password"}}), 429)
+	rr := p.request("POST", "/login", url.Values{"password": {"correct-password"}})
+	expect(t, rr, 429)
+	if rr.Header().Get("Retry-After") == "" {
+		t.Fatal("429 without Retry-After")
+	}
+	// Another client is not locked out by the first client's failures.
+	other := browser{t: t, handler: prod.Handler(), remote: "198.51.100.2:4000"}
+	expect(t, other.request("GET", "/login", nil), 200)
+	expect(t, other.request("POST", "/login", url.Values{"password": {"correct-password"}}), 303)
+	expect(t, other.request("GET", "/", nil), 200)
 }
