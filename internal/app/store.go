@@ -222,77 +222,152 @@ func findBook(q queryer, r Record) (int64, error) {
 	}
 	return 0, nil
 }
-func importRecords(q queryer, records []Record) (added, eventCount int, changed bool, err error) {
+
+type importResult struct {
+	Added, Events int
+	// Upgraded counts books that left unreviewed, keyed by their new status.
+	Upgraded map[string]int
+	Changed  bool
+}
+
+func (r importResult) upgradedTotal() int {
+	total := 0
+	for _, n := range r.Upgraded {
+		total += n
+	}
+	return total
+}
+
+// upgradesUnreviewed reports whether a record may move a matching unreviewed
+// book to the record's status. Only a Goodreads shelf (CSV or RSS) expresses
+// reading intent; library events, manual entries, and the demo never do.
+func upgradesUnreviewed(r Record) bool {
+	return r.Source == "goodreads" && r.Event == nil && in(r.Status, []string{"to-read", "reading", "read", "archived"})
+}
+
+// statusChange returns the pin, placement, and position a book gets when its
+// reading status changes: the pin is cleared, and a book entering the queue
+// is appended and marked Needs placement.
+func statusChange(q queryer, old Book, status string) (pinned, needs bool, position int, err error) {
+	if old.Status == status {
+		return old.Pinned, old.NeedsPlacement, old.Position, nil
+	}
+	position = old.Position
+	if status == "to-read" {
+		err = q.QueryRow("SELECT COALESCE(MAX(position),-1)+1 FROM books").Scan(&position)
+	}
+	return false, status == "to-read", position, err
+}
+
+// setStatus changes only a book's reading status and the fields that follow
+// from it.
+func setStatus(q queryer, old Book, status string) error {
+	pinned, needs, position, err := statusChange(q, old, status)
+	if err != nil {
+		return err
+	}
+	_, err = q.Exec("UPDATE books SET reading_status=?,pinned=?,needs_placement=?,position=? WHERE id=?", status, pinned, needs, position, old.ID)
+	return err
+}
+
+// previewImport runs an import inside a savepoint and rolls it back, so a
+// preview reports exactly what applying it would change.
+func previewImport(q queryer, records []Record) (importResult, error) {
+	if _, err := q.Exec("SAVEPOINT import_preview"); err != nil {
+		return importResult{}, err
+	}
+	result, err := importRecords(q, records)
+	if _, e := q.Exec("ROLLBACK TO import_preview; RELEASE import_preview"); err == nil {
+		err = e
+	}
+	return result, err
+}
+
+func importRecords(q queryer, records []Record) (out importResult, err error) {
+	out.Upgraded = map[string]int{}
 	for _, r := range records {
 		id, e := findBook(q, r)
 		if e != nil {
-			return 0, 0, false, e
+			return out, e
 		}
 		if id == 0 {
 			result, e := q.Exec(`INSERT INTO books(title,author,identity,isbn,goodreads_id,pages,tags,interest,reading_status,position,series,series_number,added_at,source)
     VALUES(?,?,?,?,?,?,?,?,?,(SELECT COALESCE(MAX(position),-1)+1 FROM books),?,?,?,?)`, r.Title, r.Author, identity(r.Title, r.Author), r.ISBN, r.GoodreadsID, r.Pages, r.Tags, 3, r.Status, r.Series, r.SeriesNumber, canonicalTime(time.Now()), r.Source)
 			if e != nil {
-				return 0, 0, false, e
+				return out, e
 			}
 			id, e = result.LastInsertId()
 			if e != nil {
-				return 0, 0, false, e
+				return out, e
 			}
-			added++
-			changed = true
+			out.Added++
+			out.Changed = true
 		} else {
 			for _, pair := range [][2]string{{"goodreads_id", r.GoodreadsID}, {"isbn", r.ISBN}} {
 				if pair[1] != "" {
 					res, e := q.Exec("UPDATE books SET "+pair[0]+"=? WHERE id=? AND "+pair[0]+"=''", pair[1], id)
 					if e != nil {
-						return 0, 0, false, e
+						return out, e
 					}
 					n, e := res.RowsAffected()
 					if e != nil {
-						return 0, 0, false, e
+						return out, e
 					}
-					changed = changed || n > 0
+					out.Changed = out.Changed || n > 0
 				}
 			}
 			if r.Pages != nil {
 				res, e := q.Exec("UPDATE books SET pages=? WHERE id=? AND pages IS NULL", *r.Pages, id)
 				if e != nil {
-					return 0, 0, false, e
+					return out, e
 				}
 				n, e := res.RowsAffected()
 				if e != nil {
-					return 0, 0, false, e
+					return out, e
 				}
-				changed = changed || n > 0
+				out.Changed = out.Changed || n > 0
+			}
+			if upgradesUnreviewed(r) {
+				var old Book
+				if e = q.QueryRow("SELECT id,reading_status,pinned,needs_placement,position FROM books WHERE id=?", id).Scan(&old.ID, &old.Status, &old.Pinned, &old.NeedsPlacement, &old.Position); e != nil {
+					return out, e
+				}
+				if old.Status == "unreviewed" {
+					if e = setStatus(q, old, r.Status); e != nil {
+						return out, e
+					}
+					out.Upgraded[r.Status]++
+					out.Changed = true
+				}
 			}
 		}
 		if r.Event != nil {
 			e := r.Event
 			var existing int
 			if err = q.QueryRow(`SELECT count(*) FROM events WHERE fingerprint=? OR (book_id=? AND source=? AND format=? AND status=? AND at=? AND due_date=?)`, fingerprint(r), id, r.Source, e.Format, e.Status, e.At, e.DueDate).Scan(&existing); err != nil {
-				return 0, 0, false, err
+				return out, err
 			}
 			if existing == 0 {
 				if _, err = q.Exec(`INSERT INTO events(book_id,source,format,status,activity,at,due_date,fingerprint) VALUES(?,?,?,?,?,?,?,?)`, id, r.Source, e.Format, e.Status, e.Activity, e.At, e.DueDate, fingerprint(r)); err != nil {
-					return 0, 0, false, err
+					return out, err
 				}
-				eventCount++
-				changed = true
+				out.Events++
+				out.Changed = true
 			}
 			// Identical reimports do not invalidate queue previews or undo.
 			res, err := q.Exec(`INSERT INTO loans VALUES(?,?,?,?,?,?) ON CONFLICT(book_id,source,format) DO UPDATE SET status=excluded.status,due_date=excluded.due_date,observed_at=excluded.observed_at
     WHERE excluded.observed_at>loans.observed_at OR (excluded.observed_at=loans.observed_at AND excluded.status=loans.status AND excluded.due_date!=loans.due_date)`, id, r.Source, e.Format, e.Status, e.DueDate, e.At)
 			if err != nil {
-				return 0, 0, false, err
+				return out, err
 			}
 			n, err := res.RowsAffected()
 			if err != nil {
-				return 0, 0, false, err
+				return out, err
 			}
-			changed = changed || n > 0
+			out.Changed = out.Changed || n > 0
 		}
 	}
-	return added, eventCount, changed, nil
+	return out, nil
 }
 func reorder(q queryer, ids []int64) error {
 	for pos, id := range ids {

@@ -14,12 +14,13 @@ Every suggestion has a preview and reasons. Pinned books keep their positions. Y
 ## What works in v0.2
 
 - Add and edit books; move them manually; pin positions; mark reading, finished, abandoned, or archived.
+- Separate views for Up next, Reading, Finished, To review, Set aside (abandoned), Archived, and All books.
 - Explainable placement and full-queue reordering, with preview, stale-preview protection, and undo.
 - Goodreads CSV imports and optional hourly public-shelf RSS checks for **new additions**.
 - Libby timeline CSV imports and a standard CSV format for physical NYPL activity.
 - Separate library events for print, ebook, and audiobook; newest known event wins, regardless of import order.
 - Repeatable imports, matching by Goodreads ID, ISBN, then normalized title and author.
-- Library-only titles enter **unreviewed**, never automatically finished or added to your reading queue.
+- Library-only titles enter **unreviewed**, never automatically finished or added to your reading queue. They wait in **To review** (with a count in the sidebar), where one click marks each as Want to read, Already read, or Not interested, or you can sort every visible book at once after a confirmation step.
 - Password login, CSRF protection, local SQLite persistence, JSON export, and consistent SQLite backups.
 - Docker, Compose, Kubernetes manifests, automated tests, and tagged multi-platform image publishing.
 
@@ -27,7 +28,7 @@ Every suggestion has a preview and reasons. Pinned books keep their positions. Y
 
 **This app owns the ordered queue. It does not write order, reading status, ratings, or reviews back to Goodreads.** Goodreads stopped issuing public API keys; this project does not depend on that API or request a Goodreads password.
 
-The optional RSS adapter reads a public shelf. Feeds can be delayed, truncated, unavailable, or changed by Goodreads. Import your full Goodreads CSV first, then enable RSS for new additions. Missing entries in a feed never cause deletions. Feed removals and shelf/status changes are not synchronized. New entries are appended and marked **Needs placement**; suggestions never silently move books. RSS is experimental and requires a real public user ID to validate against your account.
+The optional RSS adapter reads a public shelf. Feeds can be delayed, truncated, unavailable, or changed by Goodreads. Import your full Goodreads CSV first, then enable RSS for new additions. Missing entries in a feed never cause deletions. Feed removals and shelf/status changes are not synchronized, except that a feed entry for a book still waiting in To review moves it to your queue, like a CSV import does. New entries are appended and marked **Needs placement**; suggestions never silently move books. RSS is experimental and requires a real public user ID to validate against your account.
 
 Libby supports exporting timeline activity but does not provide a direct Goodreads integration. Export column names and activity labels can vary. The parser accepts common variants and rejects unsupported rows with an actionable error; normalize those rows to the provided sample CSV before importing. There is no authenticated Libby connection in v0.2.
 
@@ -135,6 +136,7 @@ CSV files must be UTF-8, ≤2 MB, and ≤10,000 rows. A malformed row blocks the
 - Supported activities include Borrowed, Loan, Checked out, Renewed, Hold, Placed on hold, Requested, Ready, Ready for pickup, Returned, Cancelled/Canceled, and Available.
 - Use consistent format names (`print`, `ebook`, `audiobook`, or `digital`) across imports. Format names distinguish parallel loans.
 - Initial imports use file row order for new books. Existing books keep local reading status, interest, tags, and queue order on subsequent imports; missing identifier/page metadata can be filled in.
+- One exception: a book that arrived through a library import and is still **unreviewed** takes its status from the first Goodreads shelf that mentions it (CSV or RSS). `to-read` appends it to the end of your queue marked **Needs placement**; `read`, `currently-reading`, and other shelves become finished, reading, or archived. The import preview says how many books will move. Books you have already sorted are never changed by an import, and library activity never changes reading status. Import order therefore no longer matters.
 - Matching by normalized title + author is conservative about spelling and subtitles. Different titles without a shared identifier may require manual cleanup. Edition-level history is represented through source/format; books are grouped into one reading-list entry when their identifiers/title match.
 
 ## Backup and restore

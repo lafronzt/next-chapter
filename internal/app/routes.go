@@ -7,6 +7,7 @@ import (
 	"io"
 	"math"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -99,7 +100,7 @@ func (a *App) newBook(w http.ResponseWriter, r *http.Request) error {
 		if id != 0 {
 			return conflict("This book is already in your library. Edit its existing entry.")
 		}
-		if _, _, _, err = importRecords(tx, []Record{{Book: b}}); err != nil {
+		if _, err = importRecords(tx, []Record{{Book: b}}); err != nil {
 			return err
 		}
 		id, err = findBook(tx, Record{Book: b})
@@ -161,15 +162,9 @@ func (a *App) editBook(w http.ResponseWriter, r *http.Request) error {
 		if match != 0 && match != id {
 			return conflict("Another book already has this title and author.")
 		}
-		pin, needs, position := old.Pinned, old.NeedsPlacement, old.Position
-		if old.Status != b.Status {
-			pin = false
-			needs = b.Status == "to-read"
-			if needs {
-				if err = tx.QueryRow("SELECT COALESCE(MAX(position),-1)+1 FROM books").Scan(&position); err != nil {
-					return err
-				}
-			}
+		pin, needs, position, err := statusChange(tx, old, b.Status)
+		if err != nil {
+			return err
 		}
 		_, err = tx.Exec(`UPDATE books SET title=?,author=?,identity=?,interest=?,reading_status=?,pages=?,tags=?,series=?,series_number=?,pinned=?,needs_placement=?,position=? WHERE id=?`, b.Title, b.Author, identity(b.Title, b.Author), b.Interest, b.Status, b.Pages, b.Tags, b.Series, b.SeriesNumber, pin, needs, position, id)
 		if err != nil {
@@ -262,7 +257,7 @@ func (a *App) loan(w http.ResponseWriter, r *http.Request) error {
 		}
 		b.Source = source
 		event := &Event{Source: source, Format: format, Status: status, Activity: status, At: canonicalTime(time.Now()), DueDate: due}
-		if _, _, _, err = importRecords(tx, []Record{{Book: b, Event: event}}); err != nil {
+		if _, err = importRecords(tx, []Record{{Book: b, Event: event}}); err != nil {
 			return err
 		}
 		return bump(tx)
@@ -323,9 +318,27 @@ func (a *App) plan(w http.ResponseWriter, r *http.Request) error {
 		if len(preview) > 100 {
 			preview = preview[:100]
 		}
-		return a.render(w, r, "plan.html", page{"Kind": kind, "Plan": p, "PreviewRecords": preview, "Stale": rev != state(r).Revision}, 200)
+		data := page{"Kind": kind, "Plan": p, "PreviewRecords": preview, "Stale": rev != state(r).Revision, "UpgradeSummary": upgradeSummary(p.Upgrades)}
+		if kind == "triage" {
+			all, err := loadBooks(a.store.DB)
+			if err != nil {
+				return err
+			}
+			byID := map[int64]Book{}
+			for _, b := range all {
+				byID[b.ID] = b
+			}
+			books := []Book{}
+			for _, id := range p.BookIDs {
+				if b, ok := byID[id]; ok {
+					books = append(books, b)
+				}
+			}
+			data["TriageBooks"], data["TriageLabel"] = books, triageLabels[p.Status]
+		}
+		return a.render(w, r, "plan.html", data, 200)
 	}
-	notice := "ordered"
+	location := "/?notice=ordered"
 	err := a.store.Write(func(tx *sql.Tx) error {
 		kind, p, rev, err := readPlan(tx, id)
 		if err != nil {
@@ -338,18 +351,41 @@ func (a *App) plan(w http.ResponseWriter, r *http.Request) error {
 		if now != rev {
 			return conflict("Your library changed. Generate a fresh preview before applying it.")
 		}
-		if kind == "import" {
-			_, _, changed, err := importRecords(tx, p.Records)
+		switch kind {
+		case "import":
+			result, err := importRecords(tx, p.Records)
 			if err != nil {
 				return err
 			}
-			if changed {
+			if result.Changed {
 				if err = bump(tx); err != nil {
 					return err
 				}
 			}
-			notice = "imported"
-		} else {
+			location = fmt.Sprintf("/?notice=imported&moved=%d", result.upgradedTotal())
+		case "triage":
+			all, err := loadBooks(tx)
+			if err != nil {
+				return err
+			}
+			byID := map[int64]Book{}
+			for _, b := range all {
+				byID[b.ID] = b
+			}
+			for _, id := range p.BookIDs {
+				b, ok := byID[id]
+				if !ok || b.Status != "unreviewed" {
+					return conflict("Some of these books were already sorted. Generate a fresh preview.")
+				}
+				if err = setStatus(tx, b, p.Status); err != nil {
+					return err
+				}
+			}
+			if err = bump(tx); err != nil {
+				return err
+			}
+			location = unreviewedURL("", "triaged")
+		default:
 			all, err := loadBooks(tx)
 			if err != nil {
 				return err
@@ -390,7 +426,97 @@ func (a *App) plan(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
-	return redirect(w, r, "/?notice="+notice)
+	return redirect(w, r, location)
+}
+
+// Quick triage moves an unreviewed book to the status the reader chose.
+var triageStatuses = map[string]string{"want": "to-read", "read": "read", "skip": "archived"}
+var triageLabels = map[string]string{"to-read": "Want to read", "read": "Already read", "archived": "Not interested"}
+
+func unreviewedURL(query, notice string) string {
+	v := url.Values{"view": {"unreviewed"}, "notice": {notice}}
+	if query != "" {
+		v.Set("q", query)
+	}
+	return "/?" + v.Encode()
+}
+func upgradeSummary(upgrades map[string]int) string {
+	parts, total := []string{}, 0
+	for _, s := range [][2]string{{"to-read", "your queue"}, {"read", "your finished list"}, {"reading", "Reading"}, {"archived", "Archived"}} {
+		if n := upgrades[s[0]]; n > 0 {
+			parts = append(parts, fmt.Sprintf("%d to %s", n, s[1]))
+			total += n
+		}
+	}
+	if total == 0 {
+		return ""
+	}
+	return fmt.Sprintf("%d library-only books will move out of To review to match Goodreads: %s.", total, strings.Join(parts, ", "))
+}
+func (a *App) triageBook(w http.ResponseWriter, r *http.Request) error {
+	id, err := requestID(r)
+	if err != nil {
+		return err
+	}
+	status, ok := triageStatuses[r.FormValue("action")]
+	if !ok {
+		return bad("Choose Want to read, Already read, or Not interested.")
+	}
+	err = a.store.Write(func(tx *sql.Tx) error {
+		if err := current(tx, r); err != nil {
+			return err
+		}
+		b, err := bookByID(tx, id)
+		if err != nil {
+			return err
+		}
+		if b.Status != "unreviewed" {
+			return bad("Only books waiting for review can be sorted this way. Edit the book to change its status.")
+		}
+		if err = setStatus(tx, b, status); err != nil {
+			return err
+		}
+		return bump(tx)
+	})
+	if err != nil {
+		return err
+	}
+	return redirect(w, r, unreviewedURL(searchQuery(r.FormValue("q")), "triaged"))
+}
+
+// triageAll previews marking every visible unreviewed book; nothing changes
+// until the reader confirms the plan.
+func (a *App) triageAll(w http.ResponseWriter, r *http.Request) error {
+	status, ok := triageStatuses[r.FormValue("action")]
+	if !ok {
+		return bad("Choose Want to read, Already read, or Not interested.")
+	}
+	query := searchQuery(r.FormValue("q"))
+	var id string
+	err := a.store.Write(func(tx *sql.Tx) error {
+		if err := current(tx, r); err != nil {
+			return err
+		}
+		all, err := loadBooks(tx)
+		if err != nil {
+			return err
+		}
+		ids := []int64{}
+		for _, b := range all {
+			if findView("unreviewed").shows(b, query) {
+				ids = append(ids, b.ID)
+			}
+		}
+		if len(ids) == 0 {
+			return bad("No books are waiting for review here.")
+		}
+		id, err = savePlan(tx, "triage", Plan{BookIDs: ids, Status: status})
+		return err
+	})
+	if err != nil {
+		return err
+	}
+	return redirect(w, r, "/plans/"+id)
 }
 func (a *App) undo(w http.ResponseWriter, r *http.Request) error {
 	err := a.store.Write(func(tx *sql.Tx) error {
@@ -461,8 +587,11 @@ func (a *App) importPage(w http.ResponseWriter, r *http.Request) error {
 		if err := current(tx, r); err != nil {
 			return err
 		}
-		var err error
-		id, err = savePlan(tx, "import", Plan{Records: records, Source: source})
+		preview, err := previewImport(tx, records)
+		if err != nil {
+			return err
+		}
+		id, err = savePlan(tx, "import", Plan{Records: records, Source: source, Upgrades: preview.Upgraded})
 		return err
 	})
 	if err != nil {
@@ -599,7 +728,7 @@ func (a *App) demo(w http.ResponseWriter, r *http.Request) error {
 		for _, t := range titles {
 			records = append(records, Record{Book: Book{Title: t[0], Author: t[1], Tags: t[2], Status: "to-read", Source: "demo"}})
 		}
-		if _, _, _, err = importRecords(tx, records); err != nil {
+		if _, err = importRecords(tx, records); err != nil {
 			return err
 		}
 		if _, err = tx.Exec("UPDATE books SET needs_placement=0; UPDATE books SET pinned=1 WHERE id=1; UPDATE books SET interest=5,needs_placement=1 WHERE id=5"); err != nil {
@@ -608,7 +737,7 @@ func (a *App) demo(w http.ResponseWriter, r *http.Request) error {
 		r := records[1]
 		r.Source = "nypl"
 		r.Event = &Event{Format: "print", Status: "borrowed", Activity: "borrowed", At: canonicalTime(time.Now()), DueDate: time.Now().UTC().AddDate(0, 0, 4).Format(time.DateOnly)}
-		if _, _, _, err = importRecords(tx, []Record{r}); err != nil {
+		if _, err = importRecords(tx, []Record{r}); err != nil {
 			return err
 		}
 		return bump(tx)

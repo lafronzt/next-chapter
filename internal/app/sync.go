@@ -89,17 +89,21 @@ func (a *App) syncOnce(ctx context.Context) (int, error) {
 		if current != conn {
 			return fmt.Errorf("connection settings changed; try again")
 		}
-		var changed bool
-		added, _, changed, err = importRecords(tx, records)
+		result, err := importRecords(tx, records)
 		if err != nil {
 			return err
 		}
-		if changed {
+		added = result.Added
+		if result.Changed {
 			if err = bump(tx); err != nil {
 				return err
 			}
 		}
-		return setMeta(tx, "last_sync", SyncResult{canonicalTime(time.Now()), fmt.Sprintf("Found %d feed entries; added %d books.", len(records), added), true})
+		message := fmt.Sprintf("Found %d feed entries; added %d books.", len(records), added)
+		if moved := result.upgradedTotal(); moved > 0 {
+			message = fmt.Sprintf("Found %d feed entries; added %d books; moved %d library-only books out of To review.", len(records), added, moved)
+		}
+		return setMeta(tx, "last_sync", SyncResult{canonicalTime(time.Now()), message, true})
 	})
 	return added, err
 }

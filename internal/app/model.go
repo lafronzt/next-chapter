@@ -83,6 +83,11 @@ type Plan struct {
 	Records     []Record     `json:"records,omitempty"`
 	CandidateID int64        `json:"candidate_id,omitempty"`
 	Source      string       `json:"source,omitempty"`
+	// Upgrades previews how many unreviewed books an import moves, by status.
+	Upgrades map[string]int `json:"upgrades,omitempty"`
+	// BookIDs and Status describe a bulk triage of unreviewed books.
+	BookIDs []int64 `json:"book_ids,omitempty"`
+	Status  string  `json:"status,omitempty"`
 }
 
 func score(b Book, p Preferences, today time.Time) (float64, []string) {

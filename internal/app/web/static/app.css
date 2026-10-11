@@ -350,6 +350,58 @@ h2 {
 .tabs {
   display:flex;
   gap:26px;
+  overflow-x:auto;
+  scrollbar-width:thin;
+}
+
+.tab-count,.nav-count {
+  display:inline-block;
+  min-width:18px;
+  padding:1px 6px;
+  border-radius:9px;
+  background:#e4ebdd;
+  color:#476b3c;
+  font-size:10px;
+  font-weight:650;
+  text-align:center;
+}
+
+.nav-count {
+  margin-left:auto;
+}
+
+.bulk-triage {
+  display:flex;
+  flex-wrap:wrap;
+  align-items:center;
+  justify-content:flex-end;
+  gap:10px;
+  padding-top:12px;
+  font-size:12px;
+  color:var(--muted);
+}
+
+.bulk-triage label {
+  flex-direction:row;
+  align-items:center;
+  font-weight:500;
+}
+
+.bulk-triage select {
+  width:auto;
+  padding:6px 8px;
+  margin-left:6px;
+}
+
+.triage {
+  display:flex;
+  flex-wrap:wrap;
+  justify-content:flex-end;
+  gap:5px;
+}
+
+.triage + .text-button {
+  white-space:nowrap;
 }
 
 .tabs a {

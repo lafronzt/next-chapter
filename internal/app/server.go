@@ -272,6 +272,7 @@ func (a *App) Handler() http.Handler {
 		"POST /suggest": a.suggest, "GET /plans/{id}": a.plan, "POST /plans/{id}": a.plan, "POST /undo": a.undo,
 		"GET /imports": a.importPage, "POST /imports": a.importPage, "GET /examples/{name}": a.example,
 		"GET /settings": a.settings, "POST /settings": a.settings, "POST /sync": a.syncNow, "POST /sessions/revoke": a.revokeSessions,
+		"POST /books/{id}/triage": a.triageBook, "POST /triage": a.triageAll,
 		"GET /history": a.history, "GET /export.json": a.export, "GET /backup.sqlite3": a.backup, "POST /demo": a.demo,
 	}
 	for pattern, handler := range endpoints {
@@ -375,8 +376,19 @@ func (a *App) render(w http.ResponseWriter, r *http.Request, name string, data p
 	data["ReadingStates"] = readingStates
 	data["LibraryStates"] = libraryStates
 	data["Path"] = r.URL.Path
-	notices := map[string]string{"saved": "Saved to your library.", "ordered": "Your new order is saved. You can undo it until your next library change.", "undone": "Previous order restored.", "imported": "Import complete. Existing reading status and queue order were preserved.", "loan": "Library event recorded. Reading status stays the same.", "synced": "Goodreads checked. New books are marked Needs placement.", "signedout": "Signed out on every device. Sign in again to continue."}
-	data["Notice"] = notices[r.URL.Query().Get("notice")]
+	if a.config.Demo || s.Session.Authenticated {
+		var waiting int
+		if err := a.store.DB.QueryRow("SELECT count(*) FROM books WHERE reading_status='unreviewed'").Scan(&waiting); err != nil {
+			return err
+		}
+		data["UnreviewedCount"] = waiting
+	}
+	notices := map[string]string{"triaged": "Sorted. Only reading status changed; books you want to read wait at the end of your queue for placement.", "saved": "Saved to your library.", "ordered": "Your new order is saved. You can undo it until your next library change.", "undone": "Previous order restored.", "imported": "Import complete. Existing reading status and queue order were preserved.", "loan": "Library event recorded. Reading status stays the same.", "synced": "Goodreads checked. New books are marked Needs placement.", "signedout": "Signed out on every device. Sign in again to continue."}
+	notice := r.URL.Query().Get("notice")
+	data["Notice"] = notices[notice]
+	if moved, _ := strconv.Atoi(r.URL.Query().Get("moved")); notice == "imported" && moved > 0 {
+		data["Notice"] = fmt.Sprintf("Import complete. %d library-only books moved out of To review to match Goodreads; other books kept their reading status and queue order.", moved)
+	}
 	var buf bytes.Buffer
 	if err := a.templates.ExecuteTemplate(&buf, name, data); err != nil {
 		return err
@@ -531,17 +543,47 @@ func (a *App) revokeSessions(w http.ResponseWriter, r *http.Request) error {
 	a.setSession(w, sessionData{CSRF: randomToken(), Expires: time.Now().Add(time.Hour).Unix()})
 	return redirect(w, r, "/login?notice=signedout")
 }
+
+// listView is one tab of the book list. views is the only list of tabs; the
+// index handler and templates both use it.
+type listView struct {
+	Key, Label, Status, Heading, Intro string
+}
+
+const defaultIntro = "Your list should follow your curiosity, not the date you added a book."
+
+var views = []listView{
+	{"queue", "Up next", "to-read", "A good book. Then another.", defaultIntro},
+	{"reading", "Reading", "reading", "In good company.", defaultIntro},
+	{"read", "Finished", "read", "Chapters completed.", defaultIntro},
+	{"unreviewed", "To review", "unreviewed", "Borrowed, but not yet decided.", "Library loans arrive here so borrowing never counts as wanting to read. Tell us what each one means to you."},
+	{"abandoned", "Set aside", "abandoned", "Not every book is for now.", defaultIntro},
+	{"archived", "Archived", "archived", "Kept for the record.", defaultIntro},
+	{"all", "All books", "", "Your books, together.", defaultIntro},
+}
+
+func findView(key string) listView {
+	for _, v := range views {
+		if v.Key == key {
+			return v
+		}
+	}
+	return views[0]
+}
+func searchQuery(raw string) string { return strings.ToLower(strings.TrimSpace(raw)) }
+
+// shows reports whether a book belongs in this view for a normalized query.
+func (v listView) shows(b Book, query string) bool {
+	return (v.Status == "" || b.Status == v.Status) && (query == "" || strings.Contains(strings.ToLower(b.Title+" "+b.Author+" "+b.Tags), query))
+}
 func (a *App) index(w http.ResponseWriter, r *http.Request) error {
 	all, err := loadBooks(a.store.DB)
 	if err != nil {
 		return err
 	}
 	queue := queueOnly(all)
-	view := r.URL.Query().Get("view")
-	if !in(view, []string{"queue", "all", "reading", "read"}) {
-		view = "queue"
-	}
-	query := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("q")))
+	view := findView(r.URL.Query().Get("view"))
+	query := searchQuery(r.URL.Query().Get("q"))
 	selected := []Book{}
 	positions := map[int64]int{}
 	pending, active := 0, 0
@@ -558,11 +600,7 @@ func (a *App) index(w http.ResponseWriter, r *http.Request) error {
 				break
 			}
 		}
-		target := view
-		if target == "queue" {
-			target = "to-read"
-		}
-		if (view == "all" || b.Status == target) && (query == "" || strings.Contains(strings.ToLower(b.Title+" "+b.Author+" "+b.Tags), query)) {
+		if view.shows(b, query) {
 			selected = append(selected, b)
 		}
 	}
@@ -572,5 +610,5 @@ func (a *App) index(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	canUndo := err == nil && undoRev == state(r).Revision
-	return a.render(w, r, "index.html", page{"Items": selected, "AllBooks": all, "Queue": queue, "View": view, "Query": query, "Positions": positions, "Pending": pending, "ActiveLoans": active, "CanUndo": canUndo}, 200)
+	return a.render(w, r, "index.html", page{"Items": selected, "AllBooks": all, "Queue": queue, "View": view.Key, "ViewInfo": view, "Views": views, "Query": query, "Positions": positions, "Pending": pending, "ActiveLoans": active, "CanUndo": canUndo}, 200)
 }
