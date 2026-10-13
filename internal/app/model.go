@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"math"
 	"strings"
 	"time"
 )
@@ -27,6 +28,9 @@ type Book struct {
 	AddedAt        string   `json:"added_at"`
 	Source         string   `json:"source"`
 	Loans          []Loan   `json:"loans"`
+	// Estimate is the saved estimated rating, filled only where ranking or a
+	// list needs it. It is a cache and not part of the export.
+	Estimate *float64 `json:"-"`
 }
 
 type Loan struct {
@@ -77,6 +81,9 @@ type Preferences struct {
 	// KeepReviews stores Goodreads review text locally. Off by default: only
 	// review lengths are kept.
 	KeepReviews bool `json:"keep_reviews"`
+	// UseEstimates lets saved estimated ratings nudge suggestions. Off by
+	// default; ranking reads the saved estimate and never calls a provider.
+	UseEstimates bool `json:"use_estimates,omitempty"`
 }
 
 var defaultPreferences = Preferences{LibraryWeight: 1, Length: "any"}
@@ -156,6 +163,11 @@ func score(b Book, p Preferences, today time.Time) (float64, []string) {
 				break
 			}
 		}
+	}
+	if p.UseEstimates && b.Estimate != nil {
+		// ±5 points per star from the middle of the scale, at most ±10.
+		total += math.Round((*b.Estimate-3)*50) / 10
+		reasons = append(reasons, fmt.Sprintf("Estimated %.1f★ for you", *b.Estimate))
 	}
 	if b.Pages != nil && ((p.Length == "short" && *b.Pages <= 250) || (p.Length == "long" && *b.Pages >= 400)) {
 		total += 10

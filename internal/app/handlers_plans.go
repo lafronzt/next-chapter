@@ -19,6 +19,11 @@ func makeSuggestion(q queryer, candidate int64) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	if prefs.UseEstimates {
+		if err = attachEstimates(q, queue); err != nil {
+			return "", err
+		}
+	}
 	rows, err := Propose(queue, prefs, candidate, time.Now().UTC())
 	if err != nil {
 		return "", bad(err.Error())

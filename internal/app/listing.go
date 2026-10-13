@@ -77,6 +77,9 @@ func listBooks(q queryer, f bookFilter, limit, offset int) ([]listedBook, error)
 	if err != nil {
 		return nil, err
 	}
+	if err = attachEstimates(q, books); err != nil {
+		return nil, err
+	}
 	items := make([]listedBook, len(books))
 	queued := []*listedBook{}
 	for i, b := range books {

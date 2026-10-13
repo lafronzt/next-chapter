@@ -13,6 +13,7 @@ var migrations = []migration{
 	{4, "per-client login failures", migrateLoginFailures},
 	{5, "indexes for paging and imports", migrateIndexes},
 	{6, "reading history", migrateReadingLog},
+	{7, "estimated ratings", migrateRatingEstimates},
 }
 
 func migrateBaseline(tx *sql.Tx) error {
@@ -113,5 +114,22 @@ CREATE INDEX reading_log_finished ON reading_log(finished_at, id);
 ALTER TABLE books ADD COLUMN published_year INTEGER NULL;
 ALTER TABLE books ADD COLUMN avg_rating REAL NULL;
 UPDATE meta SET value=json_set(value, '$.read_shelf', 'read') WHERE key='sync' AND json_type(value, '$.read_shelf') IS NULL;`)
+	return err
+}
+
+// Saved rating estimates, one per book. basis_fingerprint hashes the inputs,
+// so an estimate is stale once the reader's rated history or the book
+// changes. They are a cache: not exported, and safe to drop.
+func migrateRatingEstimates(tx *sql.Tx) error {
+	_, err := tx.Exec(`CREATE TABLE rating_estimates (
+ book_id INTEGER PRIMARY KEY REFERENCES books(id) ON DELETE CASCADE,
+ basis_fingerprint TEXT NOT NULL,
+ baseline REAL NULL CHECK(baseline BETWEEN 1 AND 5),
+ ai REAL NULL CHECK(ai BETWEEN 1 AND 5),
+ confidence TEXT NULL CHECK(confidence IN ('low','medium','high')),
+ reasons TEXT NOT NULL DEFAULT '[]',
+ model TEXT NOT NULL DEFAULT '',
+ created_at TEXT NOT NULL
+);`)
 	return err
 }

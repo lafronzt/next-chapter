@@ -83,7 +83,22 @@ func (a *App) editBook(w http.ResponseWriter, r *http.Request) error {
 		if err != nil {
 			return err
 		}
-		return a.render(w, r, "book.html", page{"Title": b.Title, "Book": b, "Editing": true, "Events": events, "EventTotal": total, "Readings": readings}, 200)
+		estimate, err := readEstimate(a.store.DB, id)
+		if err != nil {
+			return err
+		}
+		data := page{"Title": b.Title, "Book": b, "Editing": true, "Events": events, "EventTotal": total, "Readings": readings, "Estimate": estimate}
+		for _, e := range readings {
+			if e.Rating != nil {
+				data["Rated"] = true
+			}
+		}
+		if estimate != nil && data["Rated"] != nil {
+			if data["Accuracy"], err = loadAccuracy(a.store.DB, id); err != nil {
+				return err
+			}
+		}
+		return a.render(w, r, "book.html", data, 200)
 	}
 	b, err := bookFields(r)
 	if err != nil {

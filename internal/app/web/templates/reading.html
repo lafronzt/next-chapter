@@ -13,6 +13,9 @@
   <div><span class="stat-number">{{if .Stats.Rated}}{{printf "%.1f" .Stats.AverageRating}}{{else}}—{{end}}</span><span>average rating{{if .Stats.Rated}} · {{.Stats.Rated}} rated{{end}}</span></div>
   <div><span class="stat-number">{{if .Stats.AveragePages}}{{printf "%.0f" .Stats.AveragePages}}{{else}}—{{end}}</span><span>average pages</span></div>
 </section>
+{{with .Accuracy}}{{if .Books}}
+<p class="notice" role="status"><strong>How accurate was I?</strong> For {{.Books}} {{if eq .Books 1}}book{{else}}books{{end}} you rated after an estimate, the baseline was off by {{printf "%.1f" .BaselineError}}★ on average ({{.BaselineHits}} within half a star){{if .AIBooks}}; the AI’s estimate, for {{.AIBooks}} of them, by {{printf "%.1f" .AIError}}★ ({{.AIHits}} within half a star){{end}}.</p>
+{{end}}{{end}}
 <div class="two-columns reading-stats">
   <section class="panel">
     <h2>Books per year</h2>

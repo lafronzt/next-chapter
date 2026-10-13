@@ -70,7 +70,7 @@
       </div>
       <h2><a href="/books/{{.ID}}">{{.Title}}</a></h2>
       <p class="author">{{.Author}}{{if .Pages}}<span> · {{pages .Pages}} pages</span>{{end}}</p>
-      <p class="book-meta">Interest {{.Interest}}/5{{if .Tags}}<span> · {{.Tags}}</span>{{end}}</p>
+      <p class="book-meta">Interest {{.Interest}}/5{{if .Estimate}}<span> · <a class="estimate-link" href="/books/{{.ID}}/estimate">estimated {{star (deref .Estimate)}}</a></span>{{end}}{{if .Tags}}<span> · {{.Tags}}</span>{{end}}</p>
     </div>
     <div class="book-actions">
       {{if eq .Status "to-read"}}
@@ -87,6 +87,10 @@
         <button name="action" value="pin" aria-label="{{if .Pinned}}Unpin{{else}}Pin{{end}} {{.Title}}">{{if .Pinned}}Unpin{{else}}Pin{{end}}</button>
         {{if .NeedsPlacement}}<button name="action" value="placed" aria-label="Keep here: {{.Title}}" title="Keep the current position">Keep here</button>{{end}}
       </form>
+      {{if not .Estimate}}<form method="post" action="/books/{{.ID}}/estimate">
+        {{template "csrf" $}}
+        <button class="text-button" aria-label="Predict my rating: {{.Title}}">Predict my rating</button>
+      </form>{{end}}
       {{else if and (eq .Status "unreviewed") (eq $.View "unreviewed")}}
       <form class="triage" method="post" action="/books/{{.ID}}/triage">
         {{template "fields" $}}

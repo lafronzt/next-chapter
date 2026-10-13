@@ -979,6 +979,62 @@ input[type=checkbox] {
   margin-top:14px;
 }
 
+.estimate-columns {
+  margin-bottom:10px;
+}
+
+.estimate-card h2 {
+  font-size:21px;
+  margin-bottom:8px;
+}
+
+.estimate-card a,.estimate-line a,.estimate-link {
+  text-decoration:underline;
+  text-underline-offset:3px;
+}
+
+.estimate-value {
+  font:38px var(--serif);
+  margin:6px 0;
+}
+
+.estimate-factors {
+  margin:12px 0 12px 18px;
+  font-size:12px;
+  line-height:1.6;
+}
+
+.shared h3 {
+  margin:16px 0 6px;
+  font-size:15px;
+}
+
+.shared h3:first-child {
+  margin-top:0;
+}
+
+.table-scroll {
+  overflow-x:auto;
+}
+
+.shared table {
+  border-collapse:collapse;
+  width:100%;
+  font-size:12px;
+}
+
+.shared th,.shared td {
+  text-align:left;
+  padding:6px 10px 6px 0;
+  border-bottom:1px solid var(--line);
+  vertical-align:top;
+}
+
+.shared th {
+  font-weight:600;
+  white-space:nowrap;
+}
+
 .event,.history-row {
   display:flex;
   gap:25px;

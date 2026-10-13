@@ -18,6 +18,7 @@ Every suggestion has a preview and reasons. Pinned books keep their positions. Y
 - Delete a book, or merge a duplicate into the entry you keep, each after a confirmation preview. Re-imports never bring them back.
 - Explainable placement and full-queue reordering, with preview, stale-preview protection, and undo.
 - Goodreads CSV imports and optional hourly public-shelf RSS checks for **new additions**.
+- **Estimated ratings**: “what might I give this?” for an unread book, from your own ratings, with an optional AI second opinion and a running check of how accurate past estimates were.
 - A **Reading history** of finished books, with finish dates, your ratings, books per year, and favorite shelves, from your Goodreads read shelf and readings you log yourself.
 - Libby timeline CSV imports and a standard CSV format for physical NYPL activity.
 - Separate library events for print, ebook, and audiobook; newest known event wins, regardless of import order.
@@ -128,12 +129,33 @@ Each queued book starts with `interest × 10` points (10–50). Additional point
 | Loan / pickup deadline within 7 days, including overdue | +20 |
 | Exact mood tag match, case-insensitive | 15 |
 | Preferred length match (≤250 or ≥400 pages) | 10 |
+| Saved estimated rating, only if turned on in Preferences | −10 to +10 |
 
 Only the strongest library signal is used per book; multiple formats do not stack. Library points are multiplied by the selected timing weight (0, 0.5, 1, or 2). All dates used for ranking use UTC. Holds with no pickup date get no timing boost because a request does not imply availability.
 
 Full-queue suggestions sort by score while respecting pins and earlier queued books in the same series. Equal scores preserve existing order. Series metadata is supplied by the reader; Goodreads export/RSS does not reliably provide it. Insertion finds the earliest lower-scoring book, then the closest feasible slot that preserves the other books' order, pin slots, and the candidate's series dependencies. Impossible constraints produce a clear error instead of silently moving pins. Manual moves are intentional overrides of ranking; pin crossings must be unpinned first.
 
 Preferences affect the next suggestion; saving them does not move books. Reading/finished/archived/unreviewed books are outside the queue. Returning a book never changes its reading status.
+
+## Estimated ratings
+
+On a queued book (**Predict my rating**) or a book's page, Next Chapter estimates the rating you might give a book you have not rated yet, from the ratings you gave other books. It is an aid for deciding, not a fact, and it can be wrong.
+
+**The baseline needs no AI.** It starts from your average rating, then mixes in your averages for rated books by the same author, in the same series, and sharing any of its tags, each weighted by how many books it covers, and the Goodreads average, which counts like a single book because it is other readers' opinion:
+
+```
+(3 × your average + Σ books × average for author / series / shared tags + 1 × Goodreads average) ÷ (3 + Σ books + 1)
+```
+
+The page shows the result to one decimal, "Based on N rated books", and each factor. With fewer than 10 rated books it is labelled low confidence. Each book counts its latest rated reading; the candidate's own readings never count. A book you have already rated gets no estimate.
+
+**An AI second opinion is optional.** With AI assistance on, the estimate page lists exactly what would be sent: the candidate's title, author, tags, pages, series, Goodreads average, and baseline; your rating statistics; and at most 40 of your rated books (your 10 highest- and 10 lowest-rated, then those closest by tags, author, and series), each with title, author, tags, pages, series, your rating, and finish year. Review text is sent only if you keep reviews and tick the box for that request. Nothing else goes: no ISBNs, Goodreads IDs, loans, or library accounts. The answer must be JSON with an estimate from 1 to 5, a confidence of low, medium, or high, and one to three short reasons; anything else is discarded. It is shown next to the baseline, labelled AI-generated, and never replaces it.
+
+**Saved, not live.** Estimates are saved (in `rating_estimates`) with a fingerprint of their inputs and shown without contacting any provider. When your rated history or the book changes, the page marks the saved estimate as possibly out of date and offers to update it. Estimating never changes your library or its revision, and estimates are a cache: they are not in the JSON export and are dropped when the book is deleted.
+
+**Ranking, only if you want.** Preferences has **Let my saved estimated ratings nudge suggestions**, off by default. When on, a saved estimate adds `(estimate − 3) × 5` points (−10 to +10), shown as a reason such as "Estimated 4.3★ for you". It uses the AI value when there is one, otherwise the baseline, and the saved value even if it is out of date; ranking never calls a provider. Books without an estimate are ranked exactly as before.
+
+**How accurate was I?** When you rate a book that had an estimate, Reading history shows the average error of the baseline and of the AI estimates, in stars, and how many were within half a star. The book's page shows its estimate next to your rating.
 
 ## AI assistance (optional)
 
@@ -281,7 +303,7 @@ The JSON export can also be loaded back, for example to move to a new instance w
 - Restored: books with their status, interest, pins, **Needs placement**, queue positions and order, series, tags, pages, identifiers, added date, and source; reading history (review text only if the restored preferences keep reviews); library events with their fingerprints, so re-importing the same CSV adds no duplicates; current loans, rebuilt from the events with the same newest-wins rule as imports; merge and deletion aliases; ranking preferences; and Goodreads settings.
 - Goodreads polling is always restored **off**. The preview and the confirmation say so; turn it on in Preferences when ready.
 - Not restored: previews, undo, sign-in state, and the session key. Books and events get new ID numbers.
-- Validation is strict and uses the same limits as the forms and CSV imports. Unknown fields, malformed JSON, out-of-range values, duplicate titles or Goodreads IDs, and exports from a newer schema version than this build supports are refused, and nothing is written. The export's `schema_version` is the database schema version it came from; this build restores versions 1 to 6. An export from before version 6 has no reading history, and its Goodreads connection starts following the `read` shelf.
+- Validation is strict and uses the same limits as the forms and CSV imports. Unknown fields, malformed JSON, out-of-range values, duplicate titles or Goodreads IDs, and exports from a newer schema version than this build supports are refused, and nothing is written. The export's `schema_version` is the database schema version it came from; this build restores versions 1 to 7. An export from before version 6 has no reading history, and its Goodreads connection starts following the `read` shelf.
 - The file is limited to 10 MB, 10,000 books, and 100,000 events. A 10,000-book export is typically about 6 MB; a library too large for JSON restore can still use the database backup.
 
 ### Schema upgrades and rollback
@@ -297,6 +319,8 @@ The app refuses to start if the database has a newer schema version than the run
 3. Start the previous image.
 
 Changes made after the upgrade are not in the `.bak`. Export JSON first if you need a record of them.
+
+Schema migration 7 adds the `rating_estimates` table for saved estimated ratings; no existing data changes. Roll back with `next-chapter.sqlite3.pre-v7.bak` as above, or keep later changes and run an older image after `DROP TABLE rating_estimates; UPDATE meta SET value='6' WHERE key='schema_version';`. Estimates are a cache, so nothing else is lost. A saved **use_estimates** preference is ignored by older images.
 
 Schema migration 6 adds the `reading_log` table, the `books.published_year` and `books.avg_rating` columns, and a `read_shelf` of `read` to a saved Goodreads connection. Roll back with `next-chapter.sqlite3.pre-v6.bak` as above. To keep changes made since the upgrade instead, run an older image after `DROP TABLE reading_log; ALTER TABLE books DROP COLUMN published_year; ALTER TABLE books DROP COLUMN avg_rating; UPDATE meta SET value='5' WHERE key='schema_version';`; this discards the reading history, so export JSON first.
 
@@ -341,6 +365,7 @@ The application uses Go’s HTTP server, escaped HTML templates, plain CSS, and 
 - `internal/app/plans.go`: compact storage for previews.
 - `internal/app/merge.go`: deleting and merging books, aliases that stop re-imports from recreating them.
 - `internal/app/feed.go`, `sync.go`: fixed-host RSS fetching, optional hourly polling with backoff.
+- `internal/app/estimate.go`, `handlers_estimate.go`: estimated ratings, the deterministic baseline, the optional AI estimate, and accuracy tracking.
 - `internal/app/ai.go`, `handlers_ai.go`: the optional AI provider layer (Anthropic, OpenAI, Ollama, and OpenAI-compatible servers over `net/http`), its monthly limit, strict answer parsing, and the Preferences switch.
 - `internal/app/server.go`: configuration and the routing table; `middleware.go`, `session.go`, `render.go`, `forms.go` hold the request pipeline, and `handlers_*.go` the handlers by area.
 - `internal/app/version.go`: the release version, set at build time with `-ldflags "-X github.com/lafronzt/next-chapter/internal/app.Version=…"`.

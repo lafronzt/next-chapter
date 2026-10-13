@@ -21,6 +21,8 @@
     <option value="long" {{if eq .Prefs.Length "long"}}selected{{end}}>Long · 400+ pages</option>
   </select></label>
   <label class="span-2">In the mood for<input name="mood" maxlength="100" value="{{.Prefs.Mood}}" placeholder="A tag such as hopeful, nature, or mystery"><small>Matches one of your comma-separated book tags.</small></label>
+  <label class="checkbox span-2"><input type="checkbox" name="use_estimates" {{if .Prefs.UseEstimates}}checked{{end}}> Let my saved estimated ratings nudge suggestions</label>
+  <p class="span-2 muted"><small>Off by default. A saved estimate adds up to 10 points for a book you would probably love, or takes up to 10 away, shown as a reason such as “Estimated 4.3★ for you”. Suggestions use the estimate already saved and never contact an AI. Books without one are ranked as before.</small></p>
   <label class="checkbox span-2"><input type="checkbox" name="keep_reviews" {{if .Prefs.KeepReviews}}checked{{end}}> Keep my Goodreads review text in this library</label>
   <p class="span-2 muted"><small>Off by default: only each review’s length is stored. Reviews are personal and can be long. Turning this off deletes review text already kept here.</small></p>
   <div class="span-2 divider"></div>

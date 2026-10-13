@@ -52,7 +52,7 @@ func (a *App) render(w http.ResponseWriter, r *http.Request, name string, data p
 }
 
 // notices are the confirmations a redirect can request with ?notice=.
-var notices = map[string]string{"triaged": "Sorted. Only reading status changed; books you want to read wait at the end of your queue for placement.", "saved": "Saved to your library.", "ordered": "Your new order is saved. You can undo it until your next library change.", "undone": "Previous order restored.", "imported": "Import complete. Existing reading status and queue order were preserved.", "loan": "Library event recorded. Reading status stays the same.", "synced": "Goodreads checked. New books are marked Needs placement.", "signedout": "Signed out on every device. Sign in again to continue.", "deleted": "Book deleted. Future imports will skip it.", "merged": "Books merged. Future imports of the merged book will update this one.", "restored": "Library restored from your JSON export.", "reading": "Reading history saved. Your queue is unchanged.", "ai-on": "AI assistance is on. Nothing is sent until you ask for a suggestion and confirm what gets shared.", "ai-off": "AI assistance is off. Nothing will be sent to the AI provider.", "ai-tested": "The AI provider answered the test prompt. No library data was sent.", "restored-sync": "Library restored from your JSON export. Goodreads polling is off; turn it back on in Preferences when you are ready."}
+var notices = map[string]string{"triaged": "Sorted. Only reading status changed; books you want to read wait at the end of your queue for placement.", "saved": "Saved to your library.", "ordered": "Your new order is saved. You can undo it until your next library change.", "undone": "Previous order restored.", "imported": "Import complete. Existing reading status and queue order were preserved.", "loan": "Library event recorded. Reading status stays the same.", "synced": "Goodreads checked. New books are marked Needs placement.", "signedout": "Signed out on every device. Sign in again to continue.", "deleted": "Book deleted. Future imports will skip it.", "merged": "Books merged. Future imports of the merged book will update this one.", "restored": "Library restored from your JSON export.", "reading": "Reading history saved. Your queue is unchanged.", "ai-on": "AI assistance is on. Nothing is sent until you ask for a suggestion and confirm what gets shared.", "ai-off": "AI assistance is off. Nothing will be sent to the AI provider.", "estimated": "The AI’s estimate is saved next to the baseline. Your library did not change.", "ai-tested": "The AI provider answered the test prompt. No library data was sent.", "restored-sync": "Library restored from your JSON export. Goodreads polling is off; turn it back on in Preferences when you are ready."}
 
 func (a *App) fail(w http.ResponseWriter, r *http.Request, err error) {
 	status, message := 500, genericFailure
@@ -130,6 +130,9 @@ func templateFuncs() template.FuncMap {
 			return template.HTML(fmt.Sprintf(`<span aria-hidden="true">%s%s</span><span class="sr-only">%d out of 5</span>`, strings.Repeat("★", *n), strings.Repeat("☆", 5-*n), *n))
 		},
 		"version": func() string { return Version },
+		"star":    func(f float64) string { return fmt.Sprintf("%.1f★", f) },
+		"deref":   func(f *float64) float64 { return *f },
+		"inc":     func(i int) int { return i + 1 },
 		"join":    strings.Join,
 		"minute": func(s string) string {
 			if len(s) >= 16 {

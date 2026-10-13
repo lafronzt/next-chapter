@@ -99,7 +99,7 @@ func deleteBook(q queryer, id int64) error {
 	if err != nil {
 		return err
 	}
-	for _, statement := range []string{"DELETE FROM events WHERE book_id=?", "DELETE FROM loans WHERE book_id=?", "DELETE FROM reading_log WHERE book_id=?", "UPDATE book_aliases SET target_book_id=NULL WHERE target_book_id=?"} {
+	for _, statement := range []string{"DELETE FROM events WHERE book_id=?", "DELETE FROM loans WHERE book_id=?", "DELETE FROM reading_log WHERE book_id=?", "DELETE FROM rating_estimates WHERE book_id=?", "UPDATE book_aliases SET target_book_id=NULL WHERE target_book_id=?"} {
 		if _, err = q.Exec(statement, id); err != nil {
 			return err
 		}
@@ -223,6 +223,9 @@ func mergeBooks(q queryer, sourceID, targetID int64, apply bool) (mergePreview, 
 	}
 	// Delete the source before copying identifiers so the unique Goodreads ID
 	// index never sees the same value twice.
+	if _, err = q.Exec("DELETE FROM rating_estimates WHERE book_id=?", sourceID); err != nil {
+		return p, err
+	}
 	if _, err = q.Exec("DELETE FROM books WHERE id=?", sourceID); err != nil {
 		return p, err
 	}
