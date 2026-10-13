@@ -50,6 +50,7 @@ func stubFeed(status int, body string, redirects map[string]string) (*feedClient
 var testConnection = Connection{UserID: "42", Shelf: "to-read", Enabled: true}
 
 func TestFeedRedirectPolicy(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	for name, location := range map[string]string{
 		"other host":  "https://evil.example/feed",
@@ -87,6 +88,7 @@ func TestFeedRedirectPolicy(t *testing.T) {
 }
 
 func TestFeedErrors(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	for name, c := range map[string]struct {
 		status int
@@ -143,6 +145,7 @@ func pollState(t *testing.T, a *App) PollState {
 }
 
 func TestPollSuccessThroughFeed(t *testing.T) {
+	t.Parallel()
 	feed, _ := stubFeed(200, testRSS, nil)
 	a, _ := pollApp(t, feed.Fetch)
 	now := time.Date(2026, 10, 10, 12, 0, 0, 0, time.UTC)
@@ -161,6 +164,7 @@ func TestPollSuccessThroughFeed(t *testing.T) {
 }
 
 func TestPollIfDue(t *testing.T) {
+	t.Parallel()
 	a, calls := pollApp(t, func(context.Context, Connection) ([]Record, error) { return nil, nil })
 	ctx := context.Background()
 	now := time.Date(2026, 10, 10, 12, 0, 0, 0, time.UTC)
@@ -198,6 +202,7 @@ func TestPollIfDue(t *testing.T) {
 }
 
 func TestPollBackoff(t *testing.T) {
+	t.Parallel()
 	failing := true
 	a, calls := pollApp(t, func(context.Context, Connection) ([]Record, error) {
 		if failing {
@@ -259,6 +264,7 @@ func TestPollRecoversPanics(t *testing.T) {
 }
 
 func TestPollSkipsWhenBusy(t *testing.T) {
+	t.Parallel()
 	a, calls := pollApp(t, func(context.Context, Connection) ([]Record, error) { return nil, nil })
 	a.syncMu.Lock()
 	a.pollIfDue(context.Background(), time.Now())
@@ -270,6 +276,7 @@ func TestPollSkipsWhenBusy(t *testing.T) {
 }
 
 func TestSyncNowMessages(t *testing.T) {
+	t.Parallel()
 	a := testApp(t, true)
 	b := browser{t: t, handler: a.Handler()}
 	expect(t, b.request("GET", "/settings", nil), 200)
@@ -312,4 +319,55 @@ func TestSyncNowMessages(t *testing.T) {
 	if !strings.Contains(rr.Body.String(), "could not be checked") {
 		t.Fatal(rr.Body.String())
 	}
+}
+
+func TestFetchGoodreadsDefaults(t *testing.T) {
+	t.Parallel()
+	if defaultFeed.base != "https://www.goodreads.com" || defaultFeed.client.Timeout != feedTimeout || defaultFeed.client.CheckRedirect == nil {
+		t.Fatalf("%+v", defaultFeed)
+	}
+	// Invalid settings fail before any request, so this never reaches the network.
+	for _, c := range []Connection{{}, {UserID: "abc", Shelf: "to-read"}, {UserID: "42", Shelf: "has space"}} {
+		_, err := FetchGoodreads(context.Background(), c)
+		if !errors.Is(err, errSyncConfig) {
+			t.Fatalf("%+v: %v", c, err)
+		}
+	}
+}
+
+func TestPollTicksUntilCancelled(t *testing.T) {
+	t.Parallel()
+	called := make(chan struct{}, 10)
+	a, _ := pollApp(t, func(context.Context, Connection) ([]Record, error) {
+		select {
+		case called <- struct{}{}:
+		default:
+		}
+		return records("Polled"), nil
+	})
+	a.pollTick = time.Millisecond
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() { a.Poll(ctx); close(done) }()
+	select {
+	case <-called:
+	case <-time.After(5 * time.Second):
+		t.Fatal("Poll never fetched")
+	}
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("Poll ignored cancellation")
+	}
+	// The first tick synced and scheduled the next check an hour out, so
+	// later ticks did not fetch again.
+	if len(called) != 0 {
+		t.Fatalf("%d extra fetches", len(called))
+	}
+	if b := bookNamed(t, a, "Polled"); !b.NeedsPlacement {
+		t.Fatalf("%+v", b)
+	}
+	// A context that is already cancelled returns without polling.
+	a.Poll(ctx)
 }

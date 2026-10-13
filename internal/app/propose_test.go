@@ -40,10 +40,15 @@ func randomQueue(rng *rand.Rand, n int) []Book {
 }
 
 func TestProposeMatchesReference(t *testing.T) {
+	t.Parallel()
 	rng := rand.New(rand.NewPCG(1, 2))
 	prefs := []Preferences{defaultPreferences, {LibraryWeight: 2, Length: "short", Mood: "hopeful"}, {LibraryWeight: 0, Length: "long"}}
 	errorsSeen, okSeen := map[bool]int{}, map[bool]int{}
-	for iteration := range 20000 {
+	iterations := 20000
+	if raceEnabled {
+		iterations = 3000
+	}
+	for iteration := range iterations {
 		books := randomQueue(rng, 5+rng.IntN(36))
 		p := prefs[rng.IntN(len(prefs))]
 		var candidate int64

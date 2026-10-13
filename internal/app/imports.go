@@ -60,7 +60,9 @@ func parseTime(value string) (string, error) {
 		}
 	}
 	for _, layout := range []string{time.RFC3339Nano, "2006-01-02T15:04:05", "2006-01-02 15:04:05", time.DateOnly, "2006/01/02", "01/02/2006", "1/2/2006", "January 2, 2006", "02 Jan 2006", time.RFC1123Z, time.RFC1123, time.RFC822Z} {
-		if t, err := time.Parse(layout, value); err == nil {
+		// Offsets can carry year 1 or 9999 across the edge, where the
+		// canonical form stops being four-digit RFC 3339.
+		if t, err := time.Parse(layout, value); err == nil && t.UTC().Year() >= 1 && t.UTC().Year() <= 9999 {
 			return canonicalTime(t), nil
 		}
 	}

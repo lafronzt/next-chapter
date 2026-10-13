@@ -72,6 +72,7 @@ func unchangedExceptStatus(t *testing.T, before, after Book) {
 }
 
 func TestGoodreadsImportUpgradesUnreviewed(t *testing.T) {
+	t.Parallel()
 	a := testApp(t, true)
 	addRecords(t, a, records("Queued one", "Queued two"))
 	addRecords(t, a, []Record{libbyLoan("Wanted"), libbyLoan("Finished"), libbyLoan("Started"), libbyLoan("Dropped"), libbyLoan("Untouched")})
@@ -108,6 +109,7 @@ func TestGoodreadsImportUpgradesUnreviewed(t *testing.T) {
 }
 
 func TestGoodreadsNeverOverridesReaderStatus(t *testing.T) {
+	t.Parallel()
 	a := testApp(t, true)
 	statuses := []string{"to-read", "reading", "read", "abandoned", "archived"}
 	for _, status := range statuses {
@@ -133,6 +135,7 @@ func TestGoodreadsNeverOverridesReaderStatus(t *testing.T) {
 }
 
 func TestOnlyGoodreadsShelvesUpgrade(t *testing.T) {
+	t.Parallel()
 	a := testApp(t, true)
 	addRecords(t, a, []Record{libbyLoan("Borrowed")})
 	// Library re-imports, manual and demo records, and a Goodreads-sourced
@@ -178,6 +181,7 @@ func uploadCSV(b *browser, source, data string) *httptest.ResponseRecorder {
 }
 
 func TestUpgradeSurfacedInPreviewNoticeAndSync(t *testing.T) {
+	t.Parallel()
 	a := testApp(t, true)
 	addRecords(t, a, []Record{libbyLoan("Wanted"), libbyLoan("Finished"), libbyLoan("Synced")})
 	b := &browser{t: t, handler: a.Handler()}
@@ -231,6 +235,7 @@ func TestUpgradeSurfacedInPreviewNoticeAndSync(t *testing.T) {
 }
 
 func TestQuickTriage(t *testing.T) {
+	t.Parallel()
 	a := testApp(t, true)
 	addRecords(t, a, records("Queued"))
 	addRecords(t, a, []Record{libbyLoan("Wanted"), libbyLoan("Finished"), libbyLoan("Skipped")})
@@ -288,6 +293,7 @@ func TestQuickTriage(t *testing.T) {
 }
 
 func TestBulkTriageNeedsConfirmation(t *testing.T) {
+	t.Parallel()
 	a := testApp(t, true)
 	addRecords(t, a, []Record{libbyLoan("Cozy mystery"), libbyLoan("Dark mystery"), libbyLoan("Poetry")})
 	b := &browser{t: t, handler: a.Handler()}
@@ -334,6 +340,7 @@ func TestBulkTriageNeedsConfirmation(t *testing.T) {
 }
 
 func TestUnreviewedViewAndBadge(t *testing.T) {
+	t.Parallel()
 	a := testApp(t, true)
 	b := &browser{t: t, handler: a.Handler()}
 	rr := b.request("GET", "/?view=unreviewed", nil)

@@ -226,7 +226,7 @@ func (a *App) pollIfDue(ctx context.Context, now time.Time) {
 }
 
 func (a *App) Poll(ctx context.Context) {
-	ticker := time.NewTicker(time.Minute)
+	ticker := time.NewTicker(a.pollTick)
 	defer ticker.Stop()
 	for {
 		select {

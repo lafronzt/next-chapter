@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -109,4 +110,11 @@ func expect(t *testing.T, r *httptest.ResponseRecorder, code int) {
 	if r.Code != code {
 		t.Fatalf("status %d, want %d: %s", r.Code, code, r.Body)
 	}
+}
+
+// TestMain lowers the password key cost: it is the same derivation, but the
+// default 600,000 PBKDF2 rounds dominate the suite under -race.
+func TestMain(m *testing.M) {
+	passwordIterations = 1000
+	os.Exit(m.Run())
 }

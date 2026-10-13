@@ -34,6 +34,7 @@ type App struct {
 	syncMu      sync.Mutex
 	fetch       func(context.Context, Connection) ([]Record, error)
 	now         func() time.Time
+	pollTick    time.Duration // how often Poll checks whether a sync is due
 	logger      *slog.Logger
 }
 type requestState struct {
@@ -80,7 +81,7 @@ func New(c Config) (*App, error) {
 		store.Close()
 		return nil, err
 	}
-	key, err := pbkdf2.Key(sha256.New, c.Password, []byte("next-chapter:"+c.Secret), 600000, 32)
+	key, err := deriveKey(c.Password, c.Secret)
 	if err != nil {
 		store.Close()
 		return nil, err
@@ -96,7 +97,15 @@ func New(c Config) (*App, error) {
 		store.Close()
 		return nil, err
 	}
-	return &App{store: store, config: c, templates: templates, passwordKey: key, fetch: FetchGoodreads, now: time.Now, logger: slog.New(slog.NewTextHandler(os.Stderr, nil))}, nil
+	return &App{store: store, config: c, templates: templates, passwordKey: key, fetch: FetchGoodreads, now: time.Now, pollTick: time.Minute, logger: slog.New(slog.NewTextHandler(os.Stderr, nil))}, nil
+}
+
+// passwordIterations is the PBKDF2-SHA256 cost (OWASP's 2023 figure). Tests
+// lower it, because the race detector makes each derivation take about a second.
+var passwordIterations = 600_000
+
+func deriveKey(password, secret string) ([]byte, error) {
+	return pbkdf2.Key(sha256.New, password, []byte("next-chapter:"+secret), passwordIterations, 32)
 }
 func (a *App) Close() error { return a.store.Close() }
 func state(r *http.Request) requestState {

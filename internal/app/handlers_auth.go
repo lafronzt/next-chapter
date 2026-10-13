@@ -2,8 +2,6 @@ package app
 
 import (
 	"crypto/hmac"
-	"crypto/pbkdf2"
-	"crypto/sha256"
 	"database/sql"
 	"net"
 	"net/http"
@@ -47,7 +45,7 @@ func (a *App) login(w http.ResponseWriter, r *http.Request) error {
 	if limited {
 		return httpError{Status: 429, Message: "Too many login attempts. Wait a minute and try again.", Header: http.Header{"Retry-After": {"60"}}}
 	}
-	key, err := pbkdf2.Key(sha256.New, r.FormValue("password"), []byte("next-chapter:"+a.config.Secret), 600000, 32)
+	key, err := deriveKey(r.FormValue("password"), a.config.Secret)
 	if err != nil {
 		return err
 	}

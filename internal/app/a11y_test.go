@@ -52,6 +52,7 @@ func a11yLibrary(t *testing.T) (*App, *browser, map[string]string) {
 }
 
 func TestNavigationMarksOneCurrentItem(t *testing.T) {
+	t.Parallel()
 	_, b, plans := a11yLibrary(t)
 	cases := map[string]string{
 		"/":                  "/=page",
@@ -92,6 +93,7 @@ func TestNavigationMarksOneCurrentItem(t *testing.T) {
 }
 
 func TestDecorativeGlyphsAreHidden(t *testing.T) {
+	t.Parallel()
 	_, b, _ := a11yLibrary(t)
 	body := b.request("GET", "/", nil).Body.String()
 	nav := mainNavPattern.FindStringSubmatch(body)[1]
@@ -111,6 +113,7 @@ func TestDecorativeGlyphsAreHidden(t *testing.T) {
 }
 
 func TestRowActionsNameTheirBook(t *testing.T) {
+	t.Parallel()
 	_, b, _ := a11yLibrary(t)
 	body := b.request("GET", "/", nil).Body.String()
 	for _, want := range []string{
@@ -132,6 +135,7 @@ func TestRowActionsNameTheirBook(t *testing.T) {
 }
 
 func TestErrorNoticesAreAlerts(t *testing.T) {
+	t.Parallel()
 	_, b, plans := a11yLibrary(t)
 	// A library change makes the earlier previews stale.
 	expect(t, b.request("POST", "/books/2/action", url.Values{"action": {"pin"}}), 303)
@@ -163,6 +167,7 @@ func TestErrorNoticesAreAlerts(t *testing.T) {
 }
 
 func TestPagesHaveDistinctTitles(t *testing.T) {
+	t.Parallel()
 	_, b, plans := a11yLibrary(t)
 	cases := map[string]string{
 		"/":                 "Reading queue – Next Chapter",
@@ -204,6 +209,7 @@ func TestPagesHaveDistinctTitles(t *testing.T) {
 }
 
 func TestSkipLinkAndMarkupStayCSPSafe(t *testing.T) {
+	t.Parallel()
 	_, b, plans := a11yLibrary(t)
 	idPattern := regexp.MustCompile(`\sid="([^"]+)"`)
 	for _, path := range []string{"/", "/?view=unreviewed", "/history", "/imports", "/settings", "/books/new", "/books/1", "/books/1/merge", "/books/1/delete", "/login", "/books/999", plans["import"], plans["reorder"], plans["triage"]} {

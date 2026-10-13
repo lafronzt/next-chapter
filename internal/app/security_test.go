@@ -42,6 +42,7 @@ func signIn(t *testing.T, a *App, remote string) *browser {
 }
 
 func TestLoginCountsOnlyFailures(t *testing.T) {
+	t.Parallel()
 	a := testApp(t, false)
 	// A client just under its limit can still sign in, and success is not counted.
 	seedFailures(t, a, "198.51.100.3", loginClientLimit-1)
@@ -66,6 +67,7 @@ func TestLoginCountsOnlyFailures(t *testing.T) {
 }
 
 func TestLoginGlobalBackstop(t *testing.T) {
+	t.Parallel()
 	a := testApp(t, false)
 	for i := range loginGlobalLimit {
 		seedFailures(t, a, fmt.Sprintf("203.0.113.%d", i%200), 1)
@@ -85,6 +87,7 @@ func TestLoginGlobalBackstop(t *testing.T) {
 }
 
 func TestClientIP(t *testing.T) {
+	t.Parallel()
 	a := testApp(t, true)
 	request := func(forwarded ...string) *http.Request {
 		r := httptest.NewRequest("GET", "/", nil)
@@ -117,6 +120,7 @@ func TestClientIP(t *testing.T) {
 }
 
 func TestTrustedProxyLimiter(t *testing.T) {
+	t.Parallel()
 	a := testApp(t, false)
 	a.config.TrustedProxyHops = 1
 	seedFailures(t, a, "203.0.113.9", loginClientLimit)
@@ -145,6 +149,7 @@ func TestTrustedProxyLimiter(t *testing.T) {
 var referencePattern = regexp.MustCompile(`<code>([0-9a-f]{12})</code>`)
 
 func TestPanicAndServerErrorShowRequestID(t *testing.T) {
+	t.Parallel()
 	a := testApp(t, true)
 	var logs bytes.Buffer
 	a.logger = slog.New(slog.NewTextHandler(&logs, nil))
@@ -192,6 +197,7 @@ func TestPanicAndServerErrorShowRequestID(t *testing.T) {
 }
 
 func TestSignOutEverywhere(t *testing.T) {
+	t.Parallel()
 	a := testApp(t, false)
 	b := signIn(t, a, "")
 	laptop := &browser{t: t, handler: a.Handler(), cookie: b.cookie}
@@ -221,6 +227,7 @@ func TestSignOutEverywhere(t *testing.T) {
 }
 
 func TestPasswordChangeEndsSessions(t *testing.T) {
+	t.Parallel()
 	path := filepath.Join(t.TempDir(), "library.sqlite3")
 	open := func(password string) *App {
 		a, err := New(Config{Database: path, Secret: strings.Repeat("s", 40), Password: password})
@@ -240,6 +247,7 @@ func TestPasswordChangeEndsSessions(t *testing.T) {
 }
 
 func TestSecurityHeaders(t *testing.T) {
+	t.Parallel()
 	for _, secure := range []bool{false, true} {
 		a := testApp(t, true)
 		a.config.SecureCookie = secure
@@ -250,7 +258,8 @@ func TestSecurityHeaders(t *testing.T) {
 			if (h.Get("Strict-Transport-Security") != "") != secure {
 				t.Fatalf("secure=%v %s HSTS %q", secure, path, h.Get("Strict-Transport-Security"))
 			}
-			if h.Get("Permissions-Policy") != "camera=(), microphone=(), geolocation=()" || h.Get("X-Frame-Options") != "DENY" || h.Get("Content-Security-Policy") == "" {
+			if h.Get("Permissions-Policy") != "camera=(), microphone=(), geolocation=()" || h.Get("X-Frame-Options") != "DENY" || h.Get("X-Content-Type-Options") != "nosniff" || h.Get("Referrer-Policy") != "same-origin" ||
+				h.Get("Content-Security-Policy") != "default-src 'self'; style-src 'self'; script-src 'self'; img-src 'self' data:; frame-ancestors 'none'; form-action 'self'; base-uri 'self'" {
 				t.Fatalf("%s headers %v", path, h)
 			}
 			if (h.Get("Cache-Control") == "no-store") == (path == "/static/app.css") {
@@ -261,6 +270,7 @@ func TestSecurityHeaders(t *testing.T) {
 }
 
 func TestCSRFMessages(t *testing.T) {
+	t.Parallel()
 	a := testApp(t, true)
 	b := &browser{t: t, handler: a.Handler()}
 	// No session at all: explain the reset and do not issue a cookie yet.
