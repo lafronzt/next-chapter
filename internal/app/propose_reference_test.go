@@ -171,7 +171,7 @@ func proposeReference(books []Book, p Preferences, candidateID int64, today time
 		if b.Pinned {
 			why = append(why, "Pinned position")
 		}
-		rows = append(rows, Suggestion{b.ID, b.Title, b.Author, original[b.ID] + 1, i + 1, b.Pinned, scores[b.ID], why})
+		rows = append(rows, Suggestion{ID: b.ID, Title: b.Title, Author: b.Author, Old: original[b.ID] + 1, New: i + 1, Pinned: b.Pinned, Score: scores[b.ID], Reasons: why})
 	}
 	return rows, nil
 }

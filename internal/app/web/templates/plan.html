@@ -58,31 +58,72 @@
   {{end}}
 </div>
 {{else}}
+{{with .Plan.AINotice}}<div class="notice error" role="alert">{{.}}</div>{{end}}
+{{if .Plan.AIRows}}
+<nav class="tabs plan-toggle" aria-label="Which order to show">
+  <a href="?show=rules" {{if not .ShowAI}}class="selected" aria-current="page"{{end}}>Use my usual ranking</a>
+  <a href="?show=ai" {{if .ShowAI}}class="selected" aria-current="page"{{end}}>Use AI suggestion</a>
+</nav>
+<p class="muted ai-meta"><small>AI suggestion from {{.Plan.AIModel}} · {{.Plan.AIInputTokens}} input and {{.Plan.AIOutputTokens}} output tokens.{{with .Plan.Intent}} Your note: “{{.}}”.{{end}} Pins and series order are enforced by this app, not the AI. Reasons marked AI are AI-generated.</small></p>
+{{end}}
 <div class="panel preview-list">
-  {{range .Plan.Rows}}
+  {{range .Shown}}
   <article class="preview-row">
     <div class="rank-change"><span class="sr-only">From position </span><span>{{.Old}}</span><span aria-hidden="true">→</span><span class="sr-only"> to </span><strong>{{.New}}</strong></div>
     <div class="preview-title">
       <h2>{{.Title}}</h2>
       <p>{{.Author}}</p>
+      {{with .AIReason}}<p class="ai-reason"><span class="badge">AI</span> {{.}}</p>{{end}}
       <div class="reasons">
         {{range .Reasons}}<span>{{.}}</span>{{end}}
       </div>
+      {{if .Repaired}}<p class="ai-repaired">Moved from the AI’s order to keep pins and series order.</p>{{end}}
     </div>
     <span class="badge {{if lt .New .Old}}green{{end}}">{{rankLabel .}}</span>
   </article>
   {{end}}
 </div>
+{{with .Shared}}
+<section class="section-heading" id="ask-ai">
+  <h2>Ask the AI for a second opinion?</h2>
+  <p>It can weigh things the usual ranking cannot, like variety, pacing, and your note. Its order is shown beside this one, pins and series order still win, and nothing changes until you apply one.</p>
+</section>
+<div class="panel shared">
+  <h3>What gets shared with {{$.AI.Provider}} ({{$.AI.Model}})</h3>
+  <p>{{if eq .Task "place"}}The book to place, {{len .Books}} books around its usual place{{else}}{{len .Books}} of the {{.QueueSize}} books in your queue (the highest-ranked, plus pinned books){{end}}{{if .Recent}}, and your {{len .Recent}} most recently finished {{if eq (len .Recent) 1}}book{{else}}books{{end}}{{end}}. Books are numbered for this request only; no database IDs, ISBNs, Goodreads IDs, or library accounts are sent. Library status says only “borrowed” or “ready for pickup” and the days until the deadline.</p>
+  {{with .Note}}<p><strong>Your note:</strong> “{{.}}”</p>{{end}}
+  {{with .Candidate}}<p><strong>To place:</strong> {{.Title}} · {{.Author}}{{with .Tags}} · {{.}}{{end}}{{with .Pages}} · {{pages .}} pages{{end}}{{with .Series}} · {{.}}{{end}} · interest {{.Interest}}/5{{with .Estimate}} · estimated {{star (deref .)}}{{end}}</p>{{end}}
+  <div class="table-scroll">
+    <table>
+      <thead><tr><th scope="col">#</th><th scope="col">Title</th><th scope="col">Author</th><th scope="col">Tags</th><th scope="col">Pages</th><th scope="col">Series</th><th scope="col">Interest</th><th scope="col">Estimate</th><th scope="col">Library</th><th scope="col">Now at</th></tr></thead>
+      <tbody>
+        {{range .Books}}<tr><td>{{.ID}}</td><td>{{.Title}}</td><td>{{.Author}}</td><td>{{.Tags}}</td><td>{{pages .Pages}}</td><td>{{.Series}}{{with .SeriesNumber}} #{{seriesNumber .}}{{end}}</td><td>{{.Interest}}</td><td>{{with .Estimate}}{{star (deref .)}}{{end}}</td><td>{{.Library}}</td><td>{{.Position}}{{if .Pinned}} (pinned){{end}}</td></tr>{{end}}
+      </tbody>
+    </table>
+  </div>
+  {{if .Recent}}
+  <h3>Recently finished</h3>
+  <ul class="ai-sharing">{{range .Recent}}<li>{{.Title}} · {{.Author}}{{with .Tags}} · {{.}}{{end}}{{with .Rating}} · {{.}}★{{end}}{{with .Finished}} · {{.}}{{end}}</li>{{end}}</ul>
+  {{end}}
+  <form method="post" action="/plans/{{$.PlanID}}/ai">
+    {{template "csrf" $}}
+    <input type="hidden" name="fingerprint" value="{{$.SharedFingerprint}}">
+    <p class="muted"><small>One request ({{$.AI.Usage.Requests}} of {{$.AI.Cap}} used this month). The answer is checked before it is shown.</small></p>
+    <button class="button"><span>Send and suggest <span aria-hidden="true">↗</span></span></button>
+  </form>
+</div>
+{{end}}
 {{end}}
 <form class="apply-bar" method="post">
   {{template "fields" .}}
+  {{if .ShowAI}}<input type="hidden" name="use" value="ai">{{end}}
   <div>
     <strong>{{if eq .Kind "import"}}Ready to bring these in?{{else if eq .Kind "restore"}}Ready to restore?{{else}}Does this feel right?{{end}}</strong>
     <p>{{if eq .Kind "import"}}Imports are repeatable and matched to existing books.{{else if eq .Kind "restore"}}This fills the empty library in one step. To undo it, start again from an empty database.{{else if eq .Kind "triage"}}Only reading status changes. Books you want to read join the end of your queue, marked Needs placement. There is no undo; edit a book to change it back.{{else}}You can undo this order until your next library change.{{end}}</p>
   </div>
   <div class="button-row">
     <a class="button" href="{{if eq .Kind "triage"}}/?view=unreviewed{{else if eq .Kind "restore"}}/imports{{else}}/{{end}}">Cancel</a>
-    <button class="button primary" {{if .Stale}}disabled title="Generate a fresh preview first."{{end}}><span>{{if eq .Kind "import"}}Import records{{else if eq .Kind "restore"}}Restore library{{else if eq .Kind "triage"}}Mark {{len .Plan.BookIDs}} books as {{.TriageLabel}}{{else}}Apply this order{{end}} <span aria-hidden="true">→</span></span></button>
+    <button class="button primary" {{if .Stale}}disabled title="Generate a fresh preview first."{{end}}><span>{{if eq .Kind "import"}}Import records{{else if eq .Kind "restore"}}Restore library{{else if eq .Kind "triage"}}Mark {{len .Plan.BookIDs}} books as {{.TriageLabel}}{{else if .ShowAI}}Apply the AI suggestion{{else}}Apply this order{{end}} <span aria-hidden="true">→</span></span></button>
   </div>
 </form>
 {{template "bottom" .}}

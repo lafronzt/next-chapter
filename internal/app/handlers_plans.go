@@ -1,8 +1,10 @@
 package app
 
 import (
+	"cmp"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -11,6 +13,12 @@ import (
 )
 
 func makeSuggestion(q queryer, candidate int64) (string, error) {
+	return suggestWithIntent(q, candidate, "")
+}
+
+// suggestWithIntent saves a rules plan with the reader's optional note for an
+// AI suggestion, kept only as long as the plan.
+func suggestWithIntent(q queryer, candidate int64, intent string) (string, error) {
 	queue, err := loadQueue(q)
 	if err != nil {
 		return "", err
@@ -32,7 +40,7 @@ func makeSuggestion(q queryer, candidate int64) (string, error) {
 	if candidate != 0 {
 		kind = "insert"
 	}
-	return savePlan(q, kind, Plan{Rows: rows, CandidateID: candidate})
+	return savePlan(q, kind, Plan{Rows: rows, CandidateID: candidate, Intent: intent})
 }
 func (a *App) suggest(w http.ResponseWriter, r *http.Request) error {
 	candidate := int64(0)
@@ -43,13 +51,17 @@ func (a *App) suggest(w http.ResponseWriter, r *http.Request) error {
 		}
 		candidate = id
 	}
+	intent := strings.TrimSpace(r.FormValue("intent"))
+	if len([]rune(intent)) > maxIntent {
+		return bad(fmt.Sprintf("Keep the note for the AI under %d characters.", maxIntent))
+	}
 	var id string
 	err := a.store.Write(func(tx *sql.Tx) error {
 		if err := current(tx, r); err != nil {
 			return err
 		}
 		var err error
-		id, err = makeSuggestion(tx, candidate)
+		id, err = suggestWithIntent(tx, candidate, intent)
 		return err
 	})
 	if err != nil {
@@ -82,7 +94,7 @@ func (a *App) plan(w http.ResponseWriter, r *http.Request) error {
 				preview = append(preview, Record{Book: b})
 			}
 		}
-		data := page{"Title": planTitles[kind], "Kind": kind, "Plan": p, "PreviewRecords": preview, "Stale": rev != state(r).Revision, "UpgradeSummary": upgradeSummary(p.Upgrades), "Skipped": p.Skipped}
+		data := page{"Title": planTitles[kind], "Kind": kind, "PlanID": id, "Plan": p, "PreviewRecords": preview, "Stale": rev != state(r).Revision, "UpgradeSummary": upgradeSummary(p.Upgrades), "Skipped": p.Skipped}
 		if kind == "triage" {
 			byID, err := getBooks(a.store.DB, p.BookIDs)
 			if err != nil {
@@ -95,6 +107,11 @@ func (a *App) plan(w http.ResponseWriter, r *http.Request) error {
 				}
 			}
 			data["TriageBooks"], data["TriageLabel"] = books, triageLabels[p.Status]
+		}
+		if kind == "reorder" || kind == "insert" {
+			if err = a.planAIData(data, kind, p, r); err != nil {
+				return err
+			}
 		}
 		return a.render(w, r, "plan.html", data, 200)
 	}
@@ -172,8 +189,15 @@ func (a *App) plan(w http.ResponseWriter, r *http.Request) error {
 			if err != nil {
 				return err
 			}
+			rows := p.Rows
+			if r.FormValue("use") == "ai" {
+				if len(p.AIRows) == 0 {
+					return bad("This preview has no AI suggestion to apply.")
+				}
+				rows = p.AIRows
+			}
 			ids := []int64{}
-			for _, row := range p.Rows {
+			for _, row := range rows {
 				ids = append(ids, row.ID)
 			}
 			if err = reorder(tx, ids); err != nil {
@@ -253,4 +277,45 @@ func upgradeSummary(upgrades map[string]int) string {
 		return ""
 	}
 	return fmt.Sprintf("%d library-only books will move out of To review to match Goodreads: %s.", total, strings.Join(parts, ", "))
+}
+
+// planAIData adds the AI parts of a queue suggestion's preview: which order
+// is shown, and before the AI is asked, exactly what would be shared.
+func (a *App) planAIData(data page, kind string, p Plan, r *http.Request) error {
+	ai, err := a.aiStatus(a.store.DB)
+	if err != nil {
+		return err
+	}
+	data["AI"] = ai
+	showAI := len(p.AIRows) > 0 && r.URL.Query().Get("show") != "rules"
+	data["ShowAI"], data["Shown"] = showAI, p.Rows
+	if showAI {
+		data["Shown"] = p.AIRows
+	}
+	if !ai.Available() || len(p.AIRows) > 0 || p.AINotice != "" || data["Stale"] == true {
+		return nil
+	}
+	ri, err := loadRerankInputs(a.store.DB, kind, p, a.now().UTC())
+	var h httpError
+	if errors.As(err, &h) {
+		return nil // the usual preview already explains constraint problems
+	}
+	if err != nil {
+		return err
+	}
+	data["Shared"], data["SharedFingerprint"] = ri.Payload, ri.Fingerprint
+	return nil
+}
+
+// planAI sends a queue suggestion's previewed request to the AI provider and
+// shows the result beside the usual ranking.
+func (a *App) planAI(w http.ResponseWriter, r *http.Request) error {
+	if ai, err := a.aiStatus(a.store.DB); err != nil || !ai.Available() {
+		return cmp.Or(err, error(errAIOff))
+	}
+	id, err := a.rerankAI(r.Context(), r.PathValue("id"), r.FormValue("fingerprint"))
+	if err != nil {
+		return err
+	}
+	return redirect(w, r, "/plans/"+id)
 }

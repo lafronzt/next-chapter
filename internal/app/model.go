@@ -99,6 +99,13 @@ type Suggestion struct {
 	Pinned  bool     `json:"pinned"`
 	Score   float64  `json:"score"`
 	Reasons []string `json:"reasons"`
+	// Source is "rules" or "ai" in a plan with an AI suggestion, and empty
+	// in a rules-only plan. AIReason is the model's reason for this book, and
+	// Repaired marks a book moved from the model's order to keep pins and
+	// series order.
+	Source   string `json:"source,omitempty"`
+	AIReason string `json:"ai_reason,omitempty"`
+	Repaired bool   `json:"repaired,omitempty"`
 }
 
 type Plan struct {
@@ -123,6 +130,16 @@ type Plan struct {
 	Status  string  `json:"status,omitempty"`
 	// Restore is a validated JSON export and what restoring it would do.
 	Restore *restorePlan `json:"restore,omitempty"`
+	// Intent is the reader's optional note for an AI suggestion; it lives
+	// only as long as the plan. AIRows is the AI-suggested order, applied
+	// instead of Rows when the reader chooses it; AINotice explains why an AI
+	// suggestion could not be used.
+	Intent         string       `json:"intent,omitempty"`
+	AIRows         []Suggestion `json:"ai_rows,omitempty"`
+	AIModel        string       `json:"ai_model,omitempty"`
+	AIInputTokens  int          `json:"ai_input_tokens,omitempty"`
+	AIOutputTokens int          `json:"ai_output_tokens,omitempty"`
+	AINotice       string       `json:"ai_notice,omitempty"`
 }
 
 func score(b Book, p Preferences, today time.Time) (float64, []string) {

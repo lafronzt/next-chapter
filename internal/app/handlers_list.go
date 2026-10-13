@@ -74,5 +74,9 @@ func (a *App) index(w http.ResponseWriter, r *http.Request) error {
 	if query != "" {
 		title = fmt.Sprintf("%s matching “%s”", title, query)
 	}
-	return a.render(w, r, "index.html", page{"Title": pageTitle(title, pages), "Items": items, "Pager": pages, "Stats": stats, "View": view.Key, "ViewInfo": view, "Views": views, "Query": query, "CanUndo": canUndo}, 200)
+	ai, err := a.aiStatus(a.store.DB)
+	if err != nil {
+		return err
+	}
+	return a.render(w, r, "index.html", page{"AI": ai, "Title": pageTitle(title, pages), "Items": items, "Pager": pages, "Stats": stats, "View": view.Key, "ViewInfo": view, "Views": views, "Query": query, "CanUndo": canUndo}, 200)
 }

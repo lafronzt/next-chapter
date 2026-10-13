@@ -16,7 +16,7 @@ Every suggestion has a preview and reasons. Pinned books keep their positions. Y
 - Add and edit books; move them manually; pin positions; mark reading, finished, abandoned, or archived.
 - Separate views for Up next, Reading, Finished, To review, Set aside (abandoned), Archived, and All books. Lists show 50 books per page (`per_page` up to 200); queue numbers always count from the top of the whole queue, and a page past the end shows the last page.
 - Delete a book, or merge a duplicate into the entry you keep, each after a confirmation preview. Re-imports never bring them back.
-- Explainable placement and full-queue reordering, with preview, stale-preview protection, and undo.
+- Explainable placement and full-queue reordering, with preview, stale-preview protection, and undo. With AI assistance on, a suggestion can also show an AI-suggested order beside the usual one.
 - Goodreads CSV imports and optional hourly public-shelf RSS checks for **new additions**.
 - **Estimated ratings**: “what might I give this?” for an unread book, from your own ratings, with an optional AI second opinion and a running check of how accurate past estimates were.
 - A **Reading history** of finished books, with finish dates, your ratings, books per year, and favorite shelves, from your Goodreads read shelf and readings you log yourself.
@@ -184,7 +184,7 @@ It is **off by default** and needs two steps:
 
 2. **The reader** turns on **AI assistance** in Preferences. Preferences shows the provider, model, and (for self-hosted servers) the server address and whether it is on your network, this month's requests and tokens, a plain-language summary of what is shared, and a **Test connection** button that sends a fixed prompt with no library data.
 
-**What is sent, and when.** Nothing is sent in the background, on a schedule, during a Goodreads check, or when a page loads. Each AI action first shows a **What gets shared** list of the exact rows and fields it will send, and sends only after you confirm. Requests carry only what the task needs: titles, authors, tags, page counts, series, interest, your ratings, and finish years. They never carry library-card or loan account details, your password or session, ISBNs, Goodreads IDs, or review text (unless you keep reviews and tick a box for that one request). With a hosted provider, its data terms apply; OpenAI requests ask it not to store the response (`store: false`). With a self-hosted server, whoever runs that server can see what is sent.
+**What is sent, and when.** Nothing is sent in the background, on a schedule, during a Goodreads check, or when a page loads. Each AI action first shows a **What gets shared** list of the exact rows and fields it will send, and sends only after you confirm. Requests carry only what the task needs: titles, authors, tags, page counts, series, interest, your ratings and estimated ratings, finish dates, queue positions, whether a book is borrowed or ready for pickup and the days to its deadline, and any note you write for that request. They never carry library-card or loan account details, your password or session, ISBNs, Goodreads IDs, or review text (unless you keep reviews and tick a box for that one request). With a hosted provider, its data terms apply; OpenAI requests ask it not to store the response (`store: false`). With a self-hosted server, whoever runs that server can see what is sent.
 
 **Safety rails.**
 
@@ -196,6 +196,16 @@ It is **off by default** and needs two steps:
 - Book data comes from imported files, so it is sent inside a delimited data block, and the model is told to treat it as data, not instructions. The schema check above is the real defence.
 
 To turn AI off again, switch it off in Preferences, or set `AI_PROVIDER=off` (or remove it) and restart.
+
+### AI-suggested order
+
+Your usual ranking stays the default. With AI assistance on, **Rethink my queue** has an optional note for the AI ("something light after a heavy book; a long flight Friday"), and every queue suggestion (**Rethink my queue** or **Find its place**) offers **Ask the AI for a second opinion** below the usual preview. That section lists exactly what would be sent; nothing goes until you press **Send and suggest**.
+
+- **What is sent.** For a full reorder: the 60 highest-scoring books in your queue plus up to 40 pinned books. For placing one book: the book and up to 60 books around its usual place, limited to positions that keep pins and series order. Each book has a number used only for this request (not its database or Goodreads ID), title, author, tags, pages, series and number, interest, saved estimated rating if any, library status (only "borrowed" or "ready for pickup" and the days to the deadline; never the library, format, or account), whether it is pinned, and its current position. Also sent: your note, if you wrote one, and your 5 most recently finished books (title, author, tags, your rating, and month). The note is stored only in the suggestion, which expires after an hour.
+- **What comes back.** For a reorder, every number exactly once and optional short reasons; for placing, one position from the offered range and a reason. Unknown, missing, or repeated numbers, extra fields, or reasons over 200 characters discard the answer: the page then says so plainly and shows only your usual ranking.
+- **Rules still win.** The AI's order replaces the score only as the sort key. The same solver as the usual ranking keeps pinned books in their slots and earlier series books first, moving as few books as it must; those books are marked "Moved from the AI's order to keep pins and series order". Books that were not sent keep their relative order after the ones that were. A placement must fall within the valid range, or it is discarded.
+- **You choose.** The preview switches between **Use my usual ranking** and **Use AI suggestion**, with movement, the usual score reasons, and the AI's reasons labelled AI, plus the model and token use. Applying either uses the same revision check and undo. If your library changes while the AI is answering, the result is not saved and you are asked to generate a fresh suggestion. New Goodreads books still wait in Needs placement; nothing is reordered automatically, on a schedule, or during a sync.
+- **Cost.** A full reorder of a large queue sends about 13,000 characters (measured on a synthetic 60-book request), roughly 3,500 to 4,500 input tokens. The answer is a few hundred tokens plus any reasoning tokens the model uses, which vary by model. Placing one book costs about the same. Preferences shows the real token counts each month.
 
 ### Self-hosted models: Ollama and OpenAI-compatible servers
 
@@ -366,6 +376,7 @@ The application uses Go’s HTTP server, escaped HTML templates, plain CSS, and 
 - `internal/app/merge.go`: deleting and merging books, aliases that stop re-imports from recreating them.
 - `internal/app/feed.go`, `sync.go`: fixed-host RSS fetching, optional hourly polling with backoff.
 - `internal/app/estimate.go`, `handlers_estimate.go`: estimated ratings, the deterministic baseline, the optional AI estimate, and accuracy tracking.
+- `internal/app/rerank.go`: AI-suggested queue orders and placements, validated and merged through the ranking constraints.
 - `internal/app/ai.go`, `handlers_ai.go`: the optional AI provider layer (Anthropic, OpenAI, Ollama, and OpenAI-compatible servers over `net/http`), its monthly limit, strict answer parsing, and the Preferences switch.
 - `internal/app/server.go`: configuration and the routing table; `middleware.go`, `session.go`, `render.go`, `forms.go` hold the request pipeline, and `handlers_*.go` the handlers by area.
 - `internal/app/version.go`: the release version, set at build time with `-ldflags "-X github.com/lafronzt/next-chapter/internal/app.Version=…"`.

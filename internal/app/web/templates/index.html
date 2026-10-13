@@ -20,8 +20,9 @@
     <h2>Make space for what’s calling you.</h2>
     <p>Place one book while keeping your order, or give the whole queue a fresh look. You get the final say.</p>
   </div>
-  <form action="/suggest" method="post">
+  <form action="/suggest" method="post" class="rethink">
     {{template "fields" .}}
+    {{if .AI.Available}}<label class="intent">Note for an AI suggestion <span class="muted">optional, shared only if you ask the AI</span><input name="intent" maxlength="300" placeholder="Something light after a heavy book; a long flight Friday"></label>{{end}}
     <button class="button light">Rethink my queue <span aria-hidden="true">↗</span></button>
   </form>
 </section>

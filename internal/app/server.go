@@ -142,7 +142,7 @@ func (a *App) Handler() http.Handler {
 		"GET /books/new": a.newBook, "POST /books/new": a.newBook, "GET /books/{id}": a.editBook, "POST /books/{id}": a.editBook,
 		"POST /books/{id}/action": a.bookAction, "POST /books/{id}/loan": a.loan,
 		"GET /books/{id}/delete": a.deleteBook, "POST /books/{id}/delete": a.deleteBook, "GET /books/{id}/merge": a.mergeBook, "POST /books/{id}/merge": a.mergeBook,
-		"POST /suggest": a.suggest, "GET /plans/{id}": a.plan, "POST /plans/{id}": a.plan, "POST /undo": a.undo,
+		"POST /suggest": a.suggest, "GET /plans/{id}": a.plan, "POST /plans/{id}": a.plan, "POST /plans/{id}/ai": a.planAI, "POST /undo": a.undo,
 		"GET /imports": a.importPage, "POST /imports": a.importPage, "POST /imports/restore": a.restoreUpload, "GET /examples/{name}": a.example,
 		"GET /settings": a.settings, "POST /settings": a.settings, "POST /sync": a.syncNow, "POST /sessions/revoke": a.revokeSessions,
 		"POST /books/{id}/triage": a.triageBook, "POST /triage": a.triageAll,
