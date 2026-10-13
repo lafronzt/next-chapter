@@ -12,6 +12,7 @@ var migrations = []migration{
 	{3, "book aliases for merges and deletions", migrateBookAliases},
 	{4, "per-client login failures", migrateLoginFailures},
 	{5, "indexes for paging and imports", migrateIndexes},
+	{6, "reading history", migrateReadingLog},
 }
 
 func migrateBaseline(tx *sql.Tx) error {
@@ -95,5 +96,22 @@ CREATE INDEX books_position ON books(position, id);
 CREATE INDEX books_isbn ON books(isbn) WHERE isbn != '';
 CREATE INDEX events_book ON events(book_id, at);
 CREATE INDEX events_at ON events(at, id);`)
+	return err
+}
+
+// Reading history from Goodreads and manual entries, kept apart from library
+// events. Existing Goodreads connections start following the "read" shelf.
+func migrateReadingLog(tx *sql.Tx) error {
+	_, err := tx.Exec(`CREATE TABLE reading_log (
+ id INTEGER PRIMARY KEY, book_id INTEGER NOT NULL REFERENCES books(id),
+ finished_at TEXT NULL, rating INTEGER NULL CHECK(rating BETWEEN 1 AND 5),
+ source TEXT NOT NULL CHECK(source IN ('goodreads','manual')),
+ review_chars INTEGER NOT NULL DEFAULT 0, review TEXT NULL, fingerprint TEXT NOT NULL UNIQUE
+);
+CREATE INDEX reading_log_book ON reading_log(book_id, finished_at);
+CREATE INDEX reading_log_finished ON reading_log(finished_at, id);
+ALTER TABLE books ADD COLUMN published_year INTEGER NULL;
+ALTER TABLE books ADD COLUMN avg_rating REAL NULL;
+UPDATE meta SET value=json_set(value, '$.read_shelf', 'read') WHERE key='sync' AND json_type(value, '$.read_shelf') IS NULL;`)
 	return err
 }

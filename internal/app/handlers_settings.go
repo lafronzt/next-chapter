@@ -25,6 +25,12 @@ func (a *App) settings(w http.ResponseWriter, r *http.Request) error {
 			if err := setMeta(tx, "sync", conn); err != nil {
 				return err
 			}
+			// Opting out of keeping reviews deletes the text already kept.
+			if !prefs.KeepReviews {
+				if _, err := tx.Exec("UPDATE reading_log SET review=NULL WHERE review IS NOT NULL"); err != nil {
+					return err
+				}
+			}
 			return bump(tx)
 		})
 		if err != nil {
@@ -36,11 +42,15 @@ func (a *App) settings(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
-	conn, err := readMeta(a.store.DB, "sync", Connection{Shelf: "to-read"})
+	conn, err := readMeta(a.store.DB, "sync", defaultConnection)
 	if err != nil {
 		return err
 	}
 	last, err := readMeta(a.store.DB, "last_sync", SyncResult{})
+	if err != nil {
+		return err
+	}
+	lastRead, err := readMeta(a.store.DB, "last_read_sync", SyncResult{})
 	if err != nil {
 		return err
 	}
@@ -52,5 +62,5 @@ func (a *App) settings(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
-	return a.render(w, r, "settings.html", page{"Title": "Preferences & sync", "Prefs": prefs, "Connection": conn, "LastSync": last, "Poll": poll, "SchemaVersion": version}, 200)
+	return a.render(w, r, "settings.html", page{"Title": "Preferences & sync", "Prefs": prefs, "Connection": conn, "LastSync": last, "LastReadSync": lastRead, "Poll": poll, "SchemaVersion": version}, 200)
 }

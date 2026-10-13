@@ -15,6 +15,7 @@
 </div>
 {{end}}
 <div class="two-columns">
+  <div class="stack">
   <form class="panel stack" method="post" enctype="multipart/form-data">
     {{template "fields" .}}
     <h2>Import a CSV</h2>
@@ -27,6 +28,23 @@
     <p class="muted">UTF-8 CSV · up to 2 MB and 10,000 rows. No account passwords needed.</p>
     <button class="button primary"><span>Preview import <span aria-hidden="true">→</span></span></button>
   </form>
+  <form class="panel stack" method="post" action="/imports/restore" enctype="multipart/form-data">
+    {{template "fields" .}}
+    <h2>Restore a Next Chapter JSON export</h2>
+    {{if .RestoreErrors}}
+    <div class="notice error" role="alert">
+      <h3 id="restore-errors">{{.RestoreErrorCount}} problems found. Nothing was restored.</h3>
+      <ul aria-labelledby="restore-errors">
+        {{range .RestoreErrors}}<li>{{.}}</li>{{end}}
+      </ul>
+    </div>
+    {{end}}
+    <p>Moves a library to a new instance: books, queue order and pins, library history, preferences, and Goodreads settings. Only works on an empty library.</p>
+    <label>Choose your export<input name="file" type="file" accept=".json,application/json" required {{if .RestoreErrors}}aria-invalid="true" aria-describedby="restore-errors"{{end}}></label>
+    <p class="muted">The <code>next-chapter.json</code> file from Preferences · up to 10 MB.</p>
+    <button class="button"><span>Preview restore <span aria-hidden="true">→</span></span></button>
+  </form>
+  </div>
   <div class="stack">
     <section class="help-card">
       <span class="eyebrow">01 / GOODREADS</span>

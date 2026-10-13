@@ -72,6 +72,7 @@ func unchangedExceptStatus(t *testing.T, before, after Book) {
 }
 
 func TestGoodreadsImportUpgradesUnreviewed(t *testing.T) {
+	t.Parallel()
 	a := testApp(t, true)
 	addRecords(t, a, records("Queued one", "Queued two"))
 	addRecords(t, a, []Record{libbyLoan("Wanted"), libbyLoan("Finished"), libbyLoan("Started"), libbyLoan("Dropped"), libbyLoan("Untouched")})
@@ -97,9 +98,14 @@ func TestGoodreadsImportUpgradesUnreviewed(t *testing.T) {
 	if eventCount(t, a) != events {
 		t.Fatal("library events changed")
 	}
-	// Re-running the same import is a no-op.
-	again := importResultFor(t, a, []Record{shelf("Wanted", "read"), shelf("Finished", "to-read"), shelf("Started", "reading"), shelf("Dropped", "archived")})
-	if again.upgradedTotal() != 0 || again.Events != 0 || again.Changed {
+	// A different shelf later changes no status. "read" now logs a finished
+	// reading, which is reading history, not status; repeating it is a no-op.
+	later := []Record{shelf("Wanted", "read"), shelf("Finished", "to-read"), shelf("Started", "reading"), shelf("Dropped", "archived")}
+	again := importResultFor(t, a, later)
+	if again.upgradedTotal() != 0 || again.Events != 0 || again.Logged != 1 {
+		t.Fatalf("%+v", again)
+	}
+	if again = importResultFor(t, a, later); again.Changed || again.Logged != 0 {
 		t.Fatalf("%+v", again)
 	}
 	if b := bookNamed(t, a, "Wanted"); b.Status != "to-read" || b.Position != wanted.Position {
@@ -108,6 +114,7 @@ func TestGoodreadsImportUpgradesUnreviewed(t *testing.T) {
 }
 
 func TestGoodreadsNeverOverridesReaderStatus(t *testing.T) {
+	t.Parallel()
 	a := testApp(t, true)
 	statuses := []string{"to-read", "reading", "read", "abandoned", "archived"}
 	for _, status := range statuses {
@@ -124,8 +131,12 @@ func TestGoodreadsNeverOverridesReaderStatus(t *testing.T) {
 		incoming = append(incoming, shelf("Book "+status, statuses[(i+1)%len(statuses)]))
 		incoming = append(incoming, shelf("Book "+status, "to-read"))
 	}
-	if result := importResultFor(t, a, incoming); result.upgradedTotal() != 0 || result.Changed {
+	// Only "read" adds anything: one finished reading, never a status.
+	if result := importResultFor(t, a, incoming); result.upgradedTotal() != 0 || result.Logged != 1 || result.Added != 0 {
 		t.Fatalf("%+v", result)
+	}
+	if result := importResultFor(t, a, incoming); result.Changed {
+		t.Fatalf("repeat: %+v", result)
 	}
 	if after := mustBooks(t, a); !reflect.DeepEqual(before, after) {
 		t.Fatalf("books changed:\n%+v\n%+v", before, after)
@@ -133,6 +144,7 @@ func TestGoodreadsNeverOverridesReaderStatus(t *testing.T) {
 }
 
 func TestOnlyGoodreadsShelvesUpgrade(t *testing.T) {
+	t.Parallel()
 	a := testApp(t, true)
 	addRecords(t, a, []Record{libbyLoan("Borrowed")})
 	// Library re-imports, manual and demo records, and a Goodreads-sourced
@@ -178,6 +190,7 @@ func uploadCSV(b *browser, source, data string) *httptest.ResponseRecorder {
 }
 
 func TestUpgradeSurfacedInPreviewNoticeAndSync(t *testing.T) {
+	t.Parallel()
 	a := testApp(t, true)
 	addRecords(t, a, []Record{libbyLoan("Wanted"), libbyLoan("Finished"), libbyLoan("Synced")})
 	b := &browser{t: t, handler: a.Handler()}
@@ -231,6 +244,7 @@ func TestUpgradeSurfacedInPreviewNoticeAndSync(t *testing.T) {
 }
 
 func TestQuickTriage(t *testing.T) {
+	t.Parallel()
 	a := testApp(t, true)
 	addRecords(t, a, records("Queued"))
 	addRecords(t, a, []Record{libbyLoan("Wanted"), libbyLoan("Finished"), libbyLoan("Skipped")})
@@ -288,6 +302,7 @@ func TestQuickTriage(t *testing.T) {
 }
 
 func TestBulkTriageNeedsConfirmation(t *testing.T) {
+	t.Parallel()
 	a := testApp(t, true)
 	addRecords(t, a, []Record{libbyLoan("Cozy mystery"), libbyLoan("Dark mystery"), libbyLoan("Poetry")})
 	b := &browser{t: t, handler: a.Handler()}
@@ -334,6 +349,7 @@ func TestBulkTriageNeedsConfirmation(t *testing.T) {
 }
 
 func TestUnreviewedViewAndBadge(t *testing.T) {
+	t.Parallel()
 	a := testApp(t, true)
 	b := &browser{t: t, handler: a.Handler()}
 	rr := b.request("GET", "/?view=unreviewed", nil)

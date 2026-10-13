@@ -57,6 +57,7 @@ func libbyEvent(title, status, at string) Record {
 }
 
 func TestDeleteBook(t *testing.T) {
+	t.Parallel()
 	a := testApp(t, true)
 	addRecords(t, a, records("One", "Two", "Three", "Four"))
 	borrowed := libbyEvent("Two", "borrowed", "2026-10-01T00:00:00.000000000+00:00")
@@ -141,6 +142,7 @@ func TestDeleteBook(t *testing.T) {
 }
 
 func TestMergeBooks(t *testing.T) {
+	t.Parallel()
 	a := testApp(t, true)
 	addRecords(t, a, records("First", "The Book", "Last"))
 	pages := 320
@@ -230,6 +232,7 @@ func TestMergeBooks(t *testing.T) {
 }
 
 func TestMergeConflicts(t *testing.T) {
+	t.Parallel()
 	a := testApp(t, true)
 	rs := records("Kept", "Other", "Third")
 	rs[0].GoodreadsID, rs[1].GoodreadsID = "1", "2"
@@ -272,6 +275,7 @@ func TestMergeConflicts(t *testing.T) {
 }
 
 func TestAliasesInBackupAndExport(t *testing.T) {
+	t.Parallel()
 	a := testApp(t, true)
 	addRecords(t, a, records("Merged", "Target", "Deleted"))
 	ids := bookIDs(t, a)

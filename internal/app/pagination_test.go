@@ -44,6 +44,7 @@ func listed(t *testing.T, b *browser, path string) (string, []string) {
 }
 
 func TestBookListPagination(t *testing.T) {
+	t.Parallel()
 	_, b := queueApp(t, 500)
 	body, rows := listed(t, b, "/")
 	if len(rows) != 50 || rows[0] != "01" || rows[49] != "50" {
@@ -91,6 +92,7 @@ func TestBookListPagination(t *testing.T) {
 }
 
 func TestSearchAcrossPages(t *testing.T) {
+	t.Parallel()
 	a, b := queueApp(t, 0)
 	rs := []Record{}
 	for i := range 500 {
@@ -130,6 +132,7 @@ func moveState(t *testing.T, items []listedBook, title string) listedBook {
 }
 
 func TestQueueMoveStateAcrossPages(t *testing.T) {
+	t.Parallel()
 	a, b := queueApp(t, 120)
 	// Pin the first book of page 2 and the last of page 2.
 	if _, err := a.store.DB.Exec("UPDATE books SET pinned=1 WHERE title IN ('Book 050','Book 099')"); err != nil {
@@ -194,6 +197,7 @@ func TestQueueMoveStateAcrossPages(t *testing.T) {
 }
 
 func TestSearchMatchesSpecialCharactersLiterally(t *testing.T) {
+	t.Parallel()
 	a := testApp(t, true)
 	titles := []string{"100% Wolf", "1000 Wolves", "Snake_Case Stories", "SnakeXCase Stories", "It's a Book", `Back\slash Tales`, "Backslash Tales", "Ébène", `Say "Hello"`}
 	rs := []Record{}
@@ -231,6 +235,7 @@ func TestSearchMatchesSpecialCharactersLiterally(t *testing.T) {
 }
 
 func TestReorderWritesOnlyChangedRows(t *testing.T) {
+	t.Parallel()
 	a, _ := queueApp(t, 40)
 	changes := func(ids []int64) int {
 		var n int
@@ -271,6 +276,7 @@ func TestReorderWritesOnlyChangedRows(t *testing.T) {
 }
 
 func TestHistoryPagination(t *testing.T) {
+	t.Parallel()
 	a := testApp(t, true)
 	rs := []Record{}
 	statuses := []string{"borrowed", "returned", "hold"}
@@ -333,6 +339,7 @@ func TestHistoryPagination(t *testing.T) {
 }
 
 func TestBookPageCapsEvents(t *testing.T) {
+	t.Parallel()
 	a := testApp(t, true)
 	rs := []Record{}
 	for i := range bookEventLimit + 5 {
@@ -347,6 +354,7 @@ func TestBookPageCapsEvents(t *testing.T) {
 }
 
 func TestLargeImportEndToEnd(t *testing.T) {
+	t.Parallel()
 	if _, _, err := ParseCSV([]byte(syntheticGoodreadsCSV(maxRows)), "goodreads"); err != nil {
 		t.Fatal(err)
 	}
@@ -387,6 +395,7 @@ func TestLargeImportEndToEnd(t *testing.T) {
 
 // Plans saved before the compact format still preview and apply.
 func TestLegacyPlanPayloadStillDecodes(t *testing.T) {
+	t.Parallel()
 	a := testApp(t, true)
 	gr := Record{Book: Book{Title: "Legacy", Author: "Writer", Status: "to-read", Source: "goodreads", Interest: 3, NeedsPlacement: true, Loans: []Loan{}}}
 	raw := noErr(json.Marshal(Plan{Records: []Record{gr}, Source: "goodreads"}))

@@ -21,11 +21,14 @@
     <option value="long" {{if eq .Prefs.Length "long"}}selected{{end}}>Long · 400+ pages</option>
   </select></label>
   <label class="span-2">In the mood for<input name="mood" maxlength="100" value="{{.Prefs.Mood}}" placeholder="A tag such as hopeful, nature, or mystery"><small>Matches one of your comma-separated book tags.</small></label>
+  <label class="checkbox span-2"><input type="checkbox" name="keep_reviews" {{if .Prefs.KeepReviews}}checked{{end}}> Keep my Goodreads review text in this library</label>
+  <p class="span-2 muted"><small>Off by default: only each review’s length is stored. Reviews are personal and can be long. Turning this off deletes review text already kept here.</small></p>
   <div class="span-2 divider"></div>
   <h2 class="span-2">Goodreads shelf connection <span class="badge">Experimental</span></h2>
   <p class="span-2 muted">Read-only RSS polling can notice new books on a public shelf. Goodreads feeds may be delayed or incomplete; import your full CSV first. This app keeps its own queue and does not change your Goodreads shelf order.</p>
   <label>Numeric Goodreads user ID<input name="user_id" inputmode="numeric" pattern="[0-9]{1,20}" value="{{.Connection.UserID}}" placeholder="The number in your profile URL"></label>
   <label>Shelf<input name="shelf" value="{{.Connection.Shelf}}" pattern="[a-zA-Z0-9_-]{1,100}" maxlength="100"></label>
+  <label>Read shelf <span class="muted">for reading history; blank to skip</span><input name="read_shelf" value="{{.Connection.ReadShelf}}" pattern="[a-zA-Z0-9_-]{1,100}" maxlength="100"></label>
   <label class="checkbox span-2"><input type="checkbox" name="enabled" {{if .Connection.Enabled}}checked{{end}}> Check hourly for new books while the app is running</label>
   <div class="span-2">
     <button class="button primary">Save preferences</button>
@@ -34,7 +37,7 @@
 <div class="panel connection-status">
   <div>
     <strong>{{if .Connection.UserID}}Goodreads feed configured{{else}}Goodreads is not connected{{end}}</strong>
-    <p>{{if .LastSync.At}}{{.LastSync.Message}}<br><small>{{minute .LastSync.At}} UTC</small>{{else}}No feed checks recorded yet.{{end}}{{if .Poll.Failures}}<br><small>{{.Poll.Failures}} scheduled checks failed in a row · last error {{minute .Poll.LastErrorAt}} UTC</small>{{end}}{{if and .Connection.Enabled .Poll.NextAttempt}}<br><small>Next scheduled check after {{minute .Poll.NextAttempt}} UTC</small>{{end}}</p>
+    <p>{{if .LastSync.At}}{{.LastSync.Message}}<br><small>{{minute .LastSync.At}} UTC</small>{{else}}No feed checks recorded yet.{{end}}{{if .LastReadSync.At}}<br>{{.LastReadSync.Message}}<br><small>Read shelf checked {{minute .LastReadSync.At}} UTC</small>{{end}}{{if .Poll.Failures}}<br><small>{{.Poll.Failures}} scheduled checks failed in a row · last error {{minute .Poll.LastErrorAt}} UTC</small>{{end}}{{if and .Connection.Enabled .Poll.NextAttempt}}<br><small>Next scheduled check after {{minute .Poll.NextAttempt}} UTC</small>{{end}}</p>
   </div>
   <form method="post" action="/sync">
     {{template "fields" .}}

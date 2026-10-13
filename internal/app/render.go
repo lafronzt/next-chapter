@@ -52,7 +52,7 @@ func (a *App) render(w http.ResponseWriter, r *http.Request, name string, data p
 }
 
 // notices are the confirmations a redirect can request with ?notice=.
-var notices = map[string]string{"triaged": "Sorted. Only reading status changed; books you want to read wait at the end of your queue for placement.", "saved": "Saved to your library.", "ordered": "Your new order is saved. You can undo it until your next library change.", "undone": "Previous order restored.", "imported": "Import complete. Existing reading status and queue order were preserved.", "loan": "Library event recorded. Reading status stays the same.", "synced": "Goodreads checked. New books are marked Needs placement.", "signedout": "Signed out on every device. Sign in again to continue.", "deleted": "Book deleted. Future imports will skip it.", "merged": "Books merged. Future imports of the merged book will update this one."}
+var notices = map[string]string{"triaged": "Sorted. Only reading status changed; books you want to read wait at the end of your queue for placement.", "saved": "Saved to your library.", "ordered": "Your new order is saved. You can undo it until your next library change.", "undone": "Previous order restored.", "imported": "Import complete. Existing reading status and queue order were preserved.", "loan": "Library event recorded. Reading status stays the same.", "synced": "Goodreads checked. New books are marked Needs placement.", "signedout": "Signed out on every device. Sign in again to continue.", "deleted": "Book deleted. Future imports will skip it.", "merged": "Books merged. Future imports of the merged book will update this one.", "restored": "Library restored from your JSON export.", "reading": "Reading history saved. Your queue is unchanged.", "restored-sync": "Library restored from your JSON export. Goodreads polling is off; turn it back on in Preferences when you are ready."}
 
 func (a *App) fail(w http.ResponseWriter, r *http.Request, err error) {
 	status, message := 500, genericFailure
@@ -120,8 +120,17 @@ func templateFuncs() template.FuncMap {
 		},
 		"activeLoan": func(s string) bool { return in(s, []string{"borrowed", "ready", "hold"}) },
 		"upper":      strings.ToUpper,
-		"version":    func() string { return Version },
-		"join":       strings.Join,
+		"ratings":    func() []int { return []int{5, 4, 3, 2, 1} },
+		"rated":      func(r *int, n int) bool { return r != nil && *r == n },
+		// stars shows a 1-5 rating; the text alternative is for screen readers.
+		"stars": func(n *int) template.HTML {
+			if n == nil {
+				return ""
+			}
+			return template.HTML(fmt.Sprintf(`<span aria-hidden="true">%s%s</span><span class="sr-only">%d out of 5</span>`, strings.Repeat("★", *n), strings.Repeat("☆", 5-*n), *n))
+		},
+		"version": func() string { return Version },
+		"join":    strings.Join,
 		"minute": func(s string) string {
 			if len(s) >= 16 {
 				return strings.Replace(s[:16], "T", " ", 1)
@@ -154,7 +163,7 @@ func navCurrent(path string, data page) (key string, exact bool) {
 			return view, true
 		}
 		return "queue", false
-	case path == "/history" || path == "/imports" || path == "/settings":
+	case path == "/history" || path == "/reading" || path == "/imports" || path == "/settings":
 		return path[1:], true
 	case strings.HasPrefix(path, "/plans/"):
 		switch data["Kind"] {

@@ -16,6 +16,7 @@
     <a href="/" {{if eq .Nav "queue"}}class="active" aria-current="{{if .NavPage}}page{{else}}true{{end}}"{{end}}><span aria-hidden="true">≡</span> Reading queue</a>
     <a href="/?view=unreviewed" {{if eq .Nav "unreviewed"}}class="active" aria-current="{{if .NavPage}}page{{else}}true{{end}}"{{end}}><span aria-hidden="true">✉</span> To review{{if .UnreviewedCount}}<strong class="nav-count">{{.UnreviewedCount}}<span class="sr-only"> waiting</span></strong>{{end}}</a>
     <a href="/?view=all" {{if eq .Nav "all"}}class="active" aria-current="{{if .NavPage}}page{{else}}true{{end}}"{{end}}><span aria-hidden="true">▤</span> All books</a>
+    <a href="/reading" {{if eq .Nav "reading"}}class="active" aria-current="{{if .NavPage}}page{{else}}true{{end}}"{{end}}><span aria-hidden="true">✓</span> Reading history</a>
     <a href="/history" {{if eq .Nav "history"}}class="active" aria-current="{{if .NavPage}}page{{else}}true{{end}}"{{end}}><span aria-hidden="true">◷</span> Library history</a>
     <span class="nav-label second">MAKE IT YOURS</span>
     <a href="/imports" {{if eq .Nav "imports"}}class="active" aria-current="{{if .NavPage}}page{{else}}true{{end}}"{{end}}><span aria-hidden="true">↓</span> Import books</a>

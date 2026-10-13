@@ -8,7 +8,7 @@
     <p>{{.Book.Author}} · {{label .Book.Status}}</p>
   </div>
 </header>
-<div class="notice error" role="status">Deleting this book also removes {{.Events}} library events and {{.Loans}} current loans. Future imports will skip it; adding it again by hand brings it back. Download a database backup first if you might want this history.</div>
+<div class="notice error" role="status">Deleting this book also removes {{.Events}} library events{{if .Readings}}, {{.Loans}} current loans, and {{.Readings}} finished readings from your reading history{{else}} and {{.Loans}} current loans{{end}}. Future imports will skip it; adding it again by hand brings it back. Download a database backup first if you might want this history.</div>
 <form class="apply-bar" method="post">
   {{template "fields" $}}
   <div>

@@ -72,6 +72,7 @@ func scalar[T any](t *testing.T, path, query string) T {
 }
 
 func TestMigrateFreshDatabase(t *testing.T) {
+	t.Parallel()
 	path := filepath.Join(t.TempDir(), "fresh.sqlite3")
 	s, err := OpenStore(path)
 	if err != nil {
@@ -101,6 +102,7 @@ func TestMigrateFreshDatabase(t *testing.T) {
 }
 
 func TestMigratePythonEraDatabase(t *testing.T) {
+	t.Parallel()
 	path := pythonEraDB(t)
 	s, err := OpenStore(path)
 	if err != nil {
@@ -144,6 +146,7 @@ func TestMigratePythonEraDatabase(t *testing.T) {
 }
 
 func TestMigrateGoDataVersionIsVersionTwo(t *testing.T) {
+	t.Parallel()
 	path := pythonEraDB(t)
 	db, err := sql.Open("sqlite", path)
 	if err != nil {
@@ -183,6 +186,7 @@ func TestMigrateGoDataVersionIsVersionTwo(t *testing.T) {
 }
 
 func TestMigrateInjectedVersions(t *testing.T) {
+	t.Parallel()
 	path := filepath.Join(t.TempDir(), "lib.sqlite3")
 	base := migrations[:2]
 	if err := migrateFile(path, base); err != nil {
@@ -241,6 +245,7 @@ func TestMigrateInjectedVersions(t *testing.T) {
 }
 
 func TestMigrateRefusesNewerDatabase(t *testing.T) {
+	t.Parallel()
 	path := filepath.Join(t.TempDir(), "future.sqlite3")
 	s, err := OpenStore(path)
 	if err != nil {
@@ -256,6 +261,7 @@ func TestMigrateRefusesNewerDatabase(t *testing.T) {
 }
 
 func TestMigrateSecondStartIsNoOp(t *testing.T) {
+	t.Parallel()
 	path := pythonEraDB(t)
 	s, err := OpenStore(path)
 	if err != nil {
@@ -294,6 +300,7 @@ func TestMigrateSecondStartIsNoOp(t *testing.T) {
 }
 
 func TestMigrateConcurrentStarts(t *testing.T) {
+	t.Parallel()
 	path := filepath.Join(t.TempDir(), "race.sqlite3")
 	var wg sync.WaitGroup
 	errs := make([]error, 2)
@@ -339,6 +346,7 @@ func TestMigrateConcurrentStarts(t *testing.T) {
 }
 
 func TestMigrationTransactionTakesWriteLock(t *testing.T) {
+	t.Parallel()
 	path := filepath.Join(t.TempDir(), "lock.sqlite3")
 	if err := migrateFile(path, migrations); err != nil {
 		t.Fatal(err)
@@ -367,6 +375,7 @@ func TestMigrationTransactionTakesWriteLock(t *testing.T) {
 // Builds before the migration runner created login_failures at every start, so
 // migration 4 must accept a database that already has it.
 func TestMigrateLoginFailuresAlreadyPresent(t *testing.T) {
+	t.Parallel()
 	path := filepath.Join(t.TempDir(), "lib.sqlite3")
 	if err := migrateFile(path, migrations[:3]); err != nil {
 		t.Fatal(err)
@@ -395,6 +404,7 @@ func TestMigrateLoginFailuresAlreadyPresent(t *testing.T) {
 // Migration 5 only adds indexes: a version 4 library keeps its data, gains the
 // indexes, and is backed up first.
 func TestMigrateIndexesFromVersionFour(t *testing.T) {
+	t.Parallel()
 	path := filepath.Join(t.TempDir(), "lib.sqlite3")
 	if err := migrateFile(path, migrations[:4]); err != nil {
 		t.Fatal(err)
@@ -405,15 +415,19 @@ func TestMigrateIndexesFromVersionFour(t *testing.T) {
 	}
 	db.SetMaxOpenConns(1)
 	s := &Store{db}
+	// Plain SQL: importRecords writes columns from later migrations.
 	err = s.Write(func(tx *sql.Tx) error {
-		_, err := importRecords(tx, []Record{{Book: Book{Title: "Kept", Author: "Writer", Status: "to-read", Source: "manual"}}, libbyLoan("Borrowed")})
+		_, err := tx.Exec(`INSERT INTO books(id,title,author,identity,reading_status,position,added_at,source) VALUES
+  (1,'Kept','Writer','kept|writer','to-read',0,'2026-10-01T00:00:00.000000000+00:00','manual'),
+  (2,'Borrowed','Author','borrowed|author','unreviewed',1,'2026-10-01T00:00:00.000000000+00:00','libby');
+INSERT INTO events(book_id,source,format,status,activity,at,due_date,fingerprint) VALUES(2,'libby','ebook','borrowed','Borrowed','2026-10-01T00:00:00.000000000+00:00','','f');`)
 		return err
 	})
 	s.Close()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = migrateFile(path, migrations); err != nil {
+	if err = migrateFile(path, migrations[:5]); err != nil {
 		t.Fatal(err)
 	}
 	if v, _ := versionOf(t, path); v != 5 {

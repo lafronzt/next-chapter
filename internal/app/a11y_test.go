@@ -38,6 +38,9 @@ func a11yLibrary(t *testing.T) (*App, *browser, map[string]string) {
 	b.request("GET", "/", nil)
 	expect(t, b.request("POST", "/demo", nil), 303)
 	addRecords(t, a, []Record{libbyLoan("Library Find")})
+	if _, err := a.store.DB.Exec("INSERT INTO reading_log(book_id,finished_at,rating,source,review_chars,fingerprint) VALUES(1,'2025-04-01',4,'goodreads',120,'f1')"); err != nil {
+		t.Fatal(err)
+	}
 	b.request("GET", "/imports", nil)
 	rr := uploadCSV(b, "goodreads", "Title,Author\nA New Book,Writer\n")
 	expect(t, rr, 303)
@@ -52,6 +55,7 @@ func a11yLibrary(t *testing.T) (*App, *browser, map[string]string) {
 }
 
 func TestNavigationMarksOneCurrentItem(t *testing.T) {
+	t.Parallel()
 	_, b, plans := a11yLibrary(t)
 	cases := map[string]string{
 		"/":                  "/=page",
@@ -62,6 +66,7 @@ func TestNavigationMarksOneCurrentItem(t *testing.T) {
 		"/?view=reading":     "/=true",
 		"/history":           "/history=page",
 		"/history?page=2":    "/history=page",
+		"/reading":           "/reading=page",
 		"/imports":           "/imports=page",
 		"/settings":          "/settings=page",
 		"/books/new":         "/=true",
@@ -92,6 +97,7 @@ func TestNavigationMarksOneCurrentItem(t *testing.T) {
 }
 
 func TestDecorativeGlyphsAreHidden(t *testing.T) {
+	t.Parallel()
 	_, b, _ := a11yLibrary(t)
 	body := b.request("GET", "/", nil).Body.String()
 	nav := mainNavPattern.FindStringSubmatch(body)[1]
@@ -111,6 +117,7 @@ func TestDecorativeGlyphsAreHidden(t *testing.T) {
 }
 
 func TestRowActionsNameTheirBook(t *testing.T) {
+	t.Parallel()
 	_, b, _ := a11yLibrary(t)
 	body := b.request("GET", "/", nil).Body.String()
 	for _, want := range []string{
@@ -132,6 +139,7 @@ func TestRowActionsNameTheirBook(t *testing.T) {
 }
 
 func TestErrorNoticesAreAlerts(t *testing.T) {
+	t.Parallel()
 	_, b, plans := a11yLibrary(t)
 	// A library change makes the earlier previews stale.
 	expect(t, b.request("POST", "/books/2/action", url.Values{"action": {"pin"}}), 303)
@@ -163,6 +171,7 @@ func TestErrorNoticesAreAlerts(t *testing.T) {
 }
 
 func TestPagesHaveDistinctTitles(t *testing.T) {
+	t.Parallel()
 	_, b, plans := a11yLibrary(t)
 	cases := map[string]string{
 		"/":                 "Reading queue – Next Chapter",
@@ -171,6 +180,7 @@ func TestPagesHaveDistinctTitles(t *testing.T) {
 		"/?view=read":       "Finished – Next Chapter",
 		"/?view=all":        "All books – Next Chapter",
 		"/history":          "Library history – Next Chapter",
+		"/reading":          "Reading history – Next Chapter",
 		"/imports":          "Import books – Next Chapter",
 		"/settings":         "Preferences &amp; sync – Next Chapter",
 		"/books/new":        "Add a book – Next Chapter",
@@ -204,9 +214,10 @@ func TestPagesHaveDistinctTitles(t *testing.T) {
 }
 
 func TestSkipLinkAndMarkupStayCSPSafe(t *testing.T) {
+	t.Parallel()
 	_, b, plans := a11yLibrary(t)
 	idPattern := regexp.MustCompile(`\sid="([^"]+)"`)
-	for _, path := range []string{"/", "/?view=unreviewed", "/history", "/imports", "/settings", "/books/new", "/books/1", "/books/1/merge", "/books/1/delete", "/login", "/books/999", plans["import"], plans["reorder"], plans["triage"]} {
+	for _, path := range []string{"/", "/?view=unreviewed", "/history", "/reading", "/imports", "/settings", "/books/new", "/books/1", "/books/1/merge", "/books/1/delete", "/login", "/books/999", plans["import"], plans["reorder"], plans["triage"]} {
 		rr := b.request("GET", path, nil)
 		body := rr.Body.String()
 		skip := strings.Index(body, `<a class="skip-link" href="#main">Skip to main content</a>`)

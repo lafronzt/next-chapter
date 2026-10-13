@@ -62,7 +62,12 @@ type importResult struct {
 	Skipped int
 	// Upgraded counts books that left unreviewed, keyed by their new status.
 	Upgraded map[string]int
-	Changed  bool
+	// Rated counts added books whose interest came from a rating; RatingsKept
+	// counts rated records for existing books, which keep their interest.
+	Rated, RatingsKept int
+	// Logged counts finished readings added to the reading history.
+	Logged  int
+	Changed bool
 }
 
 func (r importResult) upgradedTotal() int {
@@ -119,6 +124,10 @@ func previewImport(q queryer, records []Record) (importResult, error) {
 }
 func importRecords(q queryer, records []Record) (out importResult, err error) {
 	out.Upgraded = map[string]int{}
+	prefs, err := readMeta(q, "preferences", defaultPreferences)
+	if err != nil {
+		return out, err
+	}
 	for _, r := range records {
 		id, tombstoned, err := lookupBook(q, r, true)
 		if err != nil {
@@ -130,8 +139,13 @@ func importRecords(q queryer, records []Record) (out importResult, err error) {
 			continue
 		}
 		if id == 0 {
-			result, err := q.Exec(`INSERT INTO books(title,author,identity,isbn,goodreads_id,pages,tags,interest,reading_status,position,series,series_number,added_at,source)
-    VALUES(?,?,?,?,?,?,?,?,?,(SELECT COALESCE(MAX(position),-1)+1 FROM books),?,?,?,?)`, r.Title, r.Author, identity(r.Title, r.Author), r.ISBN, r.GoodreadsID, r.Pages, r.Tags, 3, r.Status, r.Series, r.SeriesNumber, canonicalTime(time.Now()), r.Source)
+			// Several callers leave Interest at 0; the column requires 1-5.
+			interest := 3
+			if r.Interest >= 1 && r.Interest <= 5 {
+				interest = r.Interest
+			}
+			result, err := q.Exec(`INSERT INTO books(title,author,identity,isbn,goodreads_id,pages,tags,interest,reading_status,position,series,series_number,published_year,avg_rating,added_at,source)
+    VALUES(?,?,?,?,?,?,?,?,?,(SELECT COALESCE(MAX(position),-1)+1 FROM books),?,?,?,?,?,?)`, r.Title, r.Author, identity(r.Title, r.Author), r.ISBN, r.GoodreadsID, r.Pages, r.Tags, interest, r.Status, r.Series, r.SeriesNumber, r.PublishedYear, r.AvgRating, canonicalTime(time.Now()), r.Source)
 			if err != nil {
 				return out, err
 			}
@@ -139,8 +153,16 @@ func importRecords(q queryer, records []Record) (out importResult, err error) {
 				return out, err
 			}
 			out.Added++
+			if r.Rating > 0 {
+				out.Rated++
+			}
 			out.Changed = true
 		} else {
+			// Local choices are authoritative: a rating never changes the
+			// interest of a book that is already here.
+			if r.Rating > 0 {
+				out.RatingsKept++
+			}
 			for _, pair := range [][2]string{{"goodreads_id", r.GoodreadsID}, {"isbn", r.ISBN}} {
 				if pair[1] != "" {
 					changed, err := execChanged(q, "UPDATE books SET "+pair[0]+"=? WHERE id=? AND "+pair[0]+"=''", pair[1], id)
@@ -157,6 +179,20 @@ func importRecords(q queryer, records []Record) (out importResult, err error) {
 				}
 				out.Changed = out.Changed || changed
 			}
+			if r.PublishedYear != nil {
+				changed, err := execChanged(q, "UPDATE books SET published_year=? WHERE id=? AND published_year IS NULL", *r.PublishedYear, id)
+				if err != nil {
+					return out, err
+				}
+				out.Changed = out.Changed || changed
+			}
+			// The Goodreads average drifts between polls. Keeping it current is
+			// not a library change: it must not expire previews every hour.
+			if r.AvgRating != nil {
+				if _, err := q.Exec("UPDATE books SET avg_rating=? WHERE id=? AND avg_rating IS NOT ?", *r.AvgRating, id, *r.AvgRating); err != nil {
+					return out, err
+				}
+			}
 			if upgradesUnreviewed(r) {
 				var old Book
 				if err = q.QueryRow("SELECT id,reading_status,pinned,needs_placement,position FROM books WHERE id=?", id).Scan(&old.ID, &old.Status, &old.Pinned, &old.NeedsPlacement, &old.Position); err != nil {
@@ -170,6 +206,16 @@ func importRecords(q queryer, records []Record) (out importResult, err error) {
 					out.Changed = true
 				}
 			}
+		}
+		if logsHistory(r) {
+			added, changed, err := logReading(q, id, r, prefs.KeepReviews)
+			if err != nil {
+				return out, err
+			}
+			if added {
+				out.Logged++
+			}
+			out.Changed = out.Changed || changed
 		}
 		if r.Event != nil {
 			e := r.Event

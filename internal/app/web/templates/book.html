@@ -31,6 +31,36 @@
   </div>
 </form>
 {{if .Editing}}
+<section class="section-heading" id="reading">
+  <h2>When you read it</h2>
+  <p>Your finish dates and ratings. Changing them here keeps them yours: later Goodreads checks leave them alone. Reading history never changes this book’s status or interest.</p>
+</section>
+{{range .Readings}}
+<form class="panel form-grid reading-entry" method="post" action="/readings/{{.ID}}">
+  {{template "fields" $}}
+  <label>Finished <span class="muted">blank if you don’t remember</span><input type="date" name="finished_at" value="{{with .FinishedAt}}{{.}}{{end}}"></label>
+  <label>Your rating<select name="rating">
+    <option value="">Unrated</option>
+    {{$e := .}}{{range $n := ratings}}<option value="{{$n}}" {{if rated $e.Rating $n}}selected{{end}}>{{$n}} of 5</option>{{end}}
+  </select></label>
+  <p class="span-2 muted"><small>{{if .AddedByHand}}Logged by you.{{else if eq .Source "manual"}}From Goodreads, edited by you.{{else}}From Goodreads.{{end}}{{if .Review}} Your review is below.{{else if .ReviewChars}} You wrote a {{.ReviewChars}}-character review on Goodreads; its text is not kept here (see Preferences).{{end}}</small></p>
+  {{with .Review}}<blockquote class="span-2 review">{{.}}</blockquote>{{end}}
+  <div class="span-2 button-row">
+    <button class="button" name="action" value="save">Save reading</button>
+    {{if .AddedByHand}}<button class="button danger" name="action" value="delete">Delete reading</button>{{end}}
+  </div>
+</form>
+{{end}}
+<form class="panel form-grid" method="post" action="/books/{{.Book.ID}}/readings">
+  {{template "fields" .}}
+  <h3 class="span-2">{{if .Readings}}Log another reading{{else}}Log a finished reading{{end}}</h3>
+  <label>Finished <span class="muted">optional</span><input type="date" name="finished_at"></label>
+  <label>Your rating<select name="rating">
+    <option value="">Unrated</option>
+    {{range ratings}}<option value="{{.}}">{{.}} of 5</option>{{end}}
+  </select></label>
+  <div class="span-2"><button class="button">Log reading</button></div>
+</form>
 <section class="section-heading">
   <h2>At the library</h2>
   <p>Log a checkout, hold, or return. This never marks the book as finished.</p>

@@ -15,7 +15,11 @@ type Connection struct {
 	UserID  string `json:"user_id"`
 	Shelf   string `json:"shelf"`
 	Enabled bool   `json:"enabled"`
+	// ReadShelf is polled for reading history; empty turns that off.
+	ReadShelf string `json:"read_shelf"`
 }
+
+var defaultConnection = Connection{Shelf: "to-read", ReadShelf: "read"}
 
 var userIDPattern = regexp.MustCompile(`^[0-9]{1,20}$`)
 var shelfPattern = regexp.MustCompile(`^[a-zA-Z0-9_-]{1,100}$`)
@@ -26,6 +30,9 @@ func validateConnection(c Connection) error {
 	}
 	if c.UserID != "" && (!userIDPattern.MatchString(c.UserID) || !shelfPattern.MatchString(c.Shelf)) {
 		return fmt.Errorf("enter a numeric Goodreads user ID and a shelf with letters, digits, hyphens or underscores")
+	}
+	if c.ReadShelf != "" && !shelfPattern.MatchString(c.ReadShelf) {
+		return fmt.Errorf("enter a read shelf with letters, digits, hyphens or underscores, or leave it blank")
 	}
 	return nil
 }
@@ -85,6 +92,7 @@ func (f *feedClient) Fetch(ctx context.Context, c Connection) ([]Record, error) 
 	}
 	defer response.Body.Close()
 	if response.StatusCode != http.StatusOK {
+		//lint:ignore ST1005 Goodreads is a proper noun
 		return nil, feedError(fmt.Sprintf("status-%d", response.StatusCode), fmt.Errorf("Goodreads returned status %d", response.StatusCode))
 	}
 	data, err := io.ReadAll(io.LimitReader(response.Body, maxUpload+1))

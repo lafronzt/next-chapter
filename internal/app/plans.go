@@ -31,6 +31,12 @@ type planRecord struct {
 	Series       string     `json:"sr,omitempty"`
 	SeriesNumber *float64   `json:"sn,omitempty"`
 	Source       string     `json:"src"`
+	Rating       int        `json:"r,omitempty"`
+	Finished     string     `json:"fd,omitempty"`
+	ReviewChars  int        `json:"rc,omitempty"`
+	Review       string     `json:"rv,omitempty"`
+	Published    *int       `json:"py,omitempty"`
+	Average      *float64   `json:"ar,omitempty"`
 	Event        *planEvent `json:"e,omitempty"`
 }
 type planEvent struct {
@@ -42,7 +48,8 @@ type planEvent struct {
 }
 
 func compactRecord(r Record) planRecord {
-	c := planRecord{r.Title, r.Author, r.ISBN, r.GoodreadsID, r.Pages, r.Tags, r.Status, r.Series, r.SeriesNumber, r.Source, nil}
+	c := planRecord{Title: r.Title, Author: r.Author, ISBN: r.ISBN, GoodreadsID: r.GoodreadsID, Pages: r.Pages, Tags: r.Tags, Status: r.Status, Series: r.Series, SeriesNumber: r.SeriesNumber, Source: r.Source, Rating: r.Rating,
+		Finished: r.FinishedAt, ReviewChars: r.ReviewChars, Review: r.Review, Published: r.PublishedYear, Average: r.AvgRating}
 	if e := r.Event; e != nil {
 		c.Event = &planEvent{e.Format, e.Status, e.Activity, e.At, e.DueDate}
 	}
@@ -51,7 +58,11 @@ func compactRecord(r Record) planRecord {
 
 // record restores a Record as ParseCSV produced it.
 func (c planRecord) record() Record {
-	r := Record{Book: Book{Title: c.Title, Author: c.Author, ISBN: c.ISBN, GoodreadsID: c.GoodreadsID, Pages: c.Pages, Tags: c.Tags, Status: c.Status, Series: c.Series, SeriesNumber: c.SeriesNumber, Source: c.Source, Interest: 3, NeedsPlacement: true}}
+	r := Record{Book: Book{Title: c.Title, Author: c.Author, ISBN: c.ISBN, GoodreadsID: c.GoodreadsID, Pages: c.Pages, Tags: c.Tags, Status: c.Status, Series: c.Series, SeriesNumber: c.SeriesNumber, Source: c.Source, Interest: 3, NeedsPlacement: true, PublishedYear: c.Published, AvgRating: c.Average},
+		Rating: c.Rating, FinishedAt: c.Finished, ReviewChars: c.ReviewChars, Review: c.Review}
+	if c.Rating >= 1 && c.Rating <= 5 {
+		r.Interest = c.Rating
+	}
 	if e := c.Event; e != nil {
 		r.Event = &Event{Format: e.Format, Status: e.Status, Activity: e.Activity, At: e.At, DueDate: e.DueDate}
 	}
