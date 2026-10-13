@@ -100,7 +100,11 @@ func run() error {
 	}()
 	log.Printf("Next Chapter listening on %s", addr)
 	if ai.Enabled() {
-		log.Printf("AI provider %s configured with model %s; readers turn it on in Preferences", ai.Provider, ai.Model)
+		where := ""
+		if ai.SelfHosted() {
+			where = " at " + ai.Endpoint()
+		}
+		log.Printf("AI provider %s%s configured with model %s; readers turn it on in Preferences", ai.Provider, where, ai.Model)
 	}
 	err = server.ListenAndServe()
 	stop()

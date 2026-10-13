@@ -10,6 +10,19 @@ services:
       COOKIE_SECURE: ${COOKIE_SECURE:-0}
       TRUSTED_PROXY_HOPS: ${TRUSTED_PROXY_HOPS:-0}
       DATABASE_PATH: /data/next-chapter.sqlite3
+      # Optional AI assistance, off unless AI_PROVIDER is set in .env. See
+      # "AI assistance" in README.md. Compose passes only the variables
+      # listed here, so use AI_API_KEY rather than a vendor-specific name.
+      AI_PROVIDER: ${AI_PROVIDER:-off}
+      AI_API_KEY: ${AI_API_KEY:-}
+      AI_MODEL: ${AI_MODEL:-}
+      AI_BASE_URL: ${AI_BASE_URL:-}
+      AI_TIMEOUT_SECONDS: ${AI_TIMEOUT_SECONDS:-}
+      AI_MAX_MONTHLY_REQUESTS: ${AI_MAX_MONTHLY_REQUESTS:-}
+    # Lets AI_BASE_URL=http://host.docker.internal:11434 reach an Ollama
+    # running on this computer, on Linux as well as Docker Desktop.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - library:/data
     read_only: true
@@ -21,5 +34,18 @@ services:
       - ALL
     restart: unless-stopped
     stop_grace_period: 30s
+  # Optional local AI models: docker compose --profile ollama up -d, then
+  # docker compose exec ollama ollama pull <model>, and set AI_PROVIDER=ollama,
+  # AI_BASE_URL=http://ollama:11434, and AI_MODEL in .env. Its port is not
+  # published, so only the app can reach it. For GPUs, see Ollama's Docker docs.
+  ollama:
+    image: ollama/ollama:0.40.3@sha256:adca95a12c2b386a8f9a995e7fa0600e187e3323b5e5522f5a6c3b1ec73eff99
+    profiles: [ollama]
+    volumes:
+      - ollama:/root/.ollama
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
 volumes:
   library:
+  ollama:

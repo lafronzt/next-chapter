@@ -31,6 +31,7 @@ func (a *App) aiSettings(w http.ResponseWriter, r *http.Request) error {
 
 // aiTest sends a fixed prompt with no library data.
 func (a *App) aiTest(w http.ResponseWriter, r *http.Request) error {
+	a.allowSlowAI(w)
 	if err := a.testAI(r.Context()); err != nil {
 		return err
 	}

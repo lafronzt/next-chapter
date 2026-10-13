@@ -1,0 +1,77 @@
+# Optional: a private Ollama server for AI assistance with models that run in
+# your cluster. Apply it in the same namespace as app.yaml, pull a model, and
+# set AI_PROVIDER=ollama, AI_BASE_URL=http://ollama:11434, and AI_MODEL:
+#
+#   kubectl apply -f deploy/kubernetes/ollama.yaml
+#   kubectl exec deploy/ollama -- ollama pull llama3.1:8b
+#
+# The Service is cluster-internal only. Size the memory limit and volume for
+# your models (roughly the model file size plus 1-2 GiB of memory). For GPUs,
+# add your device plugin's resource limit, such as nvidia.com/gpu: 1.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ollama-models
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 20Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ollama
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: ollama
+  template:
+    metadata:
+      labels:
+        app: ollama
+    spec:
+      automountServiceAccountToken: false
+      containers:
+        - name: ollama
+          # Pin a release tag or digest before deploying.
+          image: ollama/ollama:0.40.3@sha256:adca95a12c2b386a8f9a995e7fa0600e187e3323b5e5522f5a6c3b1ec73eff99
+          ports:
+            - name: http
+              containerPort: 11434
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          resources:
+            requests:
+              cpu: "1"
+              memory: 4Gi
+            limits:
+              memory: 12Gi
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            periodSeconds: 10
+          volumeMounts:
+            - name: models
+              mountPath: /root/.ollama
+      volumes:
+        - name: models
+          persistentVolumeClaim:
+            claimName: ollama-models
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ollama
+spec:
+  selector:
+    app: ollama
+  ports:
+    - port: 11434
+      targetPort: http

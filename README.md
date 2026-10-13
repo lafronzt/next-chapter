@@ -7,7 +7,7 @@ Next Chapter is a **single-reader web app** with two ways to organize your list:
 - **Find its place:** suggest where one book belongs, preserving the relative order of every other book.
 - **Rethink my queue:** reconsider the entire queue using your interest, library timing, preferred length, tags, and series order.
 
-Every suggestion has a preview and reasons. Pinned books keep their positions. You decide whether to apply a suggestion, and can undo it until another library change occurs. No AI service, API key, or subscription is required; [AI assistance](#ai-assistance-optional) is off unless you bring your own key and switch it on.
+Every suggestion has a preview and reasons. Pinned books keep their positions. You decide whether to apply a suggestion, and can undo it until another library change occurs. No AI service, API key, or subscription is required; [AI assistance](#ai-assistance-optional) is off unless you connect a hosted model with your own key or a model on your own hardware, and switch it on.
 
 ![Next Chapter with example books](docs/preview.png)
 
@@ -57,7 +57,7 @@ openssl rand -hex 32
 docker compose up --build -d
 ```
 
-Open [localhost:8000](http://localhost:8000) and sign in with `APP_PASSWORD`. Your data is stored in the named `library` volume. Startup fails unless the password is at least 12 characters and the signing key at least 32. `.env` is ignored by Git and excluded from the image.
+Open [localhost:8000](http://localhost:8000) and sign in with `APP_PASSWORD`. Your data is stored in the named `library` volume. Optional AI assistance, including a local Ollama service under the `ollama` profile, is described in [AI with Docker Compose](#ai-with-docker-compose). Startup fails unless the password is at least 12 characters and the signing key at least 32. `.env` is ignored by Git and excluded from the image.
 
 Compose binds to loopback by default. For access from other devices, place the app behind your HTTPS reverse proxy and set `COOKIE_SECURE=1`, which also sends `Strict-Transport-Security`. Configure the proxy to reach container port 8000 and preserve the host. Keep the app password enabled. Do not publish unauthenticated demo mode.
 
@@ -79,6 +79,8 @@ docker run -d --name next-chapter \
   --cap-drop ALL --security-opt no-new-privileges:true \
   next-chapter:local
 ```
+
+To use an Ollama running on the same computer with `docker run`, add `--add-host=host.docker.internal:host-gateway` and set `AI_BASE_URL=http://host.docker.internal:11434` in `.env` (see [Self-hosted models](#self-hosted-models-ollama-and-openai-compatible-servers)).
 
 The published Go image is `ghcr.io/lafronzt/next-chapter:0.2.0` (also `:latest`), supporting `linux/amd64` and `linux/arm64`. A release tag triggers the included GitHub workflow. Prefer a version tag or digest in production. The final image contains a statically compiled Go executable and CA certificates, with no interpreter or shell. Rebuild with `docker build --pull` to refresh the Go toolchain.
 
@@ -105,6 +107,8 @@ kubectl create secret generic next-chapter-auth --from-env-file=.env
 kubectl apply -f deploy/kubernetes/app.yaml
 kubectl port-forward service/next-chapter 8000:80
 ```
+
+For optional AI assistance, see [AI on Kubernetes](#ai-on-kubernetes); `deploy/kubernetes/ollama.yaml` runs a private Ollama server in the cluster if you want local models.
 
 The PVC defaults to 1 GiB. The manifest includes resource limits, readiness/liveness checks, a non-root user, dropped capabilities, and a writable temporary directory. `/healthz` is unauthenticated and returns only a health status.
 
@@ -133,28 +137,37 @@ Preferences affect the next suggestion; saving them does not move books. Reading
 
 ## AI assistance (optional)
 
-Next Chapter works fully without AI. If you want suggestions from a language model, you can connect your own Anthropic (Claude) or OpenAI account. There is no hosted proxy and no paid service from this project: you supply the key and pay the provider directly.
+Next Chapter works fully without AI. If you want suggestions from a language model, you can connect:
+
+- **A hosted model** from Anthropic (Claude) or OpenAI with your own API key. You pay the provider directly.
+- **A model on your own hardware** with [Ollama](https://ollama.com), so nothing leaves your machine or network.
+- **Any other model** behind an OpenAI-compatible server, such as LM Studio, vLLM, llama.cpp's server, LocalAI, or a gateway you run.
+
+There is no hosted proxy and no paid service from this project.
 
 It is **off by default** and needs two steps:
 
-1. **The operator** sets a provider, key, and model in the environment and restarts the app:
+1. **The operator** sets a provider and model in the environment (plus a key for hosted providers) and restarts the app:
 
    | Variable | Meaning |
    | --- | --- |
-   | `AI_PROVIDER` | `off` (default), `anthropic`, or `openai` |
-   | `AI_API_KEY` | The provider API key. `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` also work for the matching provider. |
-   | `AI_MODEL` | The model name, required. Suggestions checked on 2026-10-13: `claude-opus-5-5` for Anthropic, `gpt-6-astra` for OpenAI. Any current model that supports structured JSON output works; a cheaper model costs less per request. |
-   | `AI_MAX_MONTHLY_REQUESTS` | Requests allowed per calendar month (UTC), default `100`. |
+   | `AI_PROVIDER` | `off` (default), `anthropic`, `openai`, `ollama`, or `custom` |
+   | `AI_MODEL` | The model name, required. Hosted suggestions checked on 2026-10-13: `claude-opus-5-5` for Anthropic, `gpt-6-astra` for OpenAI; a cheaper model costs less per request. For `ollama`, any model you have pulled, such as `llama3.1:8b` or `qwen2.5:7b`. For `custom`, the model name your server lists. |
+   | `AI_API_KEY` | Required for `anthropic` and `openai` (`ANTHROPIC_API_KEY` or `OPENAI_API_KEY` also work outside Compose). Optional for `ollama` and `custom`, which send it as a bearer token when set, for a server behind an authenticating proxy. |
+   | `AI_BASE_URL` | For `ollama`, the server address, default `http://127.0.0.1:11434`. For `custom`, required: the OpenAI-compatible API root, usually ending in `/v1`, such as `http://127.0.0.1:1234/v1`. Plain `http://` is accepted only for servers on this machine or a private network (see below); anything else needs `https://`. For `anthropic` and `openai` it exists only for tests and accepts nothing but `https://127.0.0.1:<port>`. |
+   | `AI_TIMEOUT_SECONDS` | How long to wait for one answer, 5 to 600, default `60`. Raise it for slow local models; the request's page waits that long too. |
+   | `AI_MAX_MONTHLY_REQUESTS` | Requests allowed per calendar month (UTC), default `100`. Local models cost nothing per request, so raise it freely there. |
 
-   The app refuses to start if `AI_PROVIDER` is set without a key or model. `AI_BASE_URL` exists only for tests and accepts nothing but `https://127.0.0.1:<port>`.
+   The app refuses to start if the provider is missing something it needs: a model, a key for hosted providers, a base URL for `custom`, or HTTPS for a server outside your network.
 
-2. **The reader** turns on **AI assistance** in Preferences. Preferences shows the provider and model, this month's requests and tokens, a plain-language summary of what is shared, and a **Test connection** button that sends a fixed prompt with no library data.
+2. **The reader** turns on **AI assistance** in Preferences. Preferences shows the provider, model, and (for self-hosted servers) the server address and whether it is on your network, this month's requests and tokens, a plain-language summary of what is shared, and a **Test connection** button that sends a fixed prompt with no library data.
 
-**What is sent, and when.** Nothing is sent in the background, on a schedule, during a Goodreads check, or when a page loads. Each AI action first shows a **What gets shared** list of the exact rows and fields it will send, and sends only after you confirm. Requests carry only what the task needs: titles, authors, tags, page counts, series, interest, your ratings, and finish years. They never carry library-card or loan account details, your password or session, ISBNs, Goodreads IDs, or review text (unless you keep reviews and tick a box for that one request). The provider's own data terms apply to what is sent; OpenAI requests ask it not to store the response (`store: false`).
+**What is sent, and when.** Nothing is sent in the background, on a schedule, during a Goodreads check, or when a page loads. Each AI action first shows a **What gets shared** list of the exact rows and fields it will send, and sends only after you confirm. Requests carry only what the task needs: titles, authors, tags, page counts, series, interest, your ratings, and finish years. They never carry library-card or loan account details, your password or session, ISBNs, Goodreads IDs, or review text (unless you keep reviews and tick a box for that one request). With a hosted provider, its data terms apply; OpenAI requests ask it not to store the response (`store: false`). With a self-hosted server, whoever runs that server can see what is sent.
 
 **Safety rails.**
 
-- Requests go only to `https://api.anthropic.com/v1/messages` or `https://api.openai.com/v1/responses`, with a 60-second timeout, a 1 MB response limit, no redirects, and `User-Agent: NextChapter/<version>`. Only `net/http` is used; there is no vendor SDK.
+- Hosted requests go only to `https://api.anthropic.com/v1/messages` or `https://api.openai.com/v1/responses`. Self-hosted requests go only to the configured `AI_BASE_URL`, at `/api/chat` for Ollama or `/chat/completions` under the API root for `custom`. Plain `http://` is accepted only when the host is `localhost`, a loopback, private (10.x, 172.16-31.x, 192.168.x, fc00::/7), or link-local IP address, a single-word name such as a Compose service (`ollama`), or a name ending in `.local`, `.lan`, `.internal`, `.home.arpa`, or `.svc`. A URL with a username, password, query, or fragment is refused.
+- Every request has the configured timeout, a 1 MB response limit, no redirects, and `User-Agent: NextChapter/<version>`. Only `net/http` is used; there is no vendor SDK.
 - The key is read from the environment only. It is never stored in the database, exports, or backups, never shown on a page, and never logged. Logs record only a failure class such as `status-429` or `timeout`, never prompts, answers, or provider error bodies.
 - One AI request runs at a time, and never while holding the database: inputs are read first, the provider is called, then a short write saves the result. Every attempt, including failed ones, counts toward the monthly limit; when it is used up, AI actions say so until the next month.
 - Model output is untrusted. The app asks for JSON matching a schema, then decodes it strictly (unknown fields are an error) and checks every value: IDs must be ones it sent, with no repeats, and numbers must be in range. Anything else is discarded with a plain message. An answer can only propose; it never writes to your library directly.
@@ -162,15 +175,55 @@ It is **off by default** and needs two steps:
 
 To turn AI off again, switch it off in Preferences, or set `AI_PROVIDER=off` (or remove it) and restart.
 
+### Self-hosted models: Ollama and OpenAI-compatible servers
+
+Requests to Ollama use its native chat API with a JSON Schema in `format`; requests to a `custom` server use Chat Completions with `response_format` set to a strict JSON schema. Both repeat the schema in the prompt and use temperature 0, which helps smaller models follow it. Self-hosted servers also get length limits in the schema (for example, at most three reasons of at most 240 characters), which their grammar-based decoding enforces while the model writes; without them, a small model can repeat itself until it reaches the token limit. Hosted APIs reject those keywords, so they get the plain schema and the app checks lengths afterwards. The server must support JSON-schema structured output: Ollama does, and so do current LM Studio, vLLM, and llama.cpp servers. A model that ignores the schema produces answers the app discards with a message, never a change. Instruction-tuned models of about 7B parameters or more follow it far more reliably than tiny ones. Small local models give simpler suggestions than large hosted ones.
+
+Ollama is also OpenAI-compatible, so `AI_PROVIDER=custom` with `AI_BASE_URL=http://127.0.0.1:11434/v1` works too; `ollama` is simpler and needs no path.
+
+Where Ollama runs decides `AI_BASE_URL`:
+
+| Ollama runs… | `AI_BASE_URL` |
+| --- | --- |
+| On the same computer, app run directly | `http://127.0.0.1:11434` (the default) |
+| In the Compose `ollama` profile (below) | `http://ollama:11434` |
+| On the computer that runs Docker, outside Docker | `http://host.docker.internal:11434`. Ollama listens only on 127.0.0.1 by default; start it with `OLLAMA_HOST=0.0.0.0` so containers can reach it, and keep port 11434 closed to the internet. |
+| On another machine on your network | `http://192.168.1.20:11434` (its address), with `OLLAMA_HOST=0.0.0.0` on that machine |
+| In Kubernetes from `deploy/kubernetes/ollama.yaml` | `http://ollama:11434` |
+| Anywhere reached over the internet | `https://…` only, ideally behind an authenticating proxy, with `AI_API_KEY` as its bearer token |
+
+Pull the model before switching AI on (`ollama pull llama3.1:8b`); otherwise the test reports that the server does not know the model. A first request after the server starts may be slow while the model loads, so allow for it in `AI_TIMEOUT_SECONDS`.
+
+### AI with Docker Compose
+
+`compose.yaml` passes the `AI_*` variables from `.env` to the app (as `AI_API_KEY`; Compose does not pass the vendor-specific key names). It also defines an optional `ollama` service under a profile, so it only runs when asked:
+
+```sh
+# in .env: AI_PROVIDER=ollama, AI_BASE_URL=http://ollama:11434, AI_MODEL=llama3.1:8b
+docker compose --profile ollama up -d
+docker compose exec ollama ollama pull llama3.1:8b
+```
+
+Models are kept in the `ollama` volume. The Ollama port is not published, so only the app can reach it; for GPU acceleration, add your GPU settings to the service as Ollama's Docker instructions describe. For a hosted provider, set `AI_PROVIDER`, `AI_MODEL`, and `AI_API_KEY` in `.env` and run `docker compose up -d` as usual.
+
 ### AI on Kubernetes
 
-Keep the key in a Secret, separate from the manifest. The simplest way is to add the `AI_*` lines to the same `.env` you create `next-chapter-auth` from. To keep the AI key in its own Secret instead:
+Keep any key in a Secret, separate from the manifest. The simplest way is to add the `AI_*` lines to the same `.env` you create `next-chapter-auth` from. To keep the AI key in its own Secret instead:
 
 ```sh
 kubectl create secret generic next-chapter-ai --from-literal=AI_API_KEY='…'
 ```
 
-Then uncomment the `AI_*` entries in `deploy/kubernetes/app.yaml`. Rotating the key means updating the Secret and restarting the pod.
+Then uncomment the `AI_*` entries you need in `deploy/kubernetes/app.yaml`. Rotating the key means updating the Secret and restarting the pod.
+
+For models in your cluster, `deploy/kubernetes/ollama.yaml` adds a single Ollama Deployment with a 20 GiB volume for models and a cluster-internal Service. Size its memory limit and volume for your models, add a GPU resource limit if you have a device plugin, and pull a model once:
+
+```sh
+kubectl apply -f deploy/kubernetes/ollama.yaml
+kubectl exec deploy/ollama -- ollama pull llama3.1:8b
+```
+
+Then set `AI_PROVIDER=ollama`, `AI_BASE_URL=http://ollama:11434`, `AI_MODEL`, and a longer `AI_TIMEOUT_SECONDS` for the app. Restrict who can reach the Ollama Service with a NetworkPolicy if your cluster is shared.
 
 ## Imports and data ownership
 
@@ -264,9 +317,18 @@ CI also requires `gofmt`, `staticcheck`, `govulncheck`, a tidy `go.mod`, and a c
 
 Open [localhost:8000](http://localhost:8000). Demo mode has no login and requires a loopback `LISTEN_ADDR` (default `127.0.0.1:8000`). The empty-library page lets you load example books. Production starts with an empty library and never seeds examples.
 
+To try AI assistance locally without an API key, run Ollama, pull a model, and start the app with it:
+
+```sh
+ollama pull llama3.1:8b
+AI_PROVIDER=ollama AI_MODEL=llama3.1:8b AI_TIMEOUT_SECONDS=300 LOCAL_DEMO=1 START_POLLER=0 ./bin/next-chapter
+```
+
+Then switch AI on in Preferences. Tests never contact a real provider; they use `httptest` servers.
+
 For production, set `APP_PASSWORD` and `APP_SECRET_KEY` and omit `LOCAL_DEMO`. `DATABASE_PATH` defaults to `data/next-chapter.sqlite3`; `LISTEN_ADDR` defaults to `:8000`. `START_POLLER=0` disables the background checker. `TRUSTED_PROXY_HOPS` (default `0`) is described under Docker Compose. The executable includes `version` and `healthcheck` commands.
 
-The application uses Go’s HTTP server, escaped HTML templates, plain CSS, and a pure-Go SQLite driver. Templates, assets, and CSV examples are embedded in the executable. No font, analytics, or cover-image service receives reading data. The app makes outbound requests only for opt-in Goodreads RSS and, if the operator configures a provider and the reader switches it on, for [AI assistance](#ai-assistance-optional) that the reader requests and confirms one request at a time.
+The application uses Go’s HTTP server, escaped HTML templates, plain CSS, and a pure-Go SQLite driver. Templates, assets, and CSV examples are embedded in the executable. No font, analytics, or cover-image service receives reading data. The app makes outbound requests only for opt-in Goodreads RSS and, if the operator configures a provider and the reader switches it on, for [AI assistance](#ai-assistance-optional) that the reader requests and confirms one request at a time. With Ollama or another self-hosted model, those requests can stay on your own machine or network.
 
 ## Project layout
 
@@ -279,12 +341,12 @@ The application uses Go’s HTTP server, escaped HTML templates, plain CSS, and 
 - `internal/app/plans.go`: compact storage for previews.
 - `internal/app/merge.go`: deleting and merging books, aliases that stop re-imports from recreating them.
 - `internal/app/feed.go`, `sync.go`: fixed-host RSS fetching, optional hourly polling with backoff.
-- `internal/app/ai.go`, `handlers_ai.go`: the optional AI provider layer (Anthropic and OpenAI over `net/http`), its monthly limit, strict answer parsing, and the Preferences switch.
+- `internal/app/ai.go`, `handlers_ai.go`: the optional AI provider layer (Anthropic, OpenAI, Ollama, and OpenAI-compatible servers over `net/http`), its monthly limit, strict answer parsing, and the Preferences switch.
 - `internal/app/server.go`: configuration and the routing table; `middleware.go`, `session.go`, `render.go`, `forms.go` hold the request pipeline, and `handlers_*.go` the handlers by area.
 - `internal/app/version.go`: the release version, set at build time with `-ldflags "-X github.com/lafronzt/next-chapter/internal/app.Version=…"`.
 - `internal/app/web/`: embedded templates, assets, and import examples.
 - `internal/app/*_test.go`: ranking, import integrity, migrations, delete/merge, feed and poller, authentication, and web-flow tests.
-- `deploy/kubernetes/`: single-replica persistent deployment.
+- `deploy/kubernetes/`: single-replica persistent deployment, and an optional Ollama server for local AI models.
 
 ## Next steps
 
