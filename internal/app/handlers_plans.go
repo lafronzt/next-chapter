@@ -313,6 +313,7 @@ func (a *App) planAI(w http.ResponseWriter, r *http.Request) error {
 	if ai, err := a.aiStatus(a.store.DB); err != nil || !ai.Available() {
 		return cmp.Or(err, error(errAIOff))
 	}
+	a.allowSlowAI(w)
 	id, err := a.rerankAI(r.Context(), r.PathValue("id"), r.FormValue("fingerprint"))
 	if err != nil {
 		return err

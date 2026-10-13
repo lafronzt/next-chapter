@@ -248,6 +248,9 @@ func TestRerankInvalidAnswersFallBack(t *testing.T) {
 		"reason for unknown id": func(p rerankPayload) string {
 			return `{"order":[1,2,3,4,5,6],"reasons":[{"id":7,"reason":"x"}]}`
 		},
+		"blank reason for an unknown id": func(p rerankPayload) string {
+			return `{"order":[1,2,3,4,5,6],"reasons":[{"id":9,"reason":""}]}`
+		},
 		"long reason": func(p rerankPayload) string {
 			return `{"order":[1,2,3,4,5,6],"reasons":[{"id":1,"reason":"` + strings.Repeat("x", 201) + `"}]}`
 		},
@@ -596,5 +599,52 @@ func TestMovedFrom(t *testing.T) {
 		if !slices.Equal(ids, c.moved) && !(len(ids) == 0 && len(c.moved) == 0) {
 			t.Fatalf("movedFrom(%v, %v) = %v, want %v", c.desired, c.final, ids, c.moved)
 		}
+	}
+}
+
+// Small local models sometimes send blank reasons; they mean "no reason".
+func TestRerankBlankReasonsAccepted(t *testing.T) {
+	a, _ := rerankApp(t, func(p rerankPayload) string {
+		return `{"order":[6,5,4,3,2,1],"reasons":[{"id":6,"reason":"  "},{"id":5,"reason":"Short and hopeful."}]}`
+	})
+	queueFixture(t, a)
+	b := &browser{t: t, handler: a.Handler()}
+	_, resp := askAIPlan(t, b, nil)
+	p := planRows(t, a, resp.Location)
+	if len(p.AIRows) != 6 || p.AINotice != "" {
+		t.Fatalf("plan %+v %s", p.AIRows, p.AINotice)
+	}
+	reasons := 0
+	for _, r := range p.AIRows {
+		if r.AIReason != "" {
+			reasons++
+		}
+	}
+	if reasons != 1 {
+		t.Fatalf("%d AI reasons", reasons)
+	}
+}
+
+func TestRerankLocalSchemaIsBounded(t *testing.T) {
+	ri := rerankInputs{Kind: "reorder", Sent: []int{0, 2, 5}}
+	req, err := ri.request()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var local map[string]any
+	if err = json.Unmarshal(req.LocalSchema, &local); err != nil {
+		t.Fatal(err)
+	}
+	props := local["properties"].(map[string]any)
+	order := props["order"].(map[string]any)
+	if order["minItems"] != float64(3) || order["maxItems"] != float64(3) || props["reasons"].(map[string]any)["maxItems"] != float64(3) {
+		t.Fatalf("local schema %s", req.LocalSchema)
+	}
+	if string(req.Schema) != reorderSchema {
+		t.Fatal("hosted providers must get the plain schema")
+	}
+	ri.Kind = "insert"
+	if req, err = ri.request(); err != nil || !json.Valid(req.LocalSchema) || !strings.Contains(string(req.LocalSchema), `"maxLength":200`) {
+		t.Fatalf("place schema %s %v", req.LocalSchema, err)
 	}
 }

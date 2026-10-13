@@ -219,17 +219,28 @@ const placeTask = `You suggest where one new book belongs in a reader's reading 
 
 const placeSchema = `{"type":"object","properties":{"position":{"type":"integer"},"reason":{"type":"string"}},"required":["position","reason"],"additionalProperties":false}`
 
+// request builds the prompt. Self-hosted servers get the schema with length
+// limits that their decoding enforces (see AIRequest.LocalSchema): exactly
+// one id per book sent, and short reasons.
 func (ri rerankInputs) request() (AIRequest, error) {
 	if ri.Kind == "insert" {
-		return libraryPrompt(placeTask, ri.Payload, 4000, placeSchema)
+		req, err := libraryPrompt(placeTask, ri.Payload, 4000, placeSchema)
+		req.LocalSchema = json.RawMessage(fmt.Sprintf(`{"type":"object","properties":{"position":{"type":"integer"},"reason":{"type":"string","maxLength":%d}},"required":["position","reason"],"additionalProperties":false}`, maxRerankReason))
+		return req, err
 	}
-	return libraryPrompt(reorderTask, ri.Payload, 16000, reorderSchema)
+	req, err := libraryPrompt(reorderTask, ri.Payload, 16000, reorderSchema)
+	n := len(ri.Sent)
+	req.LocalSchema = json.RawMessage(fmt.Sprintf(`{"type":"object","properties":{"order":{"type":"array","items":{"type":"integer"},"minItems":%d,"maxItems":%d},"reasons":{"type":"array","items":{"type":"object","properties":{"id":{"type":"integer"},"reason":{"type":"string","maxLength":%d}},"required":["id","reason"],"additionalProperties":false},"maxItems":%d}},"required":["order","reasons"],"additionalProperties":false}`, n, n, maxRerankReason, n))
+	return req, err
 }
 
+// checkReason trims a reason and caps its length. Reasons are optional, and
+// small local models sometimes send empty ones, so a blank reason just means
+// none.
 func checkReason(s string) (string, error) {
 	s = strings.TrimSpace(s)
-	if s == "" || len([]rune(s)) > maxRerankReason {
-		return "", fmt.Errorf("a reason was empty or longer than %d characters", maxRerankReason)
+	if len([]rune(s)) > maxRerankReason {
+		return "", fmt.Errorf("a reason was longer than %d characters", maxRerankReason)
 	}
 	return s, nil
 }
