@@ -25,16 +25,19 @@ type exportFile struct {
 	Books         []Book       `json:"books"`
 	Events        []Event      `json:"events"`
 	Aliases       []alias      `json:"aliases"`
+	// ReadingLog is the reading history, from schema version 6.
+	ReadingLog []readingEntry `json:"reading_log"`
 }
 
 const (
 	// maxRestoreSchema is the newest export this build can restore. A test
 	// fails when a migration is added, so the restore code is checked against
 	// the new schema before this is raised.
-	maxRestoreSchema = 5
+	maxRestoreSchema = 6
 	maxRestoreUpload = 10_000_000
 	maxRestoreEvents = 100_000
 	maxRestoreAlias  = 20_000
+	maxRestoreLog    = 100_000
 	maxProblemsShown = 30
 )
 
@@ -48,6 +51,7 @@ type restorePlan struct {
 	Events         int        `json:"events"`
 	Loans          int        `json:"loans"`
 	Aliases        int        `json:"aliases"`
+	Readings       int        `json:"readings"`
 	AliasesKept    int        `json:"aliases_kept"`
 	HasPreferences bool       `json:"has_preferences"`
 	HasSync        bool       `json:"has_sync"`
@@ -119,6 +123,10 @@ func validateExport(f *exportFile) []string {
 	}
 	if len(f.Events) > maxRestoreEvents {
 		add("The export has %d library events; restore at most 100,000.", len(f.Events))
+		return problems
+	}
+	if len(f.ReadingLog) > maxRestoreLog {
+		add("The export has %d readings; restore at most 100,000.", len(f.ReadingLog))
 		return problems
 	}
 	if len(f.Aliases) > maxRestoreAlias {
@@ -215,6 +223,31 @@ func validateExport(f *exportFile) []string {
 			add("%s refers to a book that is not in the file.", label)
 		}
 	}
+	readingFingerprints := map[string]bool{}
+	for i := range f.ReadingLog {
+		e := &f.ReadingLog[i]
+		label := fmt.Sprintf("Reading %d", i+1)
+		if !ids[e.BookID] {
+			add("%s refers to a book that is not in the file.", label)
+		}
+		if e.FinishedAt != nil && !validFinishDate(*e.FinishedAt) {
+			add("%s: finished_at must be YYYY-MM-DD.", label)
+		}
+		if e.Rating != nil && (*e.Rating < 1 || *e.Rating > 5) {
+			add("%s: the rating must be 1 to 5.", label)
+		}
+		if !in(e.Source, []string{"goodreads", "manual"}) {
+			add("%s: the source must be goodreads or manual.", label)
+		}
+		if e.ReviewChars < 0 || (e.Review != nil && len([]rune(*e.Review)) > maxReview) {
+			add("%s: the review is too long.", label)
+		}
+		if e.Fingerprint == "" || len(e.Fingerprint) > 100 || readingFingerprints[e.Fingerprint] {
+			add("%s: the fingerprint is missing, too long, or repeated.", label)
+		}
+		readingFingerprints[e.Fingerprint] = true
+		e.Title, e.Author = "", ""
+	}
 	if p := f.Preferences; p != nil {
 		if message := checkPreferences(*p); message != "" {
 			add("Preferences: %s", message)
@@ -224,7 +257,12 @@ func validateExport(f *exportFile) []string {
 		if c.Shelf == "" {
 			c.Shelf = "to-read"
 		}
-		if err := validateConnection(Connection{c.UserID, c.Shelf, false}); err != nil {
+		// Before version 6 there was no read shelf; start following "read",
+		// as the migration does for existing connections.
+		if f.SchemaVersion < 6 && c.ReadShelf == "" {
+			c.ReadShelf = "read"
+		}
+		if err := validateConnection(Connection{UserID: c.UserID, Shelf: c.Shelf, ReadShelf: c.ReadShelf}); err != nil {
 			add("Goodreads settings: %s.", err)
 		}
 	}
@@ -255,15 +293,15 @@ func restoreExport(q queryer, f exportFile) (restorePlan, error) {
 	}
 	books := slices.Clone(f.Books)
 	slices.SortStableFunc(books, func(a, b Book) int { return cmp.Or(cmp.Compare(a.Position, b.Position), cmp.Compare(a.ID, b.ID)) })
-	insertBook, err := q.Prepare(`INSERT INTO books(title,author,identity,isbn,goodreads_id,pages,tags,interest,reading_status,position,pinned,needs_placement,series,series_number,added_at,source)
-    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+	insertBook, err := q.Prepare(`INSERT INTO books(title,author,identity,isbn,goodreads_id,pages,tags,interest,reading_status,position,pinned,needs_placement,series,series_number,published_year,avg_rating,added_at,source)
+    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
 	if err != nil {
 		return result, err
 	}
 	defer insertBook.Close()
 	newID := make(map[int64]int64, len(books))
 	for _, b := range books {
-		res, err := insertBook.Exec(b.Title, b.Author, b.Identity, b.ISBN, b.GoodreadsID, b.Pages, b.Tags, b.Interest, b.Status, b.Position, b.Pinned, b.NeedsPlacement, b.Series, b.SeriesNumber, b.AddedAt, b.Source)
+		res, err := insertBook.Exec(b.Title, b.Author, b.Identity, b.ISBN, b.GoodreadsID, b.Pages, b.Tags, b.Interest, b.Status, b.Position, b.Pinned, b.NeedsPlacement, b.Series, b.SeriesNumber, b.PublishedYear, b.AvgRating, b.AddedAt, b.Source)
 		if err != nil {
 			return result, err
 		}
@@ -314,6 +352,27 @@ func restoreExport(q queryer, f exportFile) (restorePlan, error) {
 			result.AliasesKept++
 		}
 	}
+	// Review text is kept only if the restored (or, without any, the local)
+	// preferences opt in.
+	prefs, err := readMeta(q, "preferences", defaultPreferences)
+	if err != nil {
+		return result, err
+	}
+	if f.Preferences != nil {
+		prefs = *f.Preferences
+	}
+	readings := slices.Clone(f.ReadingLog)
+	slices.SortStableFunc(readings, func(a, b readingEntry) int { return cmp.Compare(a.ID, b.ID) })
+	for _, e := range readings {
+		review := e.Review
+		if !prefs.KeepReviews {
+			review = nil
+		}
+		if _, err = q.Exec("INSERT INTO reading_log(book_id,finished_at,rating,source,review_chars,review,fingerprint) VALUES(?,?,?,?,?,?,?)", newID[e.BookID], e.FinishedAt, e.Rating, e.Source, e.ReviewChars, review, e.Fingerprint); err != nil {
+			return result, err
+		}
+		result.Readings++
+	}
 	if f.Preferences != nil {
 		if err = setMeta(q, "preferences", *f.Preferences); err != nil {
 			return result, err
@@ -357,7 +416,7 @@ func exportLibrary(tx *sql.Tx) (exportFile, error) {
 	if err != nil {
 		return f, err
 	}
-	conn, err := readMeta(tx, "sync", Connection{Shelf: "to-read"})
+	conn, err := readMeta(tx, "sync", defaultConnection)
 	if err != nil {
 		return f, err
 	}
@@ -365,6 +424,9 @@ func exportLibrary(tx *sql.Tx) (exportFile, error) {
 	if f.SchemaVersion, _, err = schemaVersion(tx); err != nil {
 		return f, err
 	}
-	f.Aliases, err = loadAliases(tx)
+	if f.Aliases, err = loadAliases(tx); err != nil {
+		return f, err
+	}
+	f.ReadingLog, err = loadReadingLog(tx)
 	return f, err
 }

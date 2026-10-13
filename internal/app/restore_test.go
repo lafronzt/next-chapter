@@ -57,6 +57,9 @@ func normalizedExport(t *testing.T, raw []byte) exportFile {
 	for i := range f.Events {
 		f.Events[i].ID, f.Events[i].BookID = 0, index[f.Events[i].BookID]
 	}
+	for i := range f.ReadingLog {
+		f.ReadingLog[i].ID, f.ReadingLog[i].BookID = 0, index[f.ReadingLog[i].BookID]
+	}
 	for i := range f.Aliases {
 		if id := f.Aliases[i].TargetBookID; id != nil {
 			n := index[*id]

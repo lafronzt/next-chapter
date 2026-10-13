@@ -415,15 +415,19 @@ func TestMigrateIndexesFromVersionFour(t *testing.T) {
 	}
 	db.SetMaxOpenConns(1)
 	s := &Store{db}
+	// Plain SQL: importRecords writes columns from later migrations.
 	err = s.Write(func(tx *sql.Tx) error {
-		_, err := importRecords(tx, []Record{{Book: Book{Title: "Kept", Author: "Writer", Status: "to-read", Source: "manual"}}, libbyLoan("Borrowed")})
+		_, err := tx.Exec(`INSERT INTO books(id,title,author,identity,reading_status,position,added_at,source) VALUES
+  (1,'Kept','Writer','kept|writer','to-read',0,'2026-10-01T00:00:00.000000000+00:00','manual'),
+  (2,'Borrowed','Author','borrowed|author','unreviewed',1,'2026-10-01T00:00:00.000000000+00:00','libby');
+INSERT INTO events(book_id,source,format,status,activity,at,due_date,fingerprint) VALUES(2,'libby','ebook','borrowed','Borrowed','2026-10-01T00:00:00.000000000+00:00','','f');`)
 		return err
 	})
 	s.Close()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = migrateFile(path, migrations); err != nil {
+	if err = migrateFile(path, migrations[:5]); err != nil {
 		t.Fatal(err)
 	}
 	if v, _ := versionOf(t, path); v != 5 {

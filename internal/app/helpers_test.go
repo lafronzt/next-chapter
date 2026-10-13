@@ -2,6 +2,7 @@ package app
 
 import (
 	"database/sql"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -55,6 +56,8 @@ var revisionPattern = regexp.MustCompile(`name="revision" value="([^"]+)"`)
 
 func (b *browser) request(method, path string, values url.Values) *httptest.ResponseRecorder {
 	b.t.Helper()
+	// A copy, so a caller can post the same values twice.
+	values = maps.Clone(values)
 	if values == nil {
 		values = url.Values{}
 	}

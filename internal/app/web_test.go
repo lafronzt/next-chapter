@@ -170,7 +170,7 @@ func TestExportJSON(t *testing.T) {
 	if err := json.Unmarshal(rr.Body.Bytes(), &export); err != nil {
 		t.Fatal(err)
 	}
-	if got := slices.Sorted(maps.Keys(export)); !slices.Equal(got, []string{"aliases", "books", "events", "exported_at", "preferences", "schema_version", "sync"}) {
+	if got := slices.Sorted(maps.Keys(export)); !slices.Equal(got, []string{"aliases", "books", "events", "exported_at", "preferences", "reading_log", "schema_version", "sync"}) {
 		t.Fatalf("top-level keys %v", got)
 	}
 	var meta struct {
@@ -191,7 +191,7 @@ func TestExportJSON(t *testing.T) {
 	if len(meta.Books) != 1 || len(meta.Events) != 1 {
 		t.Fatalf("%d books, %d events", len(meta.Books), len(meta.Events))
 	}
-	want := []string{"added_at", "author", "goodreads_id", "id", "identity", "interest", "isbn", "loans", "needs_placement", "pages", "pinned", "position", "reading_status", "series", "series_number", "source", "tags", "title"}
+	want := []string{"added_at", "author", "avg_rating", "goodreads_id", "id", "identity", "interest", "isbn", "loans", "needs_placement", "pages", "pinned", "position", "published_year", "reading_status", "series", "series_number", "source", "tags", "title"}
 	if got := jsonKeys(t, meta.Books[0]); !slices.Equal(got, want) {
 		t.Fatalf("book keys %v", got)
 	}
@@ -199,7 +199,7 @@ func TestExportJSON(t *testing.T) {
 	if got := jsonKeys(t, meta.Events[0]); !slices.Equal(got, want) {
 		t.Fatalf("event keys %v", got)
 	}
-	if got := jsonKeys(t, export["preferences"]); !slices.Equal(got, []string{"length", "library_weight", "mood"}) {
+	if got := jsonKeys(t, export["preferences"]); !slices.Equal(got, []string{"keep_reviews", "length", "library_weight", "mood"}) {
 		t.Fatalf("preference keys %v", got)
 	}
 }

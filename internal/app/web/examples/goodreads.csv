@@ -1,3 +1,4 @@
-Book Id,Title,Author,ISBN13,Number of Pages,Exclusive Shelf,Bookshelves
-40864002,A Psalm for the Wild-Built,Becky Chambers,9781250236210,160,to-read,"hopeful, science fiction"
-50202953,Piranesi,Susanna Clarke,9781635575637,245,to-read,"fantasy, mysterious"
+Book Id,Title,Author,Author l-f,Additional Authors,ISBN,ISBN13,My Rating,Average Rating,Publisher,Binding,Number of Pages,Year Published,Original Publication Year,Date Read,Date Added,Bookshelves,Bookshelves with positions,Exclusive Shelf,My Review,Spoiler,Private Notes,Read Count,Owned Copies
+40864002,A Psalm for the Wild-Built,Becky Chambers,"Chambers, Becky",,"=""1250236215""","=""9781250236210""",0,4.18,Tordotcom,Hardcover,160,2021,2021,,2025/06/02,"hopeful, science fiction","hopeful (#2), science fiction (#7)",to-read,,,,0,0
+50202953,Piranesi,Susanna Clarke,"Clarke, Susanna",,"=""1635575630""","=""9781635575637""",0,4.22,Bloomsbury Publishing,Hardcover,245,2020,2020,,2025/07/14,"fantasy, mysterious","fantasy (#4), mysterious (#1)",to-read,,,,0,0
+18423,The Left Hand of Darkness,Ursula K. Le Guin,"Le Guin, Ursula K.",,"=""0441478123""","=""9780441478125""",5,4.09,Ace,Paperback,304,1987,1969,2024/03/09,2024/01/15,science fiction,science fiction (#3),read,"A slow, cold, generous book.<br/><br/>Stayed with me for weeks.",,,1,0

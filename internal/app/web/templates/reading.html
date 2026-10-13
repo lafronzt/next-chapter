@@ -1,0 +1,57 @@
+{{template "top" .}}
+<header class="page-heading">
+  <div>
+    <div class="eyebrow">THE BOOKS THAT STAYED WITH YOU</div>
+    <h1>Your reading life, so far.</h1>
+    <p>Finished books from your Goodreads read shelf and the readings you log yourself. History never changes your queue.</p>
+  </div>
+  <a class="button" href="/imports"><span>Import from Goodreads <span aria-hidden="true">↓</span></span></a>
+</header>
+{{if .Stats.Readings}}
+<section class="stats" aria-label="Reading history overview">
+  <div><span class="stat-number">{{.Stats.Books}}</span><span>books finished{{if gt .Stats.Readings .Stats.Books}} · {{.Stats.Readings}} readings{{end}}</span></div>
+  <div><span class="stat-number">{{if .Stats.Rated}}{{printf "%.1f" .Stats.AverageRating}}{{else}}—{{end}}</span><span>average rating{{if .Stats.Rated}} · {{.Stats.Rated}} rated{{end}}</span></div>
+  <div><span class="stat-number">{{if .Stats.AveragePages}}{{printf "%.0f" .Stats.AveragePages}}{{else}}—{{end}}</span><span>average pages</span></div>
+</section>
+<div class="two-columns reading-stats">
+  <section class="panel">
+    <h2>Books per year</h2>
+    {{if .Stats.PerYear}}
+    <dl class="year-bars">
+      {{range .Stats.PerYear}}
+      <div><dt>{{.Year}}</dt><dd><meter min="0" max="{{$.Stats.MostPerYear}}" value="{{.Books}}"></meter> {{.Books}}</dd></div>
+      {{end}}
+    </dl>
+    {{end}}
+    {{if .Stats.Undated}}<p class="muted"><small>{{.Stats.Undated}} {{if eq .Stats.Undated 1}}reading has{{else}}readings have{{end}} no finish date.</small></p>{{end}}
+  </section>
+  <section class="panel">
+    <h2>Shelves you return to</h2>
+    {{if .Stats.TopTags}}
+    <ol class="tag-list">
+      {{range .Stats.TopTags}}<li><span>{{.Tag}}</span> <span class="muted">{{.Books}} {{if eq .Books 1}}book{{else}}books{{end}}</span></li>{{end}}
+    </ol>
+    {{else}}<p class="muted">Finished books have no tags or shelves yet.</p>{{end}}
+  </section>
+</div>
+{{end}}
+<div class="panel">
+  {{range .Readings}}
+  <article class="history-row">
+    {{with .FinishedAt}}<time datetime="{{.}}">{{.}}</time>{{else}}<time>Date unknown</time>{{end}}
+    <div>
+      <a href="/books/{{.BookID}}#reading"><strong>{{.Title}}</strong></a>
+      <p>{{.Author}}</p>
+    </div>
+    <span>{{with .Rating}}{{stars .}}{{else}}Unrated{{end}}</span>
+    <span class="badge">{{if eq .Source "manual"}}Yours{{else}}Goodreads{{end}}</span>
+  </article>
+  {{else}}
+  <div class="empty">
+    <h2>Every finished book tells you something.</h2>
+    <p>Import your Goodreads library CSV for your full history, or log a reading from a book’s page. Goodreads checks keep it current.</p>
+  </div>
+  {{end}}
+</div>
+{{template "pager" .Pager}}
+{{template "bottom" .}}

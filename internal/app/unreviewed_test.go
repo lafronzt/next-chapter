@@ -98,9 +98,14 @@ func TestGoodreadsImportUpgradesUnreviewed(t *testing.T) {
 	if eventCount(t, a) != events {
 		t.Fatal("library events changed")
 	}
-	// Re-running the same import is a no-op.
-	again := importResultFor(t, a, []Record{shelf("Wanted", "read"), shelf("Finished", "to-read"), shelf("Started", "reading"), shelf("Dropped", "archived")})
-	if again.upgradedTotal() != 0 || again.Events != 0 || again.Changed {
+	// A different shelf later changes no status. "read" now logs a finished
+	// reading, which is reading history, not status; repeating it is a no-op.
+	later := []Record{shelf("Wanted", "read"), shelf("Finished", "to-read"), shelf("Started", "reading"), shelf("Dropped", "archived")}
+	again := importResultFor(t, a, later)
+	if again.upgradedTotal() != 0 || again.Events != 0 || again.Logged != 1 {
+		t.Fatalf("%+v", again)
+	}
+	if again = importResultFor(t, a, later); again.Changed || again.Logged != 0 {
 		t.Fatalf("%+v", again)
 	}
 	if b := bookNamed(t, a, "Wanted"); b.Status != "to-read" || b.Position != wanted.Position {
@@ -126,8 +131,12 @@ func TestGoodreadsNeverOverridesReaderStatus(t *testing.T) {
 		incoming = append(incoming, shelf("Book "+status, statuses[(i+1)%len(statuses)]))
 		incoming = append(incoming, shelf("Book "+status, "to-read"))
 	}
-	if result := importResultFor(t, a, incoming); result.upgradedTotal() != 0 || result.Changed {
+	// Only "read" adds anything: one finished reading, never a status.
+	if result := importResultFor(t, a, incoming); result.upgradedTotal() != 0 || result.Logged != 1 || result.Added != 0 {
 		t.Fatalf("%+v", result)
+	}
+	if result := importResultFor(t, a, incoming); result.Changed {
+		t.Fatalf("repeat: %+v", result)
 	}
 	if after := mustBooks(t, a); !reflect.DeepEqual(before, after) {
 		t.Fatalf("books changed:\n%+v\n%+v", before, after)

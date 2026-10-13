@@ -79,7 +79,11 @@ func (a *App) editBook(w http.ResponseWriter, r *http.Request) error {
 		if err != nil {
 			return err
 		}
-		return a.render(w, r, "book.html", page{"Title": b.Title, "Book": b, "Editing": true, "Events": events, "EventTotal": total}, 200)
+		readings, err := bookReadings(a.store.DB, id)
+		if err != nil {
+			return err
+		}
+		return a.render(w, r, "book.html", page{"Title": b.Title, "Book": b, "Editing": true, "Events": events, "EventTotal": total, "Readings": readings}, 200)
 	}
 	b, err := bookFields(r)
 	if err != nil {

@@ -80,8 +80,8 @@ func loadAliases(q queryer) ([]alias, error) {
 }
 
 type deletePreview struct {
-	Book          Book
-	Events, Loans int
+	Book                    Book
+	Events, Loans, Readings int
 }
 
 func previewDelete(q queryer, id int64) (deletePreview, error) {
@@ -90,7 +90,7 @@ func previewDelete(q queryer, id int64) (deletePreview, error) {
 		return deletePreview{}, err
 	}
 	p := deletePreview{Book: b, Loans: len(b.Loans)}
-	err = q.QueryRow("SELECT count(*) FROM events WHERE book_id=?", id).Scan(&p.Events)
+	err = q.QueryRow("SELECT (SELECT count(*) FROM events WHERE book_id=?), (SELECT count(*) FROM reading_log WHERE book_id=?)", id, id).Scan(&p.Events, &p.Readings)
 	return p, err
 }
 
@@ -99,7 +99,7 @@ func deleteBook(q queryer, id int64) error {
 	if err != nil {
 		return err
 	}
-	for _, statement := range []string{"DELETE FROM events WHERE book_id=?", "DELETE FROM loans WHERE book_id=?", "UPDATE book_aliases SET target_book_id=NULL WHERE target_book_id=?"} {
+	for _, statement := range []string{"DELETE FROM events WHERE book_id=?", "DELETE FROM loans WHERE book_id=?", "DELETE FROM reading_log WHERE book_id=?", "UPDATE book_aliases SET target_book_id=NULL WHERE target_book_id=?"} {
 		if _, err = q.Exec(statement, id); err != nil {
 			return err
 		}
@@ -117,8 +117,11 @@ type mergePreview struct {
 	Source, Target         Book
 	Filled                 []string
 	MoveEvents, Duplicates int
-	ISBNConflict           bool
-	Refusal                string
+	// MoveReadings counts finished readings that move to the target;
+	// SameReadings those dropped because the target has the same one.
+	MoveReadings, SameReadings int
+	ISBNConflict               bool
+	Refusal                    string
 }
 
 // mergeBooks folds source into target. The target keeps its title, author,
@@ -205,8 +208,8 @@ func mergeBooks(q queryer, sourceID, targetID int64, apply bool) (mergePreview, 
 			return p, err
 		}
 	}
-	if !apply {
-		return p, nil
+	if err = mergeReadings(q, &p, sourceID, targetID, apply); err != nil || !apply {
+		return p, err
 	}
 
 	if err = rebuildLoans(q, sourceID, targetID); err != nil {
@@ -261,6 +264,47 @@ func rebuildLoans(q queryer, sourceID, targetID int64) error {
 	}
 	for _, e := range events {
 		if _, err = upsertLoan(q, targetID, e.Source, e); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// mergeReadings moves the source's finished readings to the target. A reading
+// on a date the target already has is the same reading and is dropped, as is
+// an undated one when the target has any. Fingerprints stay: they identify
+// the Goodreads record, which the merge alias now sends to the target.
+func mergeReadings(q queryer, p *mergePreview, sourceID, targetID int64, apply bool) error {
+	readings, err := bookReadings(q, sourceID)
+	if err != nil {
+		return err
+	}
+	have, err := bookReadings(q, targetID)
+	if err != nil {
+		return err
+	}
+	dates := map[string]bool{}
+	for _, e := range have {
+		if e.FinishedAt != nil {
+			dates[*e.FinishedAt] = true
+		}
+	}
+	for _, e := range readings {
+		if len(have) > 0 && e.FinishedAt == nil || e.FinishedAt != nil && dates[*e.FinishedAt] {
+			p.SameReadings++
+			if apply {
+				_, err = q.Exec("DELETE FROM reading_log WHERE id=?", e.ID)
+			}
+		} else {
+			p.MoveReadings++
+			if e.FinishedAt != nil {
+				dates[*e.FinishedAt] = true
+			}
+			if apply {
+				_, err = q.Exec("UPDATE reading_log SET book_id=? WHERE id=?", targetID, e.ID)
+			}
+		}
+		if err != nil {
 			return err
 		}
 	}

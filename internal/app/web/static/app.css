@@ -1272,3 +1272,62 @@ input[type=checkbox] {
     scroll-behavior:auto !important;
   }
 }
+
+/* Reading history */
+.reading-stats {
+  margin-bottom:28px;
+}
+.reading-stats h2 {
+  font:22px/1.2 var(--serif);
+  margin-bottom:14px;
+}
+.year-bars>div {
+  display:flex;
+  align-items:center;
+  gap:14px;
+  padding:6px 0;
+  font-size:12px;
+}
+.year-bars dt {
+  width:3.5em;
+  color:var(--muted);
+}
+.year-bars dd {
+  flex:1;
+  display:flex;
+  align-items:center;
+  gap:10px;
+}
+.year-bars meter {
+  flex:1;
+  height:12px;
+  min-width:0;
+}
+.tag-list {
+  list-style:none;
+  padding:0;
+  font-size:13px;
+}
+.tag-list li {
+  display:flex;
+  justify-content:space-between;
+  gap:12px;
+  padding:7px 0;
+  border-bottom:1px solid var(--line);
+}
+.tag-list li:last-child {
+  border:0;
+}
+.reading-entry {
+  margin-bottom:14px;
+}
+.review {
+  white-space:pre-wrap;
+  overflow-wrap:anywhere;
+  border-left:3px solid var(--line);
+  padding-left:14px;
+  color:var(--muted);
+  font-size:13px;
+  max-height:16em;
+  overflow:auto;
+}

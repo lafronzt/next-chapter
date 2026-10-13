@@ -46,13 +46,22 @@ func (a *App) importPage(w http.ResponseWriter, r *http.Request) error {
 		if err != nil {
 			return err
 		}
+		prefs, err := readMeta(tx, "preferences", defaultPreferences)
+		if err != nil {
+			return err
+		}
 		ignored := 0
-		for _, r := range records {
-			if r.RatingIgnored {
+		for i := range records {
+			if records[i].RatingIgnored {
 				ignored++
 			}
+			// Review text is personal; without the opt-in it is not even
+			// kept in the stored preview. Its length always is.
+			if !prefs.KeepReviews {
+				records[i].Review = ""
+			}
 		}
-		id, err = savePlan(tx, "import", Plan{Records: records, Source: source, Upgrades: preview.Upgraded, Rated: preview.Rated, RatingsKept: preview.RatingsKept, RatingsIgnored: ignored})
+		id, err = savePlan(tx, "import", Plan{Records: records, Source: source, Upgrades: preview.Upgraded, Rated: preview.Rated, RatingsKept: preview.RatingsKept, RatingsIgnored: ignored, Logged: preview.Logged})
 		return err
 	})
 	if err != nil {

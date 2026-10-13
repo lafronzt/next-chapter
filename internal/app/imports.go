@@ -46,27 +46,79 @@ func cleanISBN(s string) string {
 	return s
 }
 func canonicalTime(t time.Time) string { return t.UTC().Format("2006-01-02T15:04:05.000000000+00:00") }
-func parseTime(value string) (string, error) {
+
+// parseInstant reads the date formats imports accept. Values without a zone
+// are UTC. ok is false for a blank value.
+func parseInstant(value string) (t time.Time, ok bool, err error) {
 	value = strings.TrimSpace(value)
 	if value == "" {
-		return "", nil
+		return t, false, nil
 	}
 	if len(value) == 10 || len(value) == 13 {
 		if n, err := strconv.ParseInt(value, 10, 64); err == nil {
 			if len(value) == 13 {
-				return canonicalTime(time.UnixMilli(n)), nil
+				return time.UnixMilli(n).UTC(), true, nil
 			}
-			return canonicalTime(time.Unix(n, 0)), nil
+			return time.Unix(n, 0).UTC(), true, nil
 		}
 	}
 	for _, layout := range []string{time.RFC3339Nano, "2006-01-02T15:04:05", "2006-01-02 15:04:05", time.DateOnly, "2006/01/02", "01/02/2006", "1/2/2006", "January 2, 2006", "02 Jan 2006", time.RFC1123Z, time.RFC1123, time.RFC822Z} {
 		// Offsets can carry year 1 or 9999 across the edge, where the
 		// canonical form stops being four-digit RFC 3339.
 		if t, err := time.Parse(layout, value); err == nil && t.UTC().Year() >= 1 && t.UTC().Year() <= 9999 {
-			return canonicalTime(t), nil
+			return t, true, nil
 		}
 	}
-	return "", fmt.Errorf("unrecognized date %q; use YYYY-MM-DD or ISO 8601", truncate(value, 50))
+	return t, false, fmt.Errorf("unrecognized date %q; use YYYY-MM-DD or ISO 8601", truncate(value, 50))
+}
+
+// parseTime returns a timestamp in canonical UTC form, or "" for a blank value.
+func parseTime(value string) (string, error) {
+	t, ok, err := parseInstant(value)
+	if !ok {
+		return "", err
+	}
+	return canonicalTime(t), nil
+}
+
+// parseDate returns the calendar date as written (YYYY-MM-DD), without
+// converting to UTC: a book finished on the evening of March 9 in New York was
+// finished on March 9.
+func parseDate(value string) (string, error) {
+	t, ok, err := parseInstant(value)
+	if !ok {
+		return "", err
+	}
+	return t.Format(time.DateOnly), nil
+}
+
+// maxReview caps review text kept locally; the full length is always recorded.
+const maxReview = 20_000
+
+// parseYear reads a publication year. Goodreads uses negative years for
+// ancient works. Anything else is ignored.
+func parseYear(s string) *int {
+	n, err := strconv.Atoi(strings.TrimSpace(s))
+	if err != nil || n == 0 || n < -5000 || n > 2200 {
+		return nil
+	}
+	return &n
+}
+
+// parseAverage reads a Goodreads average rating; 0 means nobody rated it.
+func parseAverage(s string) *float64 {
+	n, err := strconv.ParseFloat(strings.TrimSpace(s), 64)
+	if err != nil || !(n > 0 && n <= 5) {
+		return nil
+	}
+	return &n
+}
+
+// setReview records a review's length, and its text up to maxReview.
+func (r *Record) setReview(text string) {
+	text = strings.TrimSpace(text)
+	r.ReviewChars = len([]rune(text))
+	r.Review = truncate(text, maxReview)
 }
 func truncate(s string, n int) string {
 	r := []rune(s)
@@ -183,6 +235,16 @@ func parseRecord(row map[string]string, source string) (Record, error) {
 		if r.Rating > 0 {
 			r.Interest = r.Rating
 		}
+		// Reading history. Goodreads keeps only the latest Date Read.
+		finished, e := parseDate(field(row, "date read"))
+		if e != nil {
+			//lint:ignore ST1005 "Date Read" is the CSV column the reader must fix
+			return r, fmt.Errorf("Date Read: %w", e)
+		}
+		r.FinishedAt = finished
+		r.setReview(field(row, "my review"))
+		r.PublishedYear = parseYear(field(row, "original publication year", "year published"))
+		r.AvgRating = parseAverage(field(row, "average rating"))
 		switch field(row, "exclusive shelf") {
 		case "read":
 			r.Status = "read"
@@ -240,6 +302,10 @@ func ParseRSS(data []byte) ([]Record, error) {
 			Pages       string `xml:"num_pages"`
 			NestedPages string `xml:"book>num_pages"`
 			UserRating  string `xml:"user_rating"`
+			ReadAt      string `xml:"user_read_at"`
+			Review      string `xml:"user_review"`
+			Average     string `xml:"average_rating"`
+			Published   string `xml:"book_published"`
 		} `xml:"channel>item"`
 	}
 	if err := xml.Unmarshal(data, &feed); err != nil {
@@ -270,6 +336,16 @@ func ParseRSS(data []byte) ([]Record, error) {
 		if r.Rating, _ = parseRating(item.UserRating); r.Rating > 0 {
 			r.Interest = r.Rating
 		}
+		// A feed cannot be fixed by the reader, so a bad date is skipped and
+		// counted rather than failing the sync.
+		if finished, e := parseDate(item.ReadAt); e != nil {
+			r.DateIgnored = true
+		} else {
+			r.FinishedAt = finished
+		}
+		r.setReview(item.Review)
+		r.PublishedYear = parseYear(item.Published)
+		r.AvgRating = parseAverage(item.Average)
 		records = append(records, r)
 	}
 	return records, nil

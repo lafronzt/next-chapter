@@ -104,7 +104,7 @@ func (a *App) syncOnce(ctx context.Context, now time.Time) (int, error) {
 		return 0, &syncError{kind: errSyncBusy, class: "busy", message: "A Goodreads check is already running. Try again in a moment."}
 	}
 	defer a.syncMu.Unlock()
-	conn, err := readMeta(a.store.DB, "sync", Connection{Shelf: "to-read"})
+	conn, err := readMeta(a.store.DB, "sync", defaultConnection)
 	if err != nil {
 		return 0, err
 	}
@@ -112,9 +112,26 @@ func (a *App) syncOnce(ctx context.Context, now time.Time) (int, error) {
 	if err != nil {
 		return 0, err
 	}
+	// The read shelf feeds reading history. RSS returns only the latest
+	// entries, so the full history comes from a CSV import first.
+	var history []Record
+	switch conn.ReadShelf {
+	case "":
+	case conn.Shelf:
+		history, records = records, nil
+	default:
+		readConn := conn
+		readConn.Shelf = conn.ReadShelf
+		if history, err = a.fetch(ctx, readConn); err != nil {
+			return 0, err
+		}
+	}
+	for i := range history {
+		history[i].Status = "read"
+	}
 	added := 0
 	err = a.store.Write(func(tx *sql.Tx) error {
-		current, err := readMeta(tx, "sync", Connection{Shelf: "to-read"})
+		current, err := readMeta(tx, "sync", defaultConnection)
 		if err != nil {
 			return err
 		}
@@ -125,13 +142,32 @@ func (a *App) syncOnce(ctx context.Context, now time.Time) (int, error) {
 		if err != nil {
 			return err
 		}
-		added = result.Added
-		if result.Changed {
+		read, err := importRecords(tx, history)
+		if err != nil {
+			return err
+		}
+		added = result.Added + read.Added
+		if result.Changed || read.Changed {
 			if err = bump(tx); err != nil {
 				return err
 			}
 		}
-		message := fmt.Sprintf("Found %d feed entries; added %d books.", len(records), added)
+		if conn.ReadShelf != "" {
+			ignored := 0
+			for _, r := range history {
+				if r.DateIgnored {
+					ignored++
+				}
+			}
+			message := fmt.Sprintf("Found %d entries on %q; logged %d finished readings and added %d books.", len(history), conn.ReadShelf, read.Logged, read.Added)
+			if ignored > 0 {
+				message = strings.TrimSuffix(message, ".") + fmt.Sprintf("; ignored %d unreadable dates.", ignored)
+			}
+			if err = setMeta(tx, "last_read_sync", SyncResult{canonicalTime(now), message, true}); err != nil {
+				return err
+			}
+		}
+		message := fmt.Sprintf("Found %d feed entries; added %d books.", len(records), result.Added)
 		if moved := result.upgradedTotal(); moved > 0 {
 			message = strings.TrimSuffix(message, ".") + fmt.Sprintf("; moved %d library-only books out of To review.", moved)
 		}

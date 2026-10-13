@@ -22,6 +22,8 @@ type Book struct {
 	NeedsPlacement bool     `json:"needs_placement"`
 	Series         string   `json:"series"`
 	SeriesNumber   *float64 `json:"series_number"`
+	PublishedYear  *int     `json:"published_year"`
+	AvgRating      *float64 `json:"avg_rating"`
 	AddedAt        string   `json:"added_at"`
 	Source         string   `json:"source"`
 	Loans          []Loan   `json:"loans"`
@@ -58,12 +60,23 @@ type Record struct {
 	Rating int `json:"rating,omitempty"`
 	// RatingIgnored marks a rating that was present but not 0-5.
 	RatingIgnored bool `json:"-"`
+	// FinishedAt is the Goodreads Date Read (YYYY-MM-DD), and ReviewChars and
+	// Review the reader's review. They become reading history for books on
+	// the read shelf.
+	FinishedAt  string `json:"finished_at,omitempty"`
+	ReviewChars int    `json:"review_chars,omitempty"`
+	Review      string `json:"review,omitempty"`
+	// DateIgnored marks an unreadable feed date that was skipped.
+	DateIgnored bool `json:"-"`
 }
 
 type Preferences struct {
 	LibraryWeight float64 `json:"library_weight"`
 	Length        string  `json:"length"`
 	Mood          string  `json:"mood"`
+	// KeepReviews stores Goodreads review text locally. Off by default: only
+	// review lengths are kept.
+	KeepReviews bool `json:"keep_reviews"`
 }
 
 var defaultPreferences = Preferences{LibraryWeight: 1, Length: "any"}
@@ -96,6 +109,8 @@ type Plan struct {
 	Rated          int `json:"rated,omitempty"`
 	RatingsKept    int `json:"ratings_kept,omitempty"`
 	RatingsIgnored int `json:"ratings_ignored,omitempty"`
+	// Logged previews how many finished readings an import adds to history.
+	Logged int `json:"logged,omitempty"`
 	// BookIDs and Status describe a bulk triage of unreviewed books.
 	BookIDs []int64 `json:"book_ids,omitempty"`
 	Status  string  `json:"status,omitempty"`

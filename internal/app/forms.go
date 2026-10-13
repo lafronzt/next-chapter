@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 )
 
 func bookFields(r *http.Request) (Book, error) {
@@ -53,7 +54,16 @@ func checkBook(b Book) string {
 	if len([]rune(b.Tags)) > 500 || len([]rune(b.Series)) > 200 {
 		return "Tags or series name are too long."
 	}
+	if (b.PublishedYear != nil && parseYear(strconv.Itoa(*b.PublishedYear)) == nil) || (b.AvgRating != nil && !(*b.AvgRating > 0 && *b.AvgRating <= 5)) {
+		return "The publication year or average rating is out of range."
+	}
 	return ""
+}
+
+// validFinishDate accepts a YYYY-MM-DD date between years 1000 and 9999.
+func validFinishDate(s string) bool {
+	t, err := time.Parse(time.DateOnly, s)
+	return err == nil && t.Year() >= 1000
 }
 
 // preferenceFields reads the ranking preferences from the settings form.
@@ -62,7 +72,7 @@ func preferenceFields(r *http.Request) (Preferences, error) {
 	if err != nil {
 		weight = -1
 	}
-	p := Preferences{weight, r.FormValue("length"), truncate(strings.TrimSpace(r.FormValue("mood")), 100)}
+	p := Preferences{LibraryWeight: weight, Length: r.FormValue("length"), Mood: truncate(strings.TrimSpace(r.FormValue("mood")), 100), KeepReviews: r.FormValue("keep_reviews") != ""}
 	if message := checkPreferences(p); message != "" {
 		return Preferences{}, bad(message)
 	}
@@ -85,7 +95,7 @@ func checkPreferences(p Preferences) string {
 
 // connectionFields reads the Goodreads feed connection from the settings form.
 func connectionFields(r *http.Request) (Connection, error) {
-	conn := Connection{strings.TrimSpace(r.FormValue("user_id")), strings.TrimSpace(r.FormValue("shelf")), r.FormValue("enabled") != ""}
+	conn := Connection{UserID: strings.TrimSpace(r.FormValue("user_id")), Shelf: strings.TrimSpace(r.FormValue("shelf")), Enabled: r.FormValue("enabled") != "", ReadShelf: strings.TrimSpace(r.FormValue("read_shelf"))}
 	if err := validateConnection(conn); err != nil {
 		return Connection{}, bad(err.Error())
 	}

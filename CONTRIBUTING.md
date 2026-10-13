@@ -40,6 +40,8 @@ Keep the project self-hostable without mandatory paid services. Preserve the sep
 
 Please use synthetic or anonymized CSV fixtures. Do not commit real library cards, passwords, tokens, personal exports, database backups, or `.env` files. Explain the source and limitations of new integrations; avoid promising unavailable history or unsupported two-way sync.
 
+Reading history (`reading_log`) is a separate stream like library events: it must never change reading status, interest, pins, or queue order, and a reading the reader edited or logged (`source='manual'`) is never overwritten by an import or sync. Keep review text out unless the reader opted in.
+
 Never delete or merge books automatically; both are reader-initiated and previewed. A deleted or merged book leaves an alias in `book_aliases`, and imports must keep honoring those aliases so the book is not recreated. Event fingerprints include the book identity, so code that moves events between books must recompute them.
 
 ## Schema changes

@@ -18,6 +18,7 @@ Every suggestion has a preview and reasons. Pinned books keep their positions. Y
 - Delete a book, or merge a duplicate into the entry you keep, each after a confirmation preview. Re-imports never bring them back.
 - Explainable placement and full-queue reordering, with preview, stale-preview protection, and undo.
 - Goodreads CSV imports and optional hourly public-shelf RSS checks for **new additions**.
+- A **Reading history** of finished books, with finish dates, your ratings, books per year, and favorite shelves, from your Goodreads read shelf and readings you log yourself.
 - Libby timeline CSV imports and a standard CSV format for physical NYPL activity.
 - Separate library events for print, ebook, and audiobook; newest known event wins, regardless of import order.
 - Repeatable imports, matching by Goodreads ID, ISBN, then normalized title and author.
@@ -27,7 +28,7 @@ Every suggestion has a preview and reasons. Pinned books keep their positions. Y
 
 ## Integration boundaries
 
-**This app owns the ordered queue. It does not write order, reading status, ratings, or reviews back to Goodreads.** Goodreads stopped issuing public API keys; this project does not depend on that API or request a Goodreads password.
+**This app owns the ordered queue. It does not write order, reading status, ratings, reviews, or reading history back to Goodreads.** Goodreads stopped issuing public API keys; this project does not depend on that API or request a Goodreads password.
 
 The optional RSS adapter reads a public shelf. Feeds can be delayed, truncated, unavailable, or changed by Goodreads. Import your full Goodreads CSV first, then enable RSS for new additions. Missing entries in a feed never cause deletions. Feed removals and shelf/status changes are not synchronized, except that a feed entry for a book still waiting in To review moves it to your queue, like a CSV import does. New entries are appended and marked **Needs placement**; suggestions never silently move books. RSS is experimental and requires a real public user ID to validate against your account.
 
@@ -135,7 +136,7 @@ Preferences affect the next suggestion; saving them does not move books. Reading
 CSV files must be UTF-8, ≤2 MB, and ≤10,000 rows. A malformed row blocks the entire import, with row numbers shown. Import previews expire after an hour. A library change invalidates prior previews, preventing an old browser tab from overwriting newer work.
 
 - `Title` and `Author` are required for every record.
-- Goodreads fields: `Book Id`, `ISBN13` or `ISBN`, `Number of Pages`, `Exclusive Shelf`, `Bookshelves`, `My Rating`.
+- Goodreads fields: `Book Id`, `ISBN13` or `ISBN`, `Number of Pages`, `Exclusive Shelf`, `Bookshelves`, `My Rating`, `Date Read`, `My Review`, `Average Rating`, and `Original Publication Year` (or `Year Published`). The bundled sample has every column of a Goodreads export. An unreadable `Date Read` is a row error, like any other bad date; `Date Read` may be blank.
 - **Ratings seed interest for new books only.** A `My Rating` of 1–5 (or the RSS feed's `user_rating`) becomes the starting interest of a book the import adds. `0` or blank means unrated and starts at 3. Any other value, such as `7` or `abc`, is ignored rather than failing the import; the book starts at 3 and the preview says how many ratings were ignored. A book already in your library keeps the interest you set, whatever its Goodreads rating. `Average Rating` is never used: it is other readers' opinion, not yours. Rated books on the `read` shelf are stored as usual; interest only matters if they return to the queue. The preview shows how many new books take their rating and how many existing books keep theirs.
 - Library fields: `Timestamp` (or `Date`), `Activity` (or `Status`), optional `Format`, `ISBN`, and `Due Date`.
 - Prefer ISO 8601 timestamps with time zones and `YYYY-MM-DD` due dates. Date-only and timezone-free inputs are treated as UTC. If several different events share the same timestamp and format, the first one imported remains the current status; supply more precise timestamps or log the current status manually to resolve ambiguity.
@@ -145,6 +146,17 @@ CSV files must be UTF-8, ≤2 MB, and ≤10,000 rows. A malformed row blocks the
 - One exception: a book that arrived through a library import and is still **unreviewed** takes its status from the first Goodreads shelf that mentions it (CSV or RSS). `to-read` appends it to the end of your queue marked **Needs placement**; `read`, `currently-reading`, and other shelves become finished, reading, or archived. The import preview says how many books will move. Books you have already sorted are never changed by an import, and library activity never changes reading status. Import order therefore no longer matters.
 - Matching by normalized title + author is conservative about spelling and subtitles. Different titles without a shared identifier may require manual cleanup. Edition-level history is represented through source/format; books are grouped into one reading-list entry when their identifiers/title match.
 
+### Reading history
+
+Books on your Goodreads `read` shelf become **Reading history**: one entry per finished reading, with the finish date (`Date Read`) and your rating (`My Rating`). The Reading history page lists them newest first, with books per year, your average rating, average pages, and the shelves and tags you return to. Each book's page shows its readings, and lets you log one by hand or correct a date or rating.
+
+- History is its own record. It never changes a book's reading status, interest, pin, or queue position, and library loans never count as reading.
+- Re-importing or re-checking the same data changes nothing. A new `Date Read` for a book you finished before is recorded as a re-read. If Goodreads later fills in a date that was blank, the reading takes that date. A changed Goodreads rating updates the reading.
+- **Your edits win.** After you change a reading's date or rating in the app, Goodreads checks leave it alone. You can delete readings you logged yourself. A reading from Goodreads can be edited but not deleted, because the next import or check would add it again (deleting the book removes its readings).
+- The hourly Goodreads check also reads a second shelf, **Read shelf** in Preferences (default `read`; leave it blank to skip). It uses the same feed rules and limits as the main shelf, and Preferences shows when it was last checked and how many readings it logged. A finished book that is not in your library yet is added as Finished. RSS feeds hold only the most recent entries, so **import your Goodreads CSV once for the full history**; the feed keeps it current. Unreadable feed dates are skipped and counted rather than failing the check.
+- **Reviews stay out by default.** Only the length of your Goodreads review (`My Review`) is stored. To keep the text in this library, turn on **Keep my Goodreads review text** in Preferences; turning it off again deletes the stored text. Without it, review text is not kept even in a pending import preview.
+- Not available from Goodreads, and so not here: reading progress and start dates, dates of earlier re-reads (Goodreads keeps only the latest `Date Read`; `Read Count` is not a list of dates), private notes, and anything on a private profile. This app does not scrape Goodreads, ask for your Goodreads password or cookies, or use unofficial APIs.
+
 ### Deleting and merging books
 
 Both actions start from a book's edit page under **Tidy up**. Nothing is merged or deleted automatically.
@@ -152,6 +164,7 @@ Both actions start from a book's edit page under **Tidy up**. Nothing is merged 
 - **Delete** opens a confirmation page that shows how many library events and current loans will go with the book. The remaining queue keeps its order.
 - **Merge into another book…** lets you search for the entry to keep and preview the result before anything changes. The kept book keeps its title, author, reading status, interest, pin, and queue position. Its blank Goodreads ID, ISBN, pages, series, series number, and tags are filled from the merged book. Library events move over with duplicates dropped, and current loans are recalculated using the newest-wins rule. Books with different Goodreads IDs cannot be merged. If the two ISBNs differ, the preview says so and the kept book's ISBN wins.
 - Both actions leave an alias with the removed book's title/author, Goodreads ID, and ISBN. When an import matches an alias, a merged book's rows update the kept book, and a deleted book's rows are skipped. The import preview, the import notice, and the Goodreads status line all show how many rows were skipped. Adding a deleted book again by hand removes its alias, so your explicit choice wins.
+- Deleting a book removes its readings. Merging moves them to the kept book, dropping any reading on a date the kept book already has.
 - Aliases are part of the database backup and appear under `aliases` in the JSON export. Neither action can be undone in the app; download a backup first if you might want the history.
 
 ## Backup and restore
@@ -171,10 +184,10 @@ Do not restore over a running database or mix an older database with newer `-wal
 The JSON export can also be loaded back, for example to move to a new instance when only the JSON was kept. On **Import books**, choose **Restore a Next Chapter JSON export** (up to 10 MB). Like an import, it validates the whole file, shows a preview with counts of books, library events, current loans, and aliases, and changes nothing until you confirm; a library change in between invalidates the preview.
 
 - Restore only works on an **empty library** (no books). Merging an export into an existing library is not supported.
-- Restored: books with their status, interest, pins, **Needs placement**, queue positions and order, series, tags, pages, identifiers, added date, and source; library events with their fingerprints, so re-importing the same CSV adds no duplicates; current loans, rebuilt from the events with the same newest-wins rule as imports; merge and deletion aliases; ranking preferences; and Goodreads settings.
+- Restored: books with their status, interest, pins, **Needs placement**, queue positions and order, series, tags, pages, identifiers, added date, and source; reading history (review text only if the restored preferences keep reviews); library events with their fingerprints, so re-importing the same CSV adds no duplicates; current loans, rebuilt from the events with the same newest-wins rule as imports; merge and deletion aliases; ranking preferences; and Goodreads settings.
 - Goodreads polling is always restored **off**. The preview and the confirmation say so; turn it on in Preferences when ready.
 - Not restored: previews, undo, sign-in state, and the session key. Books and events get new ID numbers.
-- Validation is strict and uses the same limits as the forms and CSV imports. Unknown fields, malformed JSON, out-of-range values, duplicate titles or Goodreads IDs, and exports from a newer schema version than this build supports are refused, and nothing is written. The export's `schema_version` is the database schema version it came from; this build restores versions 1 to 5.
+- Validation is strict and uses the same limits as the forms and CSV imports. Unknown fields, malformed JSON, out-of-range values, duplicate titles or Goodreads IDs, and exports from a newer schema version than this build supports are refused, and nothing is written. The export's `schema_version` is the database schema version it came from; this build restores versions 1 to 6. An export from before version 6 has no reading history, and its Goodreads connection starts following the `read` shelf.
 - The file is limited to 10 MB, 10,000 books, and 100,000 events. A 10,000-book export is typically about 6 MB; a library too large for JSON restore can still use the database backup.
 
 ### Schema upgrades and rollback
@@ -190,6 +203,8 @@ The app refuses to start if the database has a newer schema version than the run
 3. Start the previous image.
 
 Changes made after the upgrade are not in the `.bak`. Export JSON first if you need a record of them.
+
+Schema migration 6 adds the `reading_log` table, the `books.published_year` and `books.avg_rating` columns, and a `read_shelf` of `read` to a saved Goodreads connection. Roll back with `next-chapter.sqlite3.pre-v6.bak` as above. To keep changes made since the upgrade instead, run an older image after `DROP TABLE reading_log; ALTER TABLE books DROP COLUMN published_year; ALTER TABLE books DROP COLUMN avg_rating; UPDATE meta SET value='5' WHERE key='schema_version';`; this discards the reading history, so export JSON first.
 
 Schema migration 5 only adds indexes for paging and imports; no data changes. Rolling back from it works as above with `next-chapter.sqlite3.pre-v5.bak`. Alternatively, an older image runs against the same file after `DROP INDEX books_status_position; DROP INDEX books_position; DROP INDEX books_isbn; DROP INDEX events_book; DROP INDEX events_at;` and `UPDATE meta SET value='4' WHERE key='schema_version';`, which keeps changes made since the upgrade.
 

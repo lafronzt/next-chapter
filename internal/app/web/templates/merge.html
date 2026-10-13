@@ -29,6 +29,7 @@
 <div class="notice" role="status">
   <ul>
     <li>Library events moved: {{.MoveEvents}}{{if .Duplicates}}; {{.Duplicates}} duplicates dropped{{end}}. Current loans are recalculated from the combined history.</li>
+    {{if or .MoveReadings .SameReadings}}<li>Finished readings moved: {{.MoveReadings}}{{if .SameReadings}}; {{.SameReadings}} already recorded on the kept book and dropped{{end}}.</li>{{end}}
     <li>{{if .Filled}}Filled in from the merged book: {{join .Filled ", "}}.{{else}}No details are copied; the kept book already has them, or the merged book has none.{{end}}</li>
     {{if .ISBNConflict}}<li>The books have different ISBNs: {{.Target.ISBN}} is kept and {{.Source.ISBN}} is dropped. Imports with either ISBN will update the kept book.</li>{{end}}
     <li>“{{.Source.Title}}” is removed. Future imports of it update “{{.Target.Title}}” instead.</li>
