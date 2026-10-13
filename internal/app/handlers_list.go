@@ -3,6 +3,7 @@ package app
 import (
 	"database/sql"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/url"
 	"strings"
@@ -36,6 +37,14 @@ func findView(key string) listView {
 }
 func searchQuery(raw string) string { return strings.ToLower(strings.TrimSpace(raw)) }
 
+// Title names the view's page; Up next is the reading queue.
+func (v listView) Title() string {
+	if v.Key == "queue" {
+		return "Reading queue"
+	}
+	return v.Label
+}
+
 // filter selects this view's books for a normalized query.
 func (v listView) filter(query string) bookFilter { return bookFilter{v.Status, query} }
 
@@ -61,5 +70,9 @@ func (a *App) index(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	canUndo := err == nil && undoRev == state(r).Revision
-	return a.render(w, r, "index.html", page{"Items": items, "Pager": pages, "Stats": stats, "View": view.Key, "ViewInfo": view, "Views": views, "Query": query, "CanUndo": canUndo}, 200)
+	title := view.Title()
+	if query != "" {
+		title = fmt.Sprintf("%s matching “%s”", title, query)
+	}
+	return a.render(w, r, "index.html", page{"Title": pageTitle(title, pages), "Items": items, "Pager": pages, "Stats": stats, "View": view.Key, "ViewInfo": view, "Views": views, "Query": query, "CanUndo": canUndo}, 200)
 }

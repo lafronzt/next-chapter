@@ -52,5 +52,5 @@ func (a *App) settings(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
-	return a.render(w, r, "settings.html", page{"Prefs": prefs, "Connection": conn, "LastSync": last, "Poll": poll, "SchemaVersion": version}, 200)
+	return a.render(w, r, "settings.html", page{"Title": "Preferences & sync", "Prefs": prefs, "Connection": conn, "LastSync": last, "Poll": poll, "SchemaVersion": version}, 200)
 }

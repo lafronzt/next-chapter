@@ -1,5 +1,5 @@
 {{template "top" .}}
-<a class="back" href="/">← Back to your queue</a>
+<a class="back" href="/"><span aria-hidden="true">←</span> Back to your queue</a>
 <header class="page-heading">
   <div>
     <div class="eyebrow">FOLLOW YOUR CURIOSITY</div>
@@ -36,7 +36,7 @@
   <p>Log a checkout, hold, or return. This never marks the book as finished.</p>
 </section>
 {{range .Book.Loans}}
-<p class="notice">{{upper .Source}} · {{.Format}} · {{.Status}}{{if .DueDate}} · Deadline {{.DueDate}}{{end}}</p>
+<p class="notice" role="status">{{upper .Source}} · {{.Format}} · {{.Status}}{{if .DueDate}} · Deadline {{.DueDate}}{{end}}</p>
 {{end}}
 <form class="panel form-grid" action="/books/{{.Book.ID}}/loan" method="post">
   {{template "fields" .}}
@@ -64,7 +64,7 @@
 </section>
 <div class="panel">
   {{range .Events}}
-  <div class="event"><span>{{day .At}}</span><strong>{{.Activity}}</strong><span>{{upper .Source}} · {{.Format}}</span></div>
+  <div class="event"><span><time datetime="{{day .At}}">{{day .At}}</time></span><strong>{{.Activity}}</strong><span>{{upper .Source}} · {{.Format}}</span></div>
   {{end}}
 </div>
 {{if gt .EventTotal (len .Events)}}<p class="muted">Showing the latest {{len .Events}} of {{.EventTotal}} events. Your export includes the complete history.</p>{{end}}

@@ -11,7 +11,7 @@ import (
 
 func (a *App) importPage(w http.ResponseWriter, r *http.Request) error {
 	if r.Method == http.MethodGet {
-		return a.render(w, r, "imports.html", nil, 200)
+		return a.render(w, r, "imports.html", page{"Title": "Import books"}, 200)
 	}
 	source := r.FormValue("source")
 	if !in(source, []string{"goodreads", "libby", "nypl"}) {
@@ -35,7 +35,7 @@ func (a *App) importPage(w http.ResponseWriter, r *http.Request) error {
 		if count > 30 {
 			problems = problems[:30]
 		}
-		return a.render(w, r, "imports.html", page{"Errors": problems, "ErrorCount": count}, 400)
+		return a.render(w, r, "imports.html", page{"Title": "Import books", "Errors": problems, "ErrorCount": count}, 400)
 	}
 	var id string
 	err = a.store.Write(func(tx *sql.Tx) error {

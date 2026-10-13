@@ -1,5 +1,5 @@
 {{template "top" .}}
-<a class="back" href="/books/{{.Book.ID}}">← Back to this book</a>
+<a class="back" href="/books/{{.Book.ID}}"><span aria-hidden="true">←</span> Back to this book</a>
 <header class="page-heading">
   <div>
     <div class="eyebrow">MERGE DUPLICATES</div>
@@ -8,7 +8,7 @@
   </div>
 </header>
 {{with .Preview}}
-{{if .Refusal}}<div class="notice error">{{.Refusal}}</div>{{end}}
+{{if .Refusal}}<div class="notice error" role="alert">{{.Refusal}}</div>{{end}}
 <div class="panel preview-list">
   <div class="preview-row">
     <div>
@@ -26,7 +26,7 @@
   </div>
 </div>
 {{if not .Refusal}}
-<div class="notice">
+<div class="notice" role="status">
   <ul>
     <li>Library events moved: {{.MoveEvents}}{{if .Duplicates}}; {{.Duplicates}} duplicates dropped{{end}}. Current loans are recalculated from the combined history.</li>
     <li>{{if .Filled}}Filled in from the merged book: {{join .Filled ", "}}.{{else}}No details are copied; the kept book already has them, or the merged book has none.{{end}}</li>
@@ -44,13 +44,13 @@
   </div>
   <div class="button-row">
     <a class="button" href="/books/{{.Source.ID}}/merge">Choose another</a>
-    <button class="button primary" {{if .Refusal}}disabled{{end}}>Merge books →</button>
+    <button class="button primary" {{if .Refusal}}disabled title="These books cannot be merged; see the message above."{{end}}><span>Merge books <span aria-hidden="true">→</span></span></button>
   </div>
 </form>
 {{else}}
-<form class="search merge-search" method="get">
+<form class="search merge-search" method="get" role="search">
   <input aria-label="Search for the book to keep" name="q" value="{{.Query}}" placeholder="Find a title, author, or tag…">
-  <button aria-label="Search">⌕</button>
+  <button aria-label="Search"><span aria-hidden="true">⌕</span></button>
 </form>
 {{if .Query}}
 {{if .Results}}
@@ -61,7 +61,7 @@
       <strong>{{.Title}}</strong>
       <p>{{.Author}} · {{label .Status}}</p>
     </div>
-    <a class="button small" href="/books/{{$.Book.ID}}/merge?target={{.ID}}">Preview merge</a>
+    <a class="button small" href="/books/{{$.Book.ID}}/merge?target={{.ID}}" aria-label="Preview merge into {{.Title}}">Preview merge</a>
   </div>
   {{end}}
 </div>

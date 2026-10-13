@@ -5,7 +5,7 @@
     <h1>Your library life.</h1>
     <p>A record of the books that passed through your hands. Borrowing never means finished.</p>
   </div>
-  <a class="button" href="/imports">Import activity ↓</a>
+  <a class="button" href="/imports"><span>Import activity <span aria-hidden="true">↓</span></span></a>
 </header>
 <form class="filters" method="get">
   <label>Library<select name="source">
@@ -22,7 +22,7 @@
 <div class="panel">
   {{range .Events}}
   <article class="history-row">
-    <time>{{day .At}}</time>
+    <time datetime="{{day .At}}">{{day .At}}</time>
     <div>
       <a href="/books/{{.BookID}}"><strong>{{.Title}}</strong></a>
       <p>{{.Author}}</p>

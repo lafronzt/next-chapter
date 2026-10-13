@@ -53,6 +53,9 @@ func (a *App) suggest(w http.ResponseWriter, r *http.Request) error {
 	return redirect(w, r, "/plans/"+id)
 }
 
+// planTitles name the preview page for each kind of plan.
+var planTitles = map[string]string{"import": "Import preview", "triage": "Confirm sorting", "insert": "Suggested place", "reorder": "Suggested order"}
+
 type undoBook struct {
 	ID             int64 `json:"id"`
 	NeedsPlacement bool  `json:"needs_placement"`
@@ -69,7 +72,7 @@ func (a *App) plan(w http.ResponseWriter, r *http.Request) error {
 		if len(preview) > 100 {
 			preview = preview[:100]
 		}
-		data := page{"Kind": kind, "Plan": p, "PreviewRecords": preview, "Stale": rev != state(r).Revision, "UpgradeSummary": upgradeSummary(p.Upgrades), "Skipped": p.Skipped}
+		data := page{"Title": planTitles[kind], "Kind": kind, "Plan": p, "PreviewRecords": preview, "Stale": rev != state(r).Revision, "UpgradeSummary": upgradeSummary(p.Upgrades), "Skipped": p.Skipped}
 		if kind == "triage" {
 			byID, err := getBooks(a.store.DB, p.BookIDs)
 			if err != nil {

@@ -23,6 +23,9 @@ func (a *App) render(w http.ResponseWriter, r *http.Request, name string, data p
 	data["ReadingStates"] = readingStates
 	data["LibraryStates"] = libraryStates
 	data["Path"] = r.URL.Path
+	if _, ok := data["Nav"]; !ok {
+		data["Nav"], data["NavPage"] = navCurrent(r.URL.Path, data)
+	}
 	if a.config.Demo || s.Session.Authenticated {
 		var waiting int
 		if err := a.store.DB.QueryRow("SELECT count(*) FROM books WHERE reading_status='unreviewed'").Scan(&waiting); err != nil {
@@ -72,7 +75,7 @@ func (a *App) fail(w http.ResponseWriter, r *http.Request, err error) {
 // respond renders the error page. Server errors show the request ID so a
 // report can be matched to the log line.
 func (a *App) respond(w http.ResponseWriter, r *http.Request, status int, message string) {
-	data := page{"Message": message}
+	data := page{"Title": http.StatusText(status), "Message": message, "Nav": ""}
 	if status >= 500 {
 		data["RequestID"] = state(r).ID
 	}
@@ -138,4 +141,39 @@ func templateFuncs() template.FuncMap {
 			return "Stays here"
 		},
 	}
+}
+
+// navCurrent picks the one sidebar link that is current: the link to this page
+// (exact) or to the section that contains it. Login and error pages belong to
+// no section.
+func navCurrent(path string, data page) (key string, exact bool) {
+	switch {
+	case path == "/":
+		switch view, _ := data["View"].(string); view {
+		case "queue", "unreviewed", "all":
+			return view, true
+		}
+		return "queue", false
+	case path == "/history" || path == "/imports" || path == "/settings":
+		return path[1:], true
+	case strings.HasPrefix(path, "/plans/"):
+		switch data["Kind"] {
+		case "import":
+			return "imports", false
+		case "triage":
+			return "unreviewed", false
+		}
+		return "queue", false
+	case strings.HasPrefix(path, "/books/"):
+		return "queue", false
+	}
+	return "", false
+}
+
+// pageTitle names a list page, adding the page number after the first.
+func pageTitle(name string, p pager) string {
+	if p.Page > 1 {
+		return fmt.Sprintf("%s, page %d of %d", name, p.Page, p.Pages)
+	}
+	return name
 }

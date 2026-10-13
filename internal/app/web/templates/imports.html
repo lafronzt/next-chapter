@@ -7,9 +7,9 @@
   </div>
 </header>
 {{if .Errors}}
-<div class="notice error">
-  <strong>{{.ErrorCount}} rows need attention. Nothing was imported.</strong>
-  <ul>
+<div class="notice error" role="alert">
+  <h2 id="import-errors">{{.ErrorCount}} rows need attention. Nothing was imported.</h2>
+  <ul aria-labelledby="import-errors">
     {{range .Errors}}<li>{{.}}</li>{{end}}
   </ul>
 </div>
@@ -23,28 +23,28 @@
       <option value="libby">Libby timeline</option>
       <option value="nypl">NYPL activity (standard CSV)</option>
     </select></label>
-    <label>Choose your file<input name="file" type="file" accept=".csv,text/csv" required></label>
+    <label>Choose your file<input name="file" type="file" accept=".csv,text/csv" required {{if .Errors}}aria-invalid="true" aria-describedby="import-errors"{{end}}></label>
     <p class="muted">UTF-8 CSV · up to 2 MB and 10,000 rows. No account passwords needed.</p>
-    <button class="button primary">Preview import →</button>
+    <button class="button primary"><span>Preview import <span aria-hidden="true">→</span></span></button>
   </form>
   <div class="stack">
     <section class="help-card">
       <span class="eyebrow">01 / GOODREADS</span>
       <h2>Your existing shelves</h2>
       <p>On the desktop site, open My Books → Import and export → Export Library. Upload the downloaded CSV here.</p>
-      <a href="/examples/goodreads.csv">Download a sample CSV ↓</a>
+      <a href="/examples/goodreads.csv">Download a sample CSV<span class="sr-only"> for Goodreads</span> <span aria-hidden="true">↓</span></a>
     </section>
     <section class="help-card">
       <span class="eyebrow">02 / LIBBY</span>
       <h2>Your digital borrowing</h2>
       <p>Shelf → Timeline → Actions → Export Timeline → Spreadsheet. Clear filters to include all available history. If your export uses different columns or activities, use the sample format.</p>
-      <a href="/examples/libby.csv">Download a sample CSV ↓</a>
+      <a href="/examples/libby.csv">Download a sample CSV<span class="sr-only"> for Libby</span> <span aria-hidden="true">↓</span></a>
     </section>
     <section class="help-card">
       <span class="eyebrow">03 / NYPL</span>
       <h2>Your physical library visits</h2>
       <p>Use the sample to collect current loans, holds, and records from your receipts. This is our standard format, not an official NYPL export. Old physical checkout history may no longer exist.</p>
-      <a href="/examples/nypl.csv">Download the NYPL template ↓</a>
+      <a href="/examples/nypl.csv">Download the NYPL template <span aria-hidden="true">↓</span></a>
     </section>
   </div>
 </div>

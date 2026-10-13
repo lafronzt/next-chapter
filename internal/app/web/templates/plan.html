@@ -1,5 +1,5 @@
 {{template "top" .}}
-{{if eq .Kind "triage"}}<a class="back" href="/?view=unreviewed">← Back to To review</a>{{else}}<a class="back" href="/">← Keep my current order</a>{{end}}
+{{if eq .Kind "triage"}}<a class="back" href="/?view=unreviewed"><span aria-hidden="true">←</span> Back to To review</a>{{else}}<a class="back" href="/"><span aria-hidden="true">←</span> Keep my current order</a>{{end}}
 <header class="page-heading">
   <div>
     <div class="eyebrow">{{if eq .Kind "import"}}IMPORT PREVIEW{{else if eq .Kind "triage"}}PLEASE CONFIRM{{else}}A SUGGESTION, NOT A COMMAND{{end}}</div>
@@ -7,11 +7,11 @@
     <p>{{if eq .Kind "import"}}Check the records before bringing them into your library.{{else if eq .Kind "triage"}}Every book below moves from To review to {{.TriageLabel}}. Nothing changes until you confirm.{{else}}Nothing moves until you apply this suggestion. Pinned books stay in place.{{end}}</p>
   </div>
 </header>
-{{if .Stale}}<div class="notice error">Your library has changed since this preview. Generate a fresh preview before applying it.</div>{{end}}
+{{if .Stale}}<div class="notice error" role="alert">Your library has changed since this preview. Generate a fresh preview before applying it.</div>{{end}}
 {{if eq .Kind "import"}}
-<div class="notice">{{len .Plan.Records}} rows from {{.Plan.Source}}. Repeated library events are ignored; existing books keep their reading status and queue order, except books still waiting in To review, which follow their Goodreads shelf. Library-only books are saved as unreviewed.</div>
-{{if .UpgradeSummary}}<div class="notice">{{.UpgradeSummary}}</div>{{end}}
-{{if .Skipped}}<div class="notice">{{.Skipped}} rows match books you deleted and will be skipped. Add a book by hand to bring it back.</div>{{end}}
+<div class="notice" role="status">{{len .Plan.Records}} rows from {{.Plan.Source}}. Repeated library events are ignored; existing books keep their reading status and queue order, except books still waiting in To review, which follow their Goodreads shelf. Library-only books are saved as unreviewed.</div>
+{{if .UpgradeSummary}}<div class="notice" role="status">{{.UpgradeSummary}}</div>{{end}}
+{{if .Skipped}}<div class="notice" role="status">{{.Skipped}} rows match books you deleted and will be skipped. Add a book by hand to bring it back.</div>{{end}}
 <div class="panel preview-list">
   {{range .PreviewRecords}}
   <div class="preview-row">
@@ -40,7 +40,7 @@
 <div class="panel preview-list">
   {{range .Plan.Rows}}
   <article class="preview-row">
-    <div class="rank-change"><span>{{.Old}}</span><span>→</span><strong>{{.New}}</strong></div>
+    <div class="rank-change"><span class="sr-only">From position </span><span>{{.Old}}</span><span aria-hidden="true">→</span><span class="sr-only"> to </span><strong>{{.New}}</strong></div>
     <div class="preview-title">
       <h2>{{.Title}}</h2>
       <p>{{.Author}}</p>
@@ -61,7 +61,7 @@
   </div>
   <div class="button-row">
     <a class="button" href="{{if eq .Kind "triage"}}/?view=unreviewed{{else}}/{{end}}">Cancel</a>
-    <button class="button primary" {{if .Stale}}disabled{{end}}>{{if eq .Kind "import"}}Import records{{else if eq .Kind "triage"}}Mark {{len .Plan.BookIDs}} books as {{.TriageLabel}}{{else}}Apply this order{{end}} →</button>
+    <button class="button primary" {{if .Stale}}disabled title="Generate a fresh preview first."{{end}}><span>{{if eq .Kind "import"}}Import records{{else if eq .Kind "triage"}}Mark {{len .Plan.BookIDs}} books as {{.TriageLabel}}{{else}}Apply this order{{end}} <span aria-hidden="true">→</span></span></button>
   </div>
 </form>
 {{template "bottom" .}}

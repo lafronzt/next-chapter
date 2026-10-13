@@ -3,22 +3,23 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Next Chapter</title>
+  <title>{{with .Title}}{{.}} – {{end}}Next Chapter</title>
   <link rel="stylesheet" href="/static/app.css">
   <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
 </head>
 <body>
+<a class="skip-link" href="#main">Skip to main content</a>
 <aside class="sidebar">
-  <a class="brand" href="/"><span class="brand-mark">n<span>c</span></span><span>Next<br> Chapter<span class="brand-caption">A little intention. A better next read.</span></span></a>
+  <a class="brand" href="/"><span class="brand-mark" aria-hidden="true">n<span>c</span></span><span>Next<br> Chapter<span class="brand-caption">A little intention. A better next read.</span></span></a>
   <nav aria-label="Main navigation">
     <span class="nav-label">YOUR READING LIFE</span>
-    <a href="/" {{if eq .View "queue"}}class="active"{{end}}><span>≡</span> Reading queue</a>
-    <a href="/?view=unreviewed" {{if eq .View "unreviewed"}}class="active"{{end}}><span>✉</span> To review{{if .UnreviewedCount}}<strong class="nav-count">{{.UnreviewedCount}}</strong>{{end}}</a>
-    <a href="/?view=all" {{if eq .View "all"}}class="active"{{end}}><span>▤</span> All books</a>
-    <a href="/history" {{if eq .Path "/history"}}class="active"{{end}}><span>◷</span> Library history</a>
+    <a href="/" {{if eq .Nav "queue"}}class="active" aria-current="{{if .NavPage}}page{{else}}true{{end}}"{{end}}><span aria-hidden="true">≡</span> Reading queue</a>
+    <a href="/?view=unreviewed" {{if eq .Nav "unreviewed"}}class="active" aria-current="{{if .NavPage}}page{{else}}true{{end}}"{{end}}><span aria-hidden="true">✉</span> To review{{if .UnreviewedCount}}<strong class="nav-count">{{.UnreviewedCount}}<span class="sr-only"> waiting</span></strong>{{end}}</a>
+    <a href="/?view=all" {{if eq .Nav "all"}}class="active" aria-current="{{if .NavPage}}page{{else}}true{{end}}"{{end}}><span aria-hidden="true">▤</span> All books</a>
+    <a href="/history" {{if eq .Nav "history"}}class="active" aria-current="{{if .NavPage}}page{{else}}true{{end}}"{{end}}><span aria-hidden="true">◷</span> Library history</a>
     <span class="nav-label second">MAKE IT YOURS</span>
-    <a href="/imports" {{if eq .Path "/imports"}}class="active"{{end}}><span>↓</span> Import books</a>
-    <a href="/settings" {{if eq .Path "/settings"}}class="active"{{end}}><span>⚙</span> Preferences & sync</a>
+    <a href="/imports" {{if eq .Nav "imports"}}class="active" aria-current="{{if .NavPage}}page{{else}}true{{end}}"{{end}}><span aria-hidden="true">↓</span> Import books</a>
+    <a href="/settings" {{if eq .Nav "settings"}}class="active" aria-current="{{if .NavPage}}page{{else}}true{{end}}"{{end}}><span aria-hidden="true">⚙</span> Preferences & sync</a>
   </nav>
   <div class="sidebar-bottom">
     <span class="status-dot"></span> {{if .Demo}}Demo library{{else}}Your private library{{end -}}
@@ -31,7 +32,7 @@
     {{end}}
   </div>
 </aside>
-<main>
+<main id="main" tabindex="-1">
   <div class="topline">
     <span>MAKE ROOM FOR YOUR NEXT GOOD BOOK</span>
     <span class="edition">Personal edition · v{{version}}</span>
@@ -53,9 +54,9 @@
 {{define "pager"}}
 {{if gt .Pages 1}}
 <nav class="pager" aria-label="Pages">
-  {{if .Prev}}<a class="button small" href="{{.Prev}}" rel="prev">← Previous</a>{{else}}<span></span>{{end}}
+  {{if .Prev}}<a class="button small" href="{{.Prev}}" rel="prev"><span><span aria-hidden="true">←</span> Previous page</span></a>{{else}}<span></span>{{end}}
   <span>Showing {{.From}}–{{.To}} of {{.Total}}</span>
-  {{if .Next}}<a class="button small" href="{{.Next}}" rel="next">Next →</a>{{else}}<span></span>{{end}}
+  {{if .Next}}<a class="button small" href="{{.Next}}" rel="next"><span>Next page <span aria-hidden="true">→</span></span></a>{{else}}<span></span>{{end}}
 </nav>
 {{end}}
 {{end}}

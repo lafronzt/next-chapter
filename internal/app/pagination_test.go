@@ -29,7 +29,7 @@ func queueApp(t *testing.T, n int) (*App, *browser) {
 	return a, b
 }
 
-var positionPattern = regexp.MustCompile(`<div class="position">([^<]+)</div>`)
+var positionPattern = regexp.MustCompile(`<div class="position">(?:<span class="sr-only">Queue position </span>)?([^<]+)</div>`)
 
 // listed returns the queue position labels of the rows on a list page.
 func listed(t *testing.T, b *browser, path string) (string, []string) {

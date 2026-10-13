@@ -346,7 +346,7 @@ func TestUnreviewedViewAndBadge(t *testing.T) {
 	for _, path := range []string{"/", "/?view=unreviewed", "/settings", "/history"} {
 		rr = b.request("GET", path, nil)
 		expect(t, rr, 200)
-		if !strings.Contains(rr.Body.String(), `<strong class="nav-count">3</strong>`) {
+		if !strings.Contains(rr.Body.String(), `<strong class="nav-count">3<span class="sr-only"> waiting</span></strong>`) {
 			t.Fatalf("%s badge: %s", path, rr.Body)
 		}
 	}

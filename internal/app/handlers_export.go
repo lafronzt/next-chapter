@@ -31,7 +31,7 @@ func (a *App) history(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
-	return a.render(w, r, "history.html", page{"Events": events, "Pager": pages, "Filter": f, "Sources": sources}, 200)
+	return a.render(w, r, "history.html", page{"Title": pageTitle("Library history", pages), "Events": events, "Pager": pages, "Filter": f, "Sources": sources}, 200)
 }
 func (a *App) export(w http.ResponseWriter, r *http.Request) error {
 	var data []byte

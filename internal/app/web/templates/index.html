@@ -5,7 +5,7 @@
     <h1>{{.ViewInfo.Heading}}</h1>
     <p>{{.ViewInfo.Intro}}</p>
   </div>
-  <a class="button primary" href="/books/new">＋ Add a book</a>
+  <a class="button primary" href="/books/new"><span><span aria-hidden="true">＋</span> Add a book</span></a>
 </header>
 <section class="stats" aria-label="Library overview">
   <div><span class="stat-number">{{.Stats.Queue}}</span><span>books in your queue</span></div>
@@ -14,7 +14,7 @@
 </section>
 {{if .Stats.Queue}}
 <section class="intention">
-  <div class="intention-icon">✧</div>
+  <div class="intention-icon" aria-hidden="true">✧</div>
   <div>
     <div class="eyebrow">A LIST WITH INTENTION</div>
     <h2>Make space for what’s calling you.</h2>
@@ -22,20 +22,20 @@
   </div>
   <form action="/suggest" method="post">
     {{template "fields" .}}
-    <button class="button light">Rethink my queue <span>↗</span></button>
+    <button class="button light">Rethink my queue <span aria-hidden="true">↗</span></button>
   </form>
 </section>
 {{end}}
 <div class="list-toolbar">
-  <div class="tabs" aria-label="Book filters">
+  <nav class="tabs" aria-label="Book lists">
     {{range .Views}}
-    <a href="/?view={{.Key}}" {{if eq .Key $.View}}class="selected" aria-current="page"{{end}}>{{.Label}}{{if and (eq .Key "unreviewed") $.UnreviewedCount}} <span class="tab-count">{{$.UnreviewedCount}}</span>{{end}}</a>
+    <a href="/?view={{.Key}}" {{if eq .Key $.View}}class="selected" aria-current="page"{{end}}>{{.Label}}{{if and (eq .Key "unreviewed") $.UnreviewedCount}} <span class="tab-count">{{$.UnreviewedCount}}<span class="sr-only"> waiting</span></span>{{end}}</a>
     {{end}}
-  </div>
-  <form class="search" method="get">
+  </nav>
+  <form class="search" method="get" role="search">
     <input type="hidden" name="view" value="{{.View}}">
     <input aria-label="Search books" name="q" value="{{.Query}}" placeholder="Find a title, author, or tag…">
-    <button aria-label="Search">⌕</button>
+    <button aria-label="Search"><span aria-hidden="true">⌕</span></button>
   </form>
 </div>
 {{if and (eq .View "unreviewed") .Items}}
@@ -43,19 +43,19 @@
   {{template "fields" .}}
   <input type="hidden" name="q" value="{{.Query}}">
   <label>Mark all {{.Pager.Total}} {{if .Query}}matching{{else}}visible{{end}} books as <select name="action"><option value="want">Want to read</option><option value="read">Already read</option><option value="skip">Not interested</option></select></label>
-  <button class="button small">Review this change →</button>
+  <button class="button small"><span>Review this change <span aria-hidden="true">→</span></span></button>
 </form>
 {{end}}
 {{if .CanUndo}}
 <form class="undo" method="post" action="/undo">
   {{template "fields" .}}
-  <button class="text-button">↶ Undo the last suggested order</button>
+  <button class="text-button"><span aria-hidden="true">↶</span> Undo the last suggested order</button>
 </form>
 {{end}}
 <div class="queue-list">
   {{range .Items}}
   <article class="book-row">
-    <div class="position">{{pos .QueuePos}}</div>
+    <div class="position">{{if .QueuePos}}<span class="sr-only">Queue position </span>{{end}}{{pos .QueuePos}}</div>
     <a href="/books/{{.ID}}" class="book-cover cover-{{cover .ID}}" aria-label="Edit {{.Title}}">
       <span class="cover-line"></span>
       <span class="cover-title">{{.Title}}</span>
@@ -63,7 +63,7 @@
     </a>
     <div class="book-info">
       <div class="book-badges">
-        {{if .Pinned}}<span class="badge pin">◆ Pinned</span>{{end}}
+        {{if .Pinned}}<span class="badge pin"><span aria-hidden="true">◆</span> Pinned</span>{{end}}
         {{if and .NeedsPlacement (eq .Status "to-read")}}<span class="badge new">Needs placement</span>{{end}}
         {{if ne .Status "to-read"}}<span class="badge">{{label .Status}}</span>{{end}}
         {{range .Loans}}{{if activeLoan .Status}}<span class="badge {{if eq .Status "borrowed"}}warm{{else}}green{{end}}">{{upper .Source}} · {{.Status}}{{if .DueDate}} · {{.DueDate}}{{end}}</span>{{end}}{{end}}
@@ -77,15 +77,15 @@
       <form method="post" action="/suggest">
         {{template "fields" $}}
         <input type="hidden" name="candidate_id" value="{{.ID}}">
-        <button class="button small" {{if .Pinned}}disabled{{end}}>Find its place ↗</button>
+        <button class="button small" aria-label="Find its place: {{.Title}}" {{if .Pinned}}disabled title="Pinned books keep their place. Unpin it first."{{end}}><span>Find its place <span aria-hidden="true">↗</span></span></button>
       </form>
       <form class="mini-actions" method="post" action="/books/{{.ID}}/action">
         {{template "fields" $}}
         <input type="hidden" name="return" value="{{$.Pager.Self}}">
-        <button name="action" value="up" aria-label="Move {{.Title}} up" {{if not .CanUp}}disabled{{end}}>↑</button>
-        <button name="action" value="down" aria-label="Move {{.Title}} down" {{if not .CanDown}}disabled{{end}}>↓</button>
-        <button name="action" value="pin">{{if .Pinned}}Unpin{{else}}Pin{{end}}</button>
-        {{if .NeedsPlacement}}<button name="action" value="placed" title="Keep the current position">Keep here</button>{{end}}
+        <button name="action" value="up" aria-label="Move {{.Title}} up" {{if not .CanUp}}disabled title="{{.UpBlock}}"{{end}}>↑</button>
+        <button name="action" value="down" aria-label="Move {{.Title}} down" {{if not .CanDown}}disabled title="{{.DownBlock}}"{{end}}>↓</button>
+        <button name="action" value="pin" aria-label="{{if .Pinned}}Unpin{{else}}Pin{{end}} {{.Title}}">{{if .Pinned}}Unpin{{else}}Pin{{end}}</button>
+        {{if .NeedsPlacement}}<button name="action" value="placed" aria-label="Keep here: {{.Title}}" title="Keep the current position">Keep here</button>{{end}}
       </form>
       {{else if and (eq .Status "unreviewed") (eq $.View "unreviewed")}}
       <form class="triage" method="post" action="/books/{{.ID}}/triage">
@@ -95,16 +95,16 @@
         <button class="button small" name="action" value="read" aria-label="Already read {{.Title}}">Already read</button>
         <button class="button small" name="action" value="skip" aria-label="Not interested in {{.Title}}">Not interested</button>
       </form>
-      <a class="text-button" href="/books/{{.ID}}">Edit book</a>
+      <a class="text-button" href="/books/{{.ID}}" aria-label="Edit book: {{.Title}}">Edit book</a>
       {{else}}
-      <a class="button small" href="/books/{{.ID}}">Edit book ↗</a>
+      <a class="button small" href="/books/{{.ID}}" aria-label="Edit book: {{.Title}}"><span>Edit book <span aria-hidden="true">↗</span></span></a>
       {{end}}
     </div>
   </article>
   {{else}}
   {{if and (eq .View "unreviewed") (not .Query)}}
   <section class="empty">
-    <div class="empty-mark">✓</div>
+    <div class="empty-mark" aria-hidden="true">✓</div>
     <h2>Nothing waiting for review.</h2>
     <p>Books from Libby or NYPL imports land here until you decide whether you want to read them.</p>
     <div class="button-row">
@@ -113,7 +113,7 @@
   </section>
   {{else}}
   <section class="empty">
-    <div class="empty-mark">✧</div>
+    <div class="empty-mark" aria-hidden="true">✧</div>
     <h2>{{if .Query}}No matching books.{{else}}Your next chapter starts here.{{end}}</h2>
     <p>{{if .Query}}Try another title, author, or tag.{{else}}Add a book you’re excited about, or bring your shelves over from Goodreads.{{end}}</p>
     <div class="button-row">
@@ -134,7 +134,7 @@
 {{if .Items}}
 <div class="list-footnote">
   <span>{{.Pager.Total}} books · Your order, always editable</span>
-  <a href="/settings">Tune your preferences →</a>
+  <a href="/settings">Tune your preferences <span aria-hidden="true">→</span></a>
 </div>
 {{end}}
 {{template "bottom" .}}

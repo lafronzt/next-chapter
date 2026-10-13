@@ -1,6 +1,6 @@
 {{template "top" .}}
 {{with .Preview}}
-<a class="back" href="/books/{{.Book.ID}}">← Keep this book</a>
+<a class="back" href="/books/{{.Book.ID}}"><span aria-hidden="true">←</span> Keep this book</a>
 <header class="page-heading">
   <div>
     <div class="eyebrow">DELETE A BOOK</div>
@@ -8,7 +8,7 @@
     <p>{{.Book.Author}} · {{label .Book.Status}}</p>
   </div>
 </header>
-<div class="notice error">Deleting this book also removes {{.Events}} library events and {{.Loans}} current loans. Future imports will skip it; adding it again by hand brings it back. Download a database backup first if you might want this history.</div>
+<div class="notice error" role="status">Deleting this book also removes {{.Events}} library events and {{.Loans}} current loans. Future imports will skip it; adding it again by hand brings it back. Download a database backup first if you might want this history.</div>
 <form class="apply-bar" method="post">
   {{template "fields" $}}
   <div>

@@ -13,7 +13,7 @@ import (
 
 func (a *App) login(w http.ResponseWriter, r *http.Request) error {
 	if r.Method != http.MethodPost {
-		return a.render(w, r, "login.html", nil, 200)
+		return a.render(w, r, "login.html", page{"Title": "Sign in"}, 200)
 	}
 	// Each attempt is recorded as a failure before the expensive key
 	// derivation, so concurrent guesses cannot exceed the limit; a successful
@@ -52,7 +52,7 @@ func (a *App) login(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	if !hmac.Equal(key, a.passwordKey) {
-		return a.render(w, r, "login.html", page{"LoginError": "That password was not recognized."}, 401)
+		return a.render(w, r, "login.html", page{"Title": "Sign in", "LoginError": "That password was not recognized."}, 401)
 	}
 	var epoch string
 	err = a.store.Write(func(tx *sql.Tx) error {

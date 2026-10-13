@@ -9,7 +9,7 @@ import (
 
 func (a *App) newBook(w http.ResponseWriter, r *http.Request) error {
 	if r.Method == http.MethodGet {
-		return a.render(w, r, "book.html", page{"Book": Book{Interest: 3, Status: "to-read"}}, 200)
+		return a.render(w, r, "book.html", page{"Title": "Add a book", "Book": Book{Interest: 3, Status: "to-read"}}, 200)
 	}
 	b, err := bookFields(r)
 	if err != nil {
@@ -81,7 +81,7 @@ func (a *App) editBook(w http.ResponseWriter, r *http.Request) error {
 		if err != nil {
 			return err
 		}
-		return a.render(w, r, "book.html", page{"Book": b, "Editing": true, "Events": events, "EventTotal": total}, 200)
+		return a.render(w, r, "book.html", page{"Title": b.Title, "Book": b, "Editing": true, "Events": events, "EventTotal": total}, 200)
 	}
 	b, err := bookFields(r)
 	if err != nil {

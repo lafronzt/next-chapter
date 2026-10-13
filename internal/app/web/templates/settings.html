@@ -38,15 +38,15 @@
   </div>
   <form method="post" action="/sync">
     {{template "fields" .}}
-    <button class="button" {{if not .Connection.UserID}}disabled{{end}}>Check Goodreads now</button>
+    <button class="button" {{if not .Connection.UserID}}disabled title="Save a Goodreads user ID first."{{end}}>Check Goodreads now</button>
   </form>
 </div>
 <section class="section-heading">
   <h2>Take your library with you.</h2>
   <p>Download readable data, or a complete database backup for restoring your self-hosted app.</p>
   <div class="button-row">
-    <a class="button" href="/export.json">Export library JSON ↓</a>
-    <a class="button" href="/backup.sqlite3">Download database backup ↓</a>
+    <a class="button" href="/export.json"><span>Export library JSON <span aria-hidden="true">↓</span></span></a>
+    <a class="button" href="/backup.sqlite3"><span>Download database backup <span aria-hidden="true">↓</span></span></a>
   </div>
   <p class="muted"><small>Database schema version {{.SchemaVersion}}.</small></p>
 </section>
