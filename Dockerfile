@@ -6,7 +6,9 @@ COPY cmd ./cmd
 COPY internal ./internal
 ARG TARGETOS=linux
 ARG TARGETARCH
-RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath -ldflags="-s -w" -o /next-chapter ./cmd/next-chapter \
+# VERSION is the release shown in the app; the publish workflow passes the tag.
+ARG VERSION=dev
+RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath -ldflags="-s -w -X github.com/lafronzt/next-chapter/internal/app.Version=${VERSION}" -o /next-chapter ./cmd/next-chapter \
     && mkdir /data
 
 FROM scratch

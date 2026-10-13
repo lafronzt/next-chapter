@@ -1,4 +1,51 @@
-{{define "top"}}<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Next Chapter</title><link rel="stylesheet" href="/static/app.css"><link rel="icon" href="/static/favicon.svg" type="image/svg+xml"></head><body>
-<aside class="sidebar"><a class="brand" href="/"><span class="brand-mark">n<span>c</span></span><span>Next<br> Chapter<span class="brand-caption">A little intention. A better next read.</span></span></a><nav aria-label="Main navigation"><span class="nav-label">YOUR READING LIFE</span><a href="/" {{if eq .View "queue"}}class="active"{{end}}><span>≡</span> Reading queue</a><a href="/?view=unreviewed" {{if eq .View "unreviewed"}}class="active"{{end}}><span>✉</span> To review{{if .UnreviewedCount}}<strong class="nav-count">{{.UnreviewedCount}}</strong>{{end}}</a><a href="/?view=all" {{if eq .View "all"}}class="active"{{end}}><span>▤</span> All books</a><a href="/history" {{if eq .Path "/history"}}class="active"{{end}}><span>◷</span> Library history</a><span class="nav-label second">MAKE IT YOURS</span><a href="/imports" {{if eq .Path "/imports"}}class="active"{{end}}><span>↓</span> Import books</a><a href="/settings" {{if eq .Path "/settings"}}class="active"{{end}}><span>⚙</span> Preferences & sync</a></nav><div class="sidebar-bottom"><span class="status-dot"></span> {{if .Demo}}Demo library{{else}}Your private library{{end}}<p>Self-hosted. Yours to keep.</p>{{if .Authenticated}}<form method="post" action="/logout"><input type="hidden" name="csrf" value="{{.CSRF}}"><button class="text-button">Sign out</button></form>{{end}}</div></aside><main><div class="topline"><span>MAKE ROOM FOR YOUR NEXT GOOD BOOK</span><span class="edition">Personal edition · v0.2</span></div>{{if .Notice}}<div class="notice" role="status">{{.Notice}}</div>{{end}}{{end}}
-{{define "bottom"}}<footer>Built for the joy of reading. <span>No algorithms you can’t understand.</span></footer></main></body></html>{{end}}
-{{define "fields"}}<input type="hidden" name="csrf" value="{{.CSRF}}"><input type="hidden" name="revision" value="{{.Revision}}">{{end}}
+{{define "top"}}<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Next Chapter</title>
+  <link rel="stylesheet" href="/static/app.css">
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+</head>
+<body>
+<aside class="sidebar">
+  <a class="brand" href="/"><span class="brand-mark">n<span>c</span></span><span>Next<br> Chapter<span class="brand-caption">A little intention. A better next read.</span></span></a>
+  <nav aria-label="Main navigation">
+    <span class="nav-label">YOUR READING LIFE</span>
+    <a href="/" {{if eq .View "queue"}}class="active"{{end}}><span>≡</span> Reading queue</a>
+    <a href="/?view=unreviewed" {{if eq .View "unreviewed"}}class="active"{{end}}><span>✉</span> To review{{if .UnreviewedCount}}<strong class="nav-count">{{.UnreviewedCount}}</strong>{{end}}</a>
+    <a href="/?view=all" {{if eq .View "all"}}class="active"{{end}}><span>▤</span> All books</a>
+    <a href="/history" {{if eq .Path "/history"}}class="active"{{end}}><span>◷</span> Library history</a>
+    <span class="nav-label second">MAKE IT YOURS</span>
+    <a href="/imports" {{if eq .Path "/imports"}}class="active"{{end}}><span>↓</span> Import books</a>
+    <a href="/settings" {{if eq .Path "/settings"}}class="active"{{end}}><span>⚙</span> Preferences & sync</a>
+  </nav>
+  <div class="sidebar-bottom">
+    <span class="status-dot"></span> {{if .Demo}}Demo library{{else}}Your private library{{end -}}
+    <p>Self-hosted. Yours to keep.</p>
+    {{if .Authenticated}}
+    <form method="post" action="/logout">
+      {{template "csrf" .}}
+      <button class="text-button">Sign out</button>
+    </form>
+    {{end}}
+  </div>
+</aside>
+<main>
+  <div class="topline">
+    <span>MAKE ROOM FOR YOUR NEXT GOOD BOOK</span>
+    <span class="edition">Personal edition · v{{version}}</span>
+  </div>
+  {{if .Notice}}<div class="notice" role="status">{{.Notice}}</div>{{end}}
+{{end}}
+
+{{define "bottom"}}
+  <footer>Built for the joy of reading. <span>No algorithms you can’t understand.</span></footer>
+</main>
+</body>
+</html>
+{{end}}
+
+{{define "csrf"}}<input type="hidden" name="csrf" value="{{.CSRF}}">{{end}}
+
+{{define "fields"}}{{template "csrf" .}}<input type="hidden" name="revision" value="{{.Revision}}">{{end}}

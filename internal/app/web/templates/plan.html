@@ -1,6 +1,67 @@
-{{template "top" .}}{{if eq .Kind "triage"}}<a class="back" href="/?view=unreviewed">← Back to To review</a>{{else}}<a class="back" href="/">← Keep my current order</a>{{end}}<header class="page-heading"><div><div class="eyebrow">{{if eq .Kind "import"}}IMPORT PREVIEW{{else if eq .Kind "triage"}}PLEASE CONFIRM{{else}}A SUGGESTION, NOT A COMMAND{{end}}</div><h1>{{if eq .Kind "import"}}Make yourself at home.{{else if eq .Kind "triage"}}Sort {{len .Plan.BookIDs}} books at once.{{else if eq .Kind "insert"}}A place for your new curiosity.{{else}}See your list in a new light.{{end}}</h1><p>{{if eq .Kind "import"}}Check the records before bringing them into your library.{{else if eq .Kind "triage"}}Every book below moves from To review to {{.TriageLabel}}. Nothing changes until you confirm.{{else}}Nothing moves until you apply this suggestion. Pinned books stay in place.{{end}}</p></div></header>
+{{template "top" .}}
+{{if eq .Kind "triage"}}<a class="back" href="/?view=unreviewed">← Back to To review</a>{{else}}<a class="back" href="/">← Keep my current order</a>{{end}}
+<header class="page-heading">
+  <div>
+    <div class="eyebrow">{{if eq .Kind "import"}}IMPORT PREVIEW{{else if eq .Kind "triage"}}PLEASE CONFIRM{{else}}A SUGGESTION, NOT A COMMAND{{end}}</div>
+    <h1>{{if eq .Kind "import"}}Make yourself at home.{{else if eq .Kind "triage"}}Sort {{len .Plan.BookIDs}} books at once.{{else if eq .Kind "insert"}}A place for your new curiosity.{{else}}See your list in a new light.{{end}}</h1>
+    <p>{{if eq .Kind "import"}}Check the records before bringing them into your library.{{else if eq .Kind "triage"}}Every book below moves from To review to {{.TriageLabel}}. Nothing changes until you confirm.{{else}}Nothing moves until you apply this suggestion. Pinned books stay in place.{{end}}</p>
+  </div>
+</header>
 {{if .Stale}}<div class="notice error">Your library has changed since this preview. Generate a fresh preview before applying it.</div>{{end}}
-{{if eq .Kind "import"}}<div class="notice">{{len .Plan.Records}} rows from {{.Plan.Source}}. Repeated library events are ignored; existing books keep their reading status and queue order, except books still waiting in To review, which follow their Goodreads shelf. Library-only books are saved as unreviewed.</div>{{if .UpgradeSummary}}<div class="notice">{{.UpgradeSummary}}</div>{{end}}{{if .Skipped}}<div class="notice">{{.Skipped}} rows match books you deleted and will be skipped. Add a book by hand to bring it back.</div>{{end}}<div class="panel preview-list">{{range .PreviewRecords}}<div class="preview-row"><div><strong>{{.Title}}</strong><p>{{.Author}}</p></div><span class="badge">{{if .Event}}{{.Event.Status}}{{else}}{{.Status}}{{end}}</span></div>{{end}}{{if gt (len .Plan.Records) 100}}<p>Showing the first 100 records.</p>{{end}}</div>
-{{else if eq .Kind "triage"}}<div class="panel preview-list">{{range .TriageBooks}}<div class="preview-row"><div><strong>{{.Title}}</strong><p>{{.Author}}</p></div><span class="badge">{{$.TriageLabel}}</span></div>{{end}}</div>
-{{else}}<div class="panel preview-list">{{range .Plan.Rows}}<article class="preview-row"><div class="rank-change"><span>{{.Old}}</span><span>→</span><strong>{{.New}}</strong></div><div class="preview-title"><h2>{{.Title}}</h2><p>{{.Author}}</p><div class="reasons">{{range .Reasons}}<span>{{.}}</span>{{end}}</div></div><span class="badge {{if lt .New .Old}}green{{end}}">{{rankLabel .}}</span></article>{{end}}</div>{{end}}
-<form class="apply-bar" method="post">{{template "fields" .}}<div><strong>{{if eq .Kind "import"}}Ready to bring these in?{{else}}Does this feel right?{{end}}</strong><p>{{if eq .Kind "import"}}Imports are repeatable and matched to existing books.{{else if eq .Kind "triage"}}Only reading status changes. Books you want to read join the end of your queue, marked Needs placement. There is no undo; edit a book to change it back.{{else}}You can undo this order until your next library change.{{end}}</p></div><div class="button-row"><a class="button" href="{{if eq .Kind "triage"}}/?view=unreviewed{{else}}/{{end}}">Cancel</a><button class="button primary" {{if .Stale}}disabled{{end}}>{{if eq .Kind "import"}}Import records{{else if eq .Kind "triage"}}Mark {{len .Plan.BookIDs}} books as {{.TriageLabel}}{{else}}Apply this order{{end}} →</button></div></form>{{template "bottom" .}}
+{{if eq .Kind "import"}}
+<div class="notice">{{len .Plan.Records}} rows from {{.Plan.Source}}. Repeated library events are ignored; existing books keep their reading status and queue order, except books still waiting in To review, which follow their Goodreads shelf. Library-only books are saved as unreviewed.</div>
+{{if .UpgradeSummary}}<div class="notice">{{.UpgradeSummary}}</div>{{end}}
+{{if .Skipped}}<div class="notice">{{.Skipped}} rows match books you deleted and will be skipped. Add a book by hand to bring it back.</div>{{end}}
+<div class="panel preview-list">
+  {{range .PreviewRecords}}
+  <div class="preview-row">
+    <div>
+      <strong>{{.Title}}</strong>
+      <p>{{.Author}}</p>
+    </div>
+    <span class="badge">{{if .Event}}{{.Event.Status}}{{else}}{{.Status}}{{end}}</span>
+  </div>
+  {{end}}
+  {{if gt (len .Plan.Records) 100}}<p>Showing the first 100 records.</p>{{end}}
+</div>
+{{else if eq .Kind "triage"}}
+<div class="panel preview-list">
+  {{range .TriageBooks}}
+  <div class="preview-row">
+    <div>
+      <strong>{{.Title}}</strong>
+      <p>{{.Author}}</p>
+    </div>
+    <span class="badge">{{$.TriageLabel}}</span>
+  </div>
+  {{end}}
+</div>
+{{else}}
+<div class="panel preview-list">
+  {{range .Plan.Rows}}
+  <article class="preview-row">
+    <div class="rank-change"><span>{{.Old}}</span><span>→</span><strong>{{.New}}</strong></div>
+    <div class="preview-title">
+      <h2>{{.Title}}</h2>
+      <p>{{.Author}}</p>
+      <div class="reasons">
+        {{range .Reasons}}<span>{{.}}</span>{{end}}
+      </div>
+    </div>
+    <span class="badge {{if lt .New .Old}}green{{end}}">{{rankLabel .}}</span>
+  </article>
+  {{end}}
+</div>
+{{end}}
+<form class="apply-bar" method="post">
+  {{template "fields" .}}
+  <div>
+    <strong>{{if eq .Kind "import"}}Ready to bring these in?{{else}}Does this feel right?{{end}}</strong>
+    <p>{{if eq .Kind "import"}}Imports are repeatable and matched to existing books.{{else if eq .Kind "triage"}}Only reading status changes. Books you want to read join the end of your queue, marked Needs placement. There is no undo; edit a book to change it back.{{else}}You can undo this order until your next library change.{{end}}</p>
+  </div>
+  <div class="button-row">
+    <a class="button" href="{{if eq .Kind "triage"}}/?view=unreviewed{{else}}/{{end}}">Cancel</a>
+    <button class="button primary" {{if .Stale}}disabled{{end}}>{{if eq .Kind "import"}}Import records{{else if eq .Kind "triage"}}Mark {{len .Plan.BookIDs}} books as {{.TriageLabel}}{{else}}Apply this order{{end}} →</button>
+  </div>
+</form>
+{{template "bottom" .}}
