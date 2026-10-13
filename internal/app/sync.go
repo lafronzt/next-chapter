@@ -5,22 +5,12 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"io"
 	"log"
-	"net"
-	"net/http"
-	"net/url"
-	"regexp"
 	"runtime/debug"
 	"strings"
 	"time"
 )
 
-type Connection struct {
-	UserID  string `json:"user_id"`
-	Shelf   string `json:"shelf"`
-	Enabled bool   `json:"enabled"`
-}
 type SyncResult struct {
 	At      string `json:"at"`
 	Message string `json:"message"`
@@ -95,90 +85,6 @@ func errorClass(err error) string {
 		return s.class
 	}
 	return "internal"
-}
-
-var userIDPattern = regexp.MustCompile(`^[0-9]{1,20}$`)
-var shelfPattern = regexp.MustCompile(`^[a-zA-Z0-9_-]{1,100}$`)
-
-func validateConnection(c Connection) error {
-	if c.Enabled && c.UserID == "" {
-		return fmt.Errorf("enter your Goodreads user ID before enabling polling")
-	}
-	if c.UserID != "" && (!userIDPattern.MatchString(c.UserID) || !shelfPattern.MatchString(c.Shelf)) {
-		return fmt.Errorf("enter a numeric Goodreads user ID and a shelf with letters, digits, hyphens or underscores")
-	}
-	return nil
-}
-
-// feedClient fetches a public Goodreads shelf feed. Tests replace the transport;
-// the base URL and redirect policy keep requests on https://www.goodreads.com.
-type feedClient struct {
-	client *http.Client
-	base   string
-}
-
-func newFeedClient(transport http.RoundTripper) *feedClient {
-	return &feedClient{base: "https://" + feedHost, client: &http.Client{Transport: transport, Timeout: feedTimeout, CheckRedirect: checkFeedRedirect}}
-}
-
-// checkFeedRedirect follows at most maxRedirects hops, and only to https on the
-// exact Goodreads host (no other port, no credentials), preserving SSRF safety.
-func checkFeedRedirect(req *http.Request, via []*http.Request) error {
-	u := req.URL
-	if len(via) > maxRedirects || u.Scheme != "https" || u.Host != feedHost || u.User != nil {
-		return errRedirect
-	}
-	return nil
-}
-
-var defaultFeed = newFeedClient(nil)
-
-func FetchGoodreads(ctx context.Context, c Connection) ([]Record, error) {
-	return defaultFeed.Fetch(ctx, c)
-}
-func (f *feedClient) Fetch(ctx context.Context, c Connection) ([]Record, error) {
-	if c.UserID == "" {
-		return nil, configError("Save your Goodreads user ID first.")
-	}
-	if err := validateConnection(c); err != nil {
-		return nil, configError("Check your Goodreads settings: " + err.Error() + ".")
-	}
-	target := f.base + "/review/list_rss/" + c.UserID + "?" + url.Values{"shelf": {c.Shelf}, "sort": {"date_added"}, "order": {"d"}}.Encode()
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("User-Agent", "NextChapter/0.2 (personal reading queue)")
-	req.Header.Set("Accept", "application/rss+xml")
-	response, err := f.client.Do(req)
-	if err != nil {
-		var netErr net.Error
-		switch {
-		case errors.Is(err, errRedirect):
-			return nil, feedError("redirect", err)
-		case errors.Is(err, context.DeadlineExceeded), errors.As(err, &netErr) && netErr.Timeout():
-			return nil, feedError("timeout", err)
-		case errors.Is(err, context.Canceled):
-			return nil, err
-		}
-		return nil, feedError("network", err)
-	}
-	defer response.Body.Close()
-	if response.StatusCode != http.StatusOK {
-		return nil, feedError(fmt.Sprintf("status-%d", response.StatusCode), fmt.Errorf("Goodreads returned status %d", response.StatusCode))
-	}
-	data, err := io.ReadAll(io.LimitReader(response.Body, maxUpload+1))
-	if err != nil {
-		return nil, feedError("network", err)
-	}
-	if len(data) > maxUpload {
-		return nil, feedError("too-large", fmt.Errorf("feed exceeds %d bytes", maxUpload))
-	}
-	records, err := ParseRSS(data)
-	if err != nil {
-		return nil, feedError("parse", err)
-	}
-	return records, nil
 }
 
 // safeSync runs syncOnce, turning a panic in fetching, parsing, or importing into

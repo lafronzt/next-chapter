@@ -2,7 +2,7 @@
 
 ## Project Structure & Module Organization
 
-Next Chapter is a single-reader Go web app using SQLite, server-rendered HTML, and plain CSS. `cmd/next-chapter/` contains the executable and health check. `internal/app/` holds ranking (`model.go`), parsing (`imports.go`), persistence (`store.go`, `schema.sql` as the frozen v1 baseline), schema migrations (`migrate.go`), delete/merge and aliases (`merge.go`), RSS polling (`sync.go`), and HTTP handling (`server.go`, `routes.go`). Templates, static assets, and bundled CSV examples live in `internal/app/web/` and are embedded in the binary. Tests reside in `internal/app/*_test.go`. Root `examples/` contains import samples; `deploy/kubernetes/` and `.github/workflows/` contain deployment and CI configuration.
+Next Chapter is a single-reader Go web app using SQLite, server-rendered HTML, and plain CSS. `cmd/next-chapter/` contains the executable and health check. `internal/app/` holds ranking (`model.go`, `propose.go`), parsing (`imports.go`), persistence (`store.go`, `books.go`, `listing.go`, `records.go`, `plans.go`, `schema.sql` as the frozen v1 baseline), schema migrations (`migrations.go`, applied by `migrate.go`), delete/merge and aliases (`merge.go`), RSS polling (`feed.go`, `sync.go`), and HTTP handling (`server.go` for config and routes, `middleware.go`, `session.go`, `render.go`, `forms.go`, and `handlers_*.go`). `version.go` holds the build-time version. Templates, static assets, and bundled CSV examples live in `internal/app/web/` and are embedded in the binary. Tests reside in `internal/app/*_test.go`. Root `examples/` contains import samples; `deploy/kubernetes/` and `.github/workflows/` contain deployment and CI configuration.
 
 ## Build, Test, and Development Commands
 

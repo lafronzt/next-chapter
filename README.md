@@ -14,7 +14,7 @@ Every suggestion has a preview and reasons. Pinned books keep their positions. Y
 ## What works in v0.2
 
 - Add and edit books; move them manually; pin positions; mark reading, finished, abandoned, or archived.
-- Separate views for Up next, Reading, Finished, To review, Set aside (abandoned), Archived, and All books.
+- Separate views for Up next, Reading, Finished, To review, Set aside (abandoned), Archived, and All books. Lists show 50 books per page (`per_page` up to 200); queue numbers always count from the top of the whole queue, and a page past the end shows the last page.
 - Delete a book, or merge a duplicate into the entry you keep, each after a confirmation preview. Re-imports never bring them back.
 - Explainable placement and full-queue reordering, with preview, stale-preview protection, and undo.
 - Goodreads CSV imports and optional hourly public-shelf RSS checks for **new additions**.
@@ -179,6 +179,8 @@ The app refuses to start if the database has a newer schema version than the run
 
 Changes made after the upgrade are not in the `.bak`. Export JSON first if you need a record of them.
 
+Schema migration 5 only adds indexes for paging and imports; no data changes. Rolling back from it works as above with `next-chapter.sqlite3.pre-v5.bak`. Alternatively, an older image runs against the same file after `DROP INDEX books_status_position; DROP INDEX books_position; DROP INDEX books_isbn; DROP INDEX events_book; DROP INDEX events_at;` and `UPDATE meta SET value='4' WHERE key='schema_version';`, which keeps changes made since the upgrade.
+
 ## Local development
 
 Go 1.27 or later; no frontend build step or C compiler is required:
@@ -199,13 +201,16 @@ The application uses Go’s HTTP server, escaped HTML templates, plain CSS, and 
 ## Project layout
 
 - `cmd/next-chapter/`: executable, health check, graceful shutdown.
-- `internal/app/model.go`: deterministic ranking and constraints.
+- `internal/app/model.go`, `propose.go`: data types and deterministic ranking with its constraints.
 - `internal/app/imports.go`: CSV/RSS parsing and validation.
-- `internal/app/migrate.go`: ordered schema migrations with pre-migration backups.
-- `internal/app/store.go`: transactions, matching, event reconciliation, backups.
+- `internal/app/migrations.go`, `migrate.go`: ordered schema migrations and the runner that applies them after a pre-migration backup.
+- `internal/app/store.go`, `books.go`, `listing.go`: transactions, book and event queries, paged lists.
+- `internal/app/records.go`: matching imported records and event reconciliation.
+- `internal/app/plans.go`: compact storage for previews.
 - `internal/app/merge.go`: deleting and merging books, aliases that stop re-imports from recreating them.
-- `internal/app/sync.go`: fixed-host RSS fetching, optional hourly polling with backoff.
-- `internal/app/server.go`, `routes.go`: authentication, web routes, previews, exports.
+- `internal/app/feed.go`, `sync.go`: fixed-host RSS fetching, optional hourly polling with backoff.
+- `internal/app/server.go`: configuration and the routing table; `middleware.go`, `session.go`, `render.go`, `forms.go` hold the request pipeline, and `handlers_*.go` the handlers by area.
+- `internal/app/version.go`: the release version, set at build time with `-ldflags "-X github.com/lafronzt/next-chapter/internal/app.Version=…"`.
 - `internal/app/web/`: embedded templates, assets, and import examples.
 - `internal/app/*_test.go`: ranking, import integrity, migrations, delete/merge, feed and poller, authentication, and web-flow tests.
 - `deploy/kubernetes/`: single-replica persistent deployment.

@@ -32,7 +32,7 @@ func run() error {
 	if len(os.Args) > 1 {
 		switch os.Args[1] {
 		case "version":
-			fmt.Println("Next Chapter 0.2.0 (Go)")
+			fmt.Println("Next Chapter " + app.Version + " (Go)")
 			return nil
 		case "healthcheck":
 			_, port, err := net.SplitHostPort(addr)

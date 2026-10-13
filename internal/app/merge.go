@@ -44,12 +44,12 @@ func countTombstoned(q queryer, records []Record) (int, error) {
 // compactQueue renumbers to-read books 0..n-1 in their current order, matching
 // reorder(); positions of books outside the queue are left alone.
 func compactQueue(q queryer) error {
-	all, err := loadBooks(q)
+	queue, err := queueOrder(q)
 	if err != nil {
 		return err
 	}
 	ids := []int64{}
-	for _, b := range queueOnly(all) {
+	for _, b := range queue {
 		ids = append(ids, b.ID)
 	}
 	return reorder(q, ids)
@@ -85,7 +85,7 @@ type deletePreview struct {
 }
 
 func previewDelete(q queryer, id int64) (deletePreview, error) {
-	b, err := bookByID(q, id)
+	b, err := getBook(q, id)
 	if err != nil {
 		return deletePreview{}, err
 	}
@@ -95,7 +95,7 @@ func previewDelete(q queryer, id int64) (deletePreview, error) {
 }
 
 func deleteBook(q queryer, id int64) error {
-	b, err := bookByID(q, id)
+	b, err := getBook(q, id)
 	if err != nil {
 		return err
 	}
@@ -128,11 +128,11 @@ func mergeBooks(q queryer, sourceID, targetID int64, apply bool) (mergePreview, 
 	if sourceID == targetID {
 		return mergePreview{}, bad("Choose a different book to merge into.")
 	}
-	source, err := bookByID(q, sourceID)
+	source, err := getBook(q, sourceID)
 	if err != nil {
 		return mergePreview{}, err
 	}
-	target, err := bookByID(q, targetID)
+	target, err := getBook(q, targetID)
 	if err != nil {
 		return mergePreview{}, err
 	}

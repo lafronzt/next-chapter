@@ -327,7 +327,7 @@ func TestAuthenticatedWebFlow(t *testing.T) {
 	expect(t, b.request("POST", "/books/1/action", url.Values{"action": {"pin"}, "revision": {oldRev}}), 409)
 	expect(t, b.request("GET", "/books/1", nil), 200)
 	expect(t, b.request("POST", "/books/1/loan", url.Values{"source": {"nypl"}, "format": {"print"}, "status": {"returned"}}), 303)
-	book, err := bookByID(a.store.DB, 1)
+	book, err := getBook(a.store.DB, 1)
 	if err != nil || book.Status != "to-read" {
 		t.Fatalf("%v %v", book, err)
 	}
