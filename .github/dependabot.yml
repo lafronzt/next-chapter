@@ -4,11 +4,20 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    groups:
+      go-minor-and-patch:
+        update-types: [minor, patch]
+  # Bumps the digest pinned in the Dockerfile's FROM line.
   - package-ecosystem: docker
     directory: /
     schedule:
       interval: weekly
+  # Workflows pin actions by commit SHA; Dependabot updates the SHA and the
+  # version comment together. One pull request per week for all actions.
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
+    groups:
+      actions:
+        patterns: ['*']

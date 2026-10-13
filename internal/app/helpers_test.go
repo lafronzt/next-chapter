@@ -12,13 +12,6 @@ import (
 	"testing"
 )
 
-func must[T any](t *testing.T, v T, err error) T {
-	t.Helper()
-	if err != nil {
-		t.Fatal(err)
-	}
-	return v
-}
 func testApp(t *testing.T, demo bool) *App {
 	t.Helper()
 	a, err := New(Config{Database: filepath.Join(t.TempDir(), "library.sqlite3"), Demo: demo, Secret: strings.Repeat("s", 40), Password: "correct-password"})

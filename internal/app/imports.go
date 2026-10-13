@@ -243,6 +243,7 @@ func ParseRSS(data []byte) ([]Record, error) {
 		} `xml:"channel>item"`
 	}
 	if err := xml.Unmarshal(data, &feed); err != nil {
+		//lint:ignore ST1005 Goodreads is a proper noun; this is shown to the reader
 		return nil, fmt.Errorf("Goodreads returned an unreadable RSS feed; try CSV import")
 	}
 	records := []Record{}

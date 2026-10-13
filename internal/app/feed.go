@@ -85,6 +85,7 @@ func (f *feedClient) Fetch(ctx context.Context, c Connection) ([]Record, error) 
 	}
 	defer response.Body.Close()
 	if response.StatusCode != http.StatusOK {
+		//lint:ignore ST1005 Goodreads is a proper noun
 		return nil, feedError(fmt.Sprintf("status-%d", response.StatusCode), fmt.Errorf("Goodreads returned status %d", response.StatusCode))
 	}
 	data, err := io.ReadAll(io.LimitReader(response.Body, maxUpload+1))

@@ -204,6 +204,8 @@ go build -trimpath -o ./bin/next-chapter ./cmd/next-chapter
 LOCAL_DEMO=1 START_POLLER=0 ./bin/next-chapter
 ```
 
+CI also requires `gofmt`, `staticcheck`, `govulncheck`, a tidy `go.mod`, and a container smoke test; [CONTRIBUTING.md](CONTRIBUTING.md#required-checks) lists the exact commands.
+
 Open [localhost:8000](http://localhost:8000). Demo mode has no login and requires a loopback `LISTEN_ADDR` (default `127.0.0.1:8000`). The empty-library page lets you load example books. Production starts with an empty library and never seeds examples.
 
 For production, set `APP_PASSWORD` and `APP_SECRET_KEY` and omit `LOCAL_DEMO`. `DATABASE_PATH` defaults to `data/next-chapter.sqlite3`; `LISTEN_ADDR` defaults to `:8000`. `START_POLLER=0` disables the background checker. `TRUSTED_PROXY_HOPS` (default `0`) is described under Docker Compose. The executable includes `version` and `healthcheck` commands.

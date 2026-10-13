@@ -5,27 +5,126 @@ on:
   pull_request:
 permissions:
   contents: read
+# Third-party actions are pinned by commit SHA; the comment is the release.
+# Tool versions are pinned below. See CONTRIBUTING.md to bump either.
+env:
+  STATICCHECK_VERSION: v0.8.2 # staticcheck 2026.1.2
+  GOVULNCHECK_VERSION: v1.9.0
+  KUBECONFORM_VERSION: v0.8.0
 jobs:
-  test:
+  lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
           cache: true
-      - run: go test -race ./...
-      - run: go vet ./...
-      - run: docker build -t next-chapter:test .
-      - name: Container smoke test
-        shell: bash
+      - name: gofmt
         run: |
-          docker run -d --name next-chapter-test -p 127.0.0.1:8000:8000 --read-only --tmpfs /tmp -e APP_PASSWORD="$(openssl rand -hex 24)" -e APP_SECRET_KEY="$(openssl rand -hex 32)" next-chapter:test
-          for attempt in $(seq 1 30); do
-            if curl --fail --silent http://127.0.0.1:8000/healthz; then exit 0; fi
-            sleep 1
-          done
-          docker logs next-chapter-test
-          exit 1
-      - if: always()
-        run: docker rm -fv next-chapter-test || true
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "Run gofmt -w on:"
+            echo "$unformatted"
+            exit 1
+          fi
+      - run: go vet ./...
+      - run: go run "honnef.co/go/tools/cmd/staticcheck@${STATICCHECK_VERSION}" ./...
+      - name: go mod tidy leaves go.mod and go.sum unchanged
+        run: |
+          go mod tidy
+          git diff --exit-code go.mod go.sum
+      - run: go mod verify
+
+  vulncheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # The newest 1.27 patch, which is what release images build with, rather
+      # than the go.mod floor: standard-library fixes ship in patch releases.
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: '1.27.x'
+          check-latest: true
+          cache: true
+      # Fails only on vulnerabilities the code can reach.
+      - run: go run "golang.org/x/vuln/cmd/govulncheck@${GOVULNCHECK_VERSION}" ./...
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: true
+      - run: go test -race -coverprofile=coverage.out ./...
+      # Coverage is reported, never enforced.
+      - name: Coverage summary
+        if: always()
+        continue-on-error: true
+        run: |
+          go tool cover -func=coverage.out | tee coverage.txt | tail -1
+          {
+            echo '### Coverage'
+            echo
+            echo '```'
+            tail -1 coverage.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        continue-on-error: true
+        with:
+          name: coverage
+          path: |
+            coverage.out
+            coverage.txt
+          retention-days: 14
+
+  container:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0 # tags, for git describe
+      - name: Build
+        run: |
+          version=$(git describe --tags --always --dirty)
+          echo "VERSION=${version#v}" >> "$GITHUB_ENV"
+          docker build --build-arg "VERSION=${version#v}" -t next-chapter:test .
+      - name: Container smoke test
+        run: scripts/smoke.sh next-chapter:test "$VERSION"
+
+  manifests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Validate Kubernetes manifests
+        run: go run "github.com/yannh/kubeconform/cmd/kubeconform@${KUBECONFORM_VERSION}" -strict -summary deploy/kubernetes/
+      - name: Images are pinned to a release
+        run: |
+          status=0
+          while read -r image; do
+            ref=${image##*/}
+            case "$ref" in
+              *@sha256:*) ;;
+              *:latest | *:latest@* | *:) echo "::error::$image uses the latest tag"; status=1 ;;
+              *:*) ;;
+              *) echo "::error::$image has no tag"; status=1 ;;
+            esac
+          done < <(grep -rhoE '^\s*image:\s*\S+' deploy/kubernetes | awk '{print $2}' | tr -d '"'"'")
+          exit $status

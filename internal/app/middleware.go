@@ -39,7 +39,7 @@ func (a *App) middleware(mux http.Handler) http.Handler {
 		s, ok, rev, err := a.session(w, r)
 		if err != nil {
 			a.logger.Error("database unavailable", "request_id", id, "method", r.Method, "path", r.URL.Path, "err", err)
-			http.Error(w, "Database unavailable. Reference: "+id, 503)
+			http.Error(w, "Database unavailable. Reference: "+id, http.StatusServiceUnavailable)
 			return
 		}
 		if !a.config.Demo && !s.Authenticated && r.URL.Path != "/login" {

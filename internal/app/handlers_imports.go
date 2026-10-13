@@ -75,7 +75,7 @@ func (a *App) restoreUpload(w http.ResponseWriter, r *http.Request) error {
 	}
 	f, problems, err := decodeExport(data)
 	if err != nil {
-		return bad(err.Error())
+		return err
 	}
 	if len(problems) > 0 {
 		count := len(problems)

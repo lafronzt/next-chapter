@@ -55,11 +55,11 @@ type restorePlan struct {
 }
 
 // decodeExport reads an export strictly. Problems with individual records are
-// returned as a list; a file that cannot be read at all is an error.
+// returned as a list; a file that cannot be read at all is a bad() error.
 func decodeExport(data []byte) (exportFile, []string, error) {
 	var f exportFile
 	if len(data) > maxRestoreUpload {
-		return f, nil, fmt.Errorf("Restore files must be at most 10 MB.")
+		return f, nil, bad("Restore files must be at most 10 MB.")
 	}
 	// Check the version leniently first, so a newer export is refused for its
 	// version rather than for the fields it added.
@@ -70,10 +70,10 @@ func decodeExport(data []byte) (exportFile, []string, error) {
 		return f, nil, jsonProblem(err)
 	}
 	if head.SchemaVersion == nil {
-		return f, nil, fmt.Errorf("This file has no schema_version, so it is not a Next Chapter JSON export.")
+		return f, nil, bad("This file has no schema_version, so it is not a Next Chapter JSON export.")
 	}
 	if v := *head.SchemaVersion; v < 1 || v > maxRestoreSchema {
-		return f, nil, fmt.Errorf("This export has schema version %d. This version of Next Chapter restores schema versions 1 to %d; update the app to restore newer exports.", v, maxRestoreSchema)
+		return f, nil, bad(fmt.Sprintf("This export has schema version %d. This version of Next Chapter restores schema versions 1 to %d; update the app to restore newer exports.", v, maxRestoreSchema))
 	}
 	dec := json.NewDecoder(bytes.NewReader(data))
 	dec.DisallowUnknownFields()
@@ -81,7 +81,7 @@ func decodeExport(data []byte) (exportFile, []string, error) {
 		return f, nil, jsonProblem(err)
 	}
 	if _, err := dec.Token(); !errors.Is(err, io.EOF) {
-		return f, nil, fmt.Errorf("The file has extra data after the export.")
+		return f, nil, bad("The file has extra data after the export.")
 	}
 	return f, validateExport(&f), nil
 }
@@ -91,16 +91,16 @@ func jsonProblem(err error) error {
 	var typeErr *json.UnmarshalTypeError
 	switch {
 	case errors.As(err, &syntax):
-		return fmt.Errorf("The file is not valid JSON (near byte %d).", syntax.Offset)
+		return bad(fmt.Sprintf("The file is not valid JSON (near byte %d).", syntax.Offset))
 	case errors.As(err, &typeErr) && typeErr.Field != "":
-		return fmt.Errorf("The field %q has the wrong type.", typeErr.Field)
+		return bad(fmt.Sprintf("The field %q has the wrong type.", typeErr.Field))
 	case errors.Is(err, io.ErrUnexpectedEOF), errors.Is(err, io.EOF):
-		return fmt.Errorf("The file ends before the export is complete.")
+		return bad("The file ends before the export is complete.")
 	}
 	if field, ok := strings.CutPrefix(err.Error(), "json: unknown field "); ok {
-		return fmt.Errorf("The file has an unknown field %s. Only unchanged Next Chapter JSON exports can be restored.", field)
+		return bad(fmt.Sprintf("The file has an unknown field %s. Only unchanged Next Chapter JSON exports can be restored.", field))
 	}
-	return fmt.Errorf("The file is not a Next Chapter JSON export.")
+	return bad("The file is not a Next Chapter JSON export.")
 }
 
 // validateExport checks every record against the limits imports and forms
