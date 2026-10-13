@@ -50,7 +50,7 @@
 {{with .Payload}}
 <section class="section-heading" id="shared">
   <h2>What gets shared</h2>
-  <p>Asking the AI sends exactly this to {{$.AI.Provider}} ({{$.AI.Model}}), once, and saves its answer next to the baseline. Never sent: ISBNs, Goodreads IDs, library loans or accounts, or anything about you beyond these books.</p>
+  <p>Asking the AI sends exactly this to {{$.AI.Provider}} ({{$.AI.Model}}{{with $.AI.Endpoint}} at {{.}}{{end}}), once, and saves its answer next to the baseline. Never sent: ISBNs, Goodreads IDs, library loans or accounts, or anything about you beyond these books.</p>
 </section>
 <div class="panel shared">
   <h3>The book</h3>

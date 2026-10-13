@@ -483,6 +483,10 @@ const estimateTask = `You estimate the star rating (1 to 5) a reader would proba
 
 const estimateSchema = `{"type":"object","properties":{"estimate":{"type":"number"},"confidence":{"type":"string","enum":["low","medium","high"]},"reasons":{"type":"array","items":{"type":"string"}}},"required":["estimate","confidence","reasons"],"additionalProperties":false}`
 
+// estimateLocalSchema adds length limits for self-hosted servers, which
+// enforce them while generating (see AIRequest.LocalSchema).
+const estimateLocalSchema = `{"type":"object","properties":{"estimate":{"type":"number"},"confidence":{"type":"string","enum":["low","medium","high"]},"reasons":{"type":"array","items":{"type":"string","maxLength":240},"minItems":1,"maxItems":3}},"required":["estimate","confidence","reasons"],"additionalProperties":false}`
+
 type estimateAnswer struct {
 	Estimate   float64  `json:"estimate"`
 	Confidence string   `json:"confidence"`
@@ -571,6 +575,7 @@ func (a *App) estimateAI(ctx context.Context, bookID int64, fingerprint string, 
 	if err != nil {
 		return err
 	}
+	req.LocalSchema = json.RawMessage(estimateLocalSchema)
 	resp, err := a.askAI(ctx, req)
 	if err != nil {
 		return err

@@ -87,6 +87,7 @@ func (a *App) predictAI(w http.ResponseWriter, r *http.Request) error {
 	if ai, err := a.aiStatus(a.store.DB); err != nil || !ai.Available() {
 		return cmp.Or(err, error(errAIOff))
 	}
+	a.allowSlowAI(w)
 	if err = a.estimateAI(r.Context(), id, r.FormValue("fingerprint"), r.FormValue("reviews") != ""); err != nil {
 		return err
 	}
