@@ -4,15 +4,34 @@ import (
 	"database/sql"
 	"encoding/json"
 	"net/http"
+	"net/url"
 	"time"
 )
 
+// history pages through every library event, optionally for one source
+// or status. Unknown filter values are ignored.
 func (a *App) history(w http.ResponseWriter, r *http.Request) error {
-	events, err := loadEvents(a.store.DB, 0, 500)
+	sources, err := eventSources(a.store.DB)
 	if err != nil {
 		return err
 	}
-	return a.render(w, r, "history.html", page{"Events": events}, 200)
+	f := eventFilter{Source: r.URL.Query().Get("source"), Status: r.URL.Query().Get("status")}
+	if !in(f.Source, sources) {
+		f.Source = ""
+	}
+	if !in(f.Status, libraryStates) {
+		f.Status = ""
+	}
+	total, err := countEvents(a.store.DB, f)
+	if err != nil {
+		return err
+	}
+	pages := newPager(r, total, "/history", url.Values{"source": {f.Source}, "status": {f.Status}})
+	events, err := pageEvents(a.store.DB, f, pages.PerPage, pages.offset())
+	if err != nil {
+		return err
+	}
+	return a.render(w, r, "history.html", page{"Events": events, "Pager": pages, "Filter": f, "Sources": sources}, 200)
 }
 func (a *App) export(w http.ResponseWriter, r *http.Request) error {
 	var data []byte

@@ -14,7 +14,7 @@ Schema changes must include an explicit migration and backup/rollback instructio
 
 `internal/app/schema.sql` is the frozen version 1 baseline, and it must not be edited. To change the schema:
 
-1. Append `{version, name, apply}` to `migrations` in `internal/app/migrate.go`, using the next version number. Never edit or reorder a migration that has shipped.
+1. Append `{version, name, apply}` to `migrations` in `internal/app/migrations.go`, using the next version number. Never edit or reorder a migration that has shipped.
 2. Do everything inside the given `*sql.Tx`. The runner records `schema_version` in the same `BEGIN IMMEDIATE` transaction, so a failure rolls the whole step back.
 3. Add tests that upgrade a database from the previous version with data intact. Use the internal `migrate(db, list, path)` with an injected list to cover failure cases.
 4. Document user-visible effects and rollback in the README. Before a pending migration runs on an existing database, the runner writes `<db>.pre-v<N>.bak`. To roll back, stop the app, restore that file over the database, delete stray `-wal`/`-shm` files, and run the previous image. An older image refuses to open a newer schema.

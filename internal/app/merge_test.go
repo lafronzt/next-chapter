@@ -72,13 +72,13 @@ func TestDeleteBook(t *testing.T) {
 	stale := b.rev
 	expect(t, b.request("POST", fmt.Sprintf("/books/%d/action", ids["Three"]), url.Values{"action": {"pin"}}), 303)
 	expect(t, b.request("POST", fmt.Sprintf("/books/%d/delete", ids["Two"]), url.Values{"revision": {stale}}), 409)
-	if _, err := bookByID(a.store.DB, ids["Two"]); err != nil {
+	if _, err := getBook(a.store.DB, ids["Two"]); err != nil {
 		t.Fatal("stale delete removed the book")
 	}
 	expect(t, b.request("GET", fmt.Sprintf("/books/%d/delete", ids["Two"]), nil), 200)
 	expect(t, b.request("POST", fmt.Sprintf("/books/%d/delete", ids["Two"]), nil), 303)
 
-	if _, err := bookByID(a.store.DB, ids["Two"]); err != sql.ErrNoRows {
+	if _, err := getBook(a.store.DB, ids["Two"]); err != sql.ErrNoRows {
 		t.Fatal("book not deleted")
 	}
 	for _, table := range []string{"events", "loans"} {
@@ -157,7 +157,7 @@ func TestMergeBooks(t *testing.T) {
 	if _, err := a.store.DB.Exec("UPDATE books SET pinned=1,interest=5,needs_placement=0 WHERE id=?", ids["The Book"]); err != nil {
 		t.Fatal(err)
 	}
-	before, err := bookByID(a.store.DB, ids["The Book"])
+	before, err := getBook(a.store.DB, ids["The Book"])
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -180,7 +180,7 @@ func TestMergeBooks(t *testing.T) {
 	if _, ok := bookIDs(t, a)["The Book: A Novel"]; ok {
 		t.Fatal("source not removed")
 	}
-	after, err := bookByID(a.store.DB, ids["The Book"])
+	after, err := getBook(a.store.DB, ids["The Book"])
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -261,7 +261,7 @@ func TestMergeConflicts(t *testing.T) {
 		t.Fatal(rr.Body.String())
 	}
 	expect(t, b.request("POST", path, url.Values{"target": {fmt.Sprint(ids["Kept"])}}), 303)
-	kept, err := bookByID(a.store.DB, ids["Kept"])
+	kept, err := getBook(a.store.DB, ids["Kept"])
 	if err != nil || kept.ISBN != "9780000000001" {
 		t.Fatalf("%+v %v", kept, err)
 	}

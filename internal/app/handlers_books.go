@@ -2,86 +2,11 @@ package app
 
 import (
 	"database/sql"
-	"errors"
 	"fmt"
 	"net/http"
-	"strings"
 	"time"
 )
 
-// listView is one tab of the book list. views is the only list of tabs; the
-// index handler and templates both use it.
-type listView struct {
-	Key, Label, Status, Heading, Intro string
-}
-
-const defaultIntro = "Your list should follow your curiosity, not the date you added a book."
-
-var views = []listView{
-	{"queue", "Up next", "to-read", "A good book. Then another.", defaultIntro},
-	{"reading", "Reading", "reading", "In good company.", defaultIntro},
-	{"read", "Finished", "read", "Chapters completed.", defaultIntro},
-	{"unreviewed", "To review", "unreviewed", "Borrowed, but not yet decided.", "Library loans arrive here so borrowing never counts as wanting to read. Tell us what each one means to you."},
-	{"abandoned", "Set aside", "abandoned", "Not every book is for now.", defaultIntro},
-	{"archived", "Archived", "archived", "Kept for the record.", defaultIntro},
-	{"all", "All books", "", "Your books, together.", defaultIntro},
-}
-
-func findView(key string) listView {
-	for _, v := range views {
-		if v.Key == key {
-			return v
-		}
-	}
-	return views[0]
-}
-func searchQuery(raw string) string { return strings.ToLower(strings.TrimSpace(raw)) }
-
-// matchesQuery is the list search: a lowercase substring of title, author, or tags.
-func matchesQuery(b Book, query string) bool {
-	return query == "" || strings.Contains(strings.ToLower(b.Title+" "+b.Author+" "+b.Tags), query)
-}
-
-// shows reports whether a book belongs in this view for a normalized query.
-func (v listView) shows(b Book, query string) bool {
-	return (v.Status == "" || b.Status == v.Status) && matchesQuery(b, query)
-}
-func (a *App) index(w http.ResponseWriter, r *http.Request) error {
-	all, err := loadBooks(a.store.DB)
-	if err != nil {
-		return err
-	}
-	queue := queueOnly(all)
-	view := findView(r.URL.Query().Get("view"))
-	query := searchQuery(r.URL.Query().Get("q"))
-	selected := []Book{}
-	positions := map[int64]int{}
-	pending, active := 0, 0
-	for i, b := range queue {
-		positions[b.ID] = i + 1
-		if b.NeedsPlacement {
-			pending++
-		}
-	}
-	for _, b := range all {
-		for _, l := range b.Loans {
-			if l.Status == "borrowed" || l.Status == "ready" {
-				active++
-				break
-			}
-		}
-		if view.shows(b, query) {
-			selected = append(selected, b)
-		}
-	}
-	var undoRev int64
-	err = a.store.DB.QueryRow("SELECT revision FROM undo_queue WHERE id=1").Scan(&undoRev)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return err
-	}
-	canUndo := err == nil && undoRev == state(r).Revision
-	return a.render(w, r, "index.html", page{"Items": selected, "AllBooks": all, "Queue": queue, "View": view.Key, "ViewInfo": view, "Views": views, "Query": query, "Positions": positions, "Pending": pending, "ActiveLoans": active, "CanUndo": canUndo}, 200)
-}
 func (a *App) newBook(w http.ResponseWriter, r *http.Request) error {
 	if r.Method == http.MethodGet {
 		return a.render(w, r, "book.html", page{"Book": Book{Interest: 3, Status: "to-read"}}, 200)
@@ -133,21 +58,30 @@ func (a *App) newBook(w http.ResponseWriter, r *http.Request) error {
 	}
 	return redirect(w, r, location)
 }
+
+// bookEventLimit caps the borrowing history on a book's page; the page says
+// when there are more, and the export has them all.
+const bookEventLimit = 200
+
 func (a *App) editBook(w http.ResponseWriter, r *http.Request) error {
 	id, err := requestID(r)
 	if err != nil {
 		return err
 	}
 	if r.Method == http.MethodGet {
-		b, err := bookByID(a.store.DB, id)
+		b, err := getBook(a.store.DB, id)
 		if err != nil {
 			return err
 		}
-		events, err := loadEvents(a.store.DB, id, 500)
+		events, err := loadEvents(a.store.DB, id, bookEventLimit)
 		if err != nil {
 			return err
 		}
-		return a.render(w, r, "book.html", page{"Book": b, "Editing": true, "Events": events}, 200)
+		total, err := countEvents(a.store.DB, eventFilter{BookID: id})
+		if err != nil {
+			return err
+		}
+		return a.render(w, r, "book.html", page{"Book": b, "Editing": true, "Events": events, "EventTotal": total}, 200)
 	}
 	b, err := bookFields(r)
 	if err != nil {
@@ -157,7 +91,7 @@ func (a *App) editBook(w http.ResponseWriter, r *http.Request) error {
 		if err := current(tx, r); err != nil {
 			return err
 		}
-		old, err := bookByID(tx, id)
+		old, err := getBook(tx, id)
 		if err != nil {
 			return err
 		}
@@ -193,11 +127,10 @@ func (a *App) bookAction(w http.ResponseWriter, r *http.Request) error {
 		if err := current(tx, r); err != nil {
 			return err
 		}
-		all, err := loadBooks(tx)
+		queue, err := queueOrder(tx)
 		if err != nil {
 			return err
 		}
-		queue := queueOnly(all)
 		idx := -1
 		for i, b := range queue {
 			if b.ID == id {
@@ -238,7 +171,7 @@ func (a *App) bookAction(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
-	return redirect(w, r, "/")
+	return redirect(w, r, listReturn(r))
 }
 func (a *App) loan(w http.ResponseWriter, r *http.Request) error {
 	id, err := requestID(r)
@@ -258,7 +191,7 @@ func (a *App) loan(w http.ResponseWriter, r *http.Request) error {
 		if err := current(tx, r); err != nil {
 			return err
 		}
-		b, err := bookByID(tx, id)
+		b, err := getBook(tx, id)
 		if err != nil {
 			return err
 		}
@@ -273,16 +206,4 @@ func (a *App) loan(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	return redirect(w, r, fmt.Sprintf("/books/%d?notice=loan", id))
-}
-func bookByID(q queryer, id int64) (Book, error) {
-	all, err := loadBooks(q)
-	if err != nil {
-		return Book{}, err
-	}
-	for _, b := range all {
-		if b.ID == id {
-			return b, nil
-		}
-	}
-	return Book{}, sql.ErrNoRows
 }

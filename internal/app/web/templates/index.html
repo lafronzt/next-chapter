@@ -8,11 +8,11 @@
   <a class="button primary" href="/books/new">＋ Add a book</a>
 </header>
 <section class="stats" aria-label="Library overview">
-  <div><span class="stat-number">{{len .Queue}}</span><span>books in your queue</span></div>
-  <div><span class="stat-number">{{.Pending}}</span><span>waiting for their place</span></div>
-  <div><span class="stat-number">{{.ActiveLoans}}</span><span>borrowed or ready</span></div>
+  <div><span class="stat-number">{{.Stats.Queue}}</span><span>books in your queue</span></div>
+  <div><span class="stat-number">{{.Stats.Pending}}</span><span>waiting for their place</span></div>
+  <div><span class="stat-number">{{.Stats.ActiveLoans}}</span><span>borrowed or ready</span></div>
 </section>
-{{if .Queue}}
+{{if .Stats.Queue}}
 <section class="intention">
   <div class="intention-icon">✧</div>
   <div>
@@ -42,7 +42,7 @@
 <form class="bulk-triage" method="post" action="/triage">
   {{template "fields" .}}
   <input type="hidden" name="q" value="{{.Query}}">
-  <label>Mark all {{len .Items}} {{if .Query}}matching{{else}}visible{{end}} books as <select name="action"><option value="want">Want to read</option><option value="read">Already read</option><option value="skip">Not interested</option></select></label>
+  <label>Mark all {{.Pager.Total}} {{if .Query}}matching{{else}}visible{{end}} books as <select name="action"><option value="want">Want to read</option><option value="read">Already read</option><option value="skip">Not interested</option></select></label>
   <button class="button small">Review this change →</button>
 </form>
 {{end}}
@@ -55,7 +55,7 @@
 <div class="queue-list">
   {{range .Items}}
   <article class="book-row">
-    <div class="position">{{pos (index $.Positions .ID)}}</div>
+    <div class="position">{{pos .QueuePos}}</div>
     <a href="/books/{{.ID}}" class="book-cover cover-{{cover .ID}}" aria-label="Edit {{.Title}}">
       <span class="cover-line"></span>
       <span class="cover-title">{{.Title}}</span>
@@ -81,8 +81,9 @@
       </form>
       <form class="mini-actions" method="post" action="/books/{{.ID}}/action">
         {{template "fields" $}}
-        <button name="action" value="up" aria-label="Move {{.Title}} up" {{if or .Pinned (eq (index $.Positions .ID) 1)}}disabled{{end}}>↑</button>
-        <button name="action" value="down" aria-label="Move {{.Title}} down" {{if or .Pinned (eq (index $.Positions .ID) (len $.Queue))}}disabled{{end}}>↓</button>
+        <input type="hidden" name="return" value="{{$.Pager.Self}}">
+        <button name="action" value="up" aria-label="Move {{.Title}} up" {{if not .CanUp}}disabled{{end}}>↑</button>
+        <button name="action" value="down" aria-label="Move {{.Title}} down" {{if not .CanDown}}disabled{{end}}>↓</button>
         <button name="action" value="pin">{{if .Pinned}}Unpin{{else}}Pin{{end}}</button>
         {{if .NeedsPlacement}}<button name="action" value="placed" title="Keep the current position">Keep here</button>{{end}}
       </form>
@@ -118,7 +119,7 @@
     <div class="button-row">
       <a class="button primary" href="/books/new">Add your first book</a>
       <a class="button" href="/imports">Import a reading list</a>
-      {{if and .Demo (not .AllBooks)}}
+      {{if and .Demo (not .Stats.Books)}}
       <form action="/demo" method="post">
         {{template "fields" .}}
         <button class="button">Explore example books</button>
@@ -129,9 +130,10 @@
   {{end}}
   {{end}}
 </div>
+{{template "pager" .Pager}}
 {{if .Items}}
 <div class="list-footnote">
-  <span>{{len .Items}} books · Your order, always editable</span>
+  <span>{{.Pager.Total}} books · Your order, always editable</span>
   <a href="/settings">Tune your preferences →</a>
 </div>
 {{end}}

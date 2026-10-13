@@ -10,35 +10,8 @@ import (
 	"time"
 )
 
-func savePlan(q queryer, kind string, p Plan) (string, error) {
-	id := randomToken()
-	raw, err := json.Marshal(p)
-	if err != nil {
-		return "", err
-	}
-	rev, err := revision(q)
-	if err != nil {
-		return "", err
-	}
-	if _, err = q.Exec("DELETE FROM plans WHERE created_at<?", time.Now().Unix()-3600); err != nil {
-		return "", err
-	}
-	_, err = q.Exec("INSERT INTO plans VALUES(?,?,?,?,?)", id, kind, string(raw), rev, time.Now().Unix())
-	return id, err
-}
-func readPlan(q queryer, id string) (string, Plan, int64, error) {
-	var kind, raw string
-	var rev int64
-	err := q.QueryRow("SELECT kind,payload,revision FROM plans WHERE id=? AND created_at>?", id, time.Now().Unix()-3600).Scan(&kind, &raw, &rev)
-	if err != nil {
-		return "", Plan{}, 0, err
-	}
-	var p Plan
-	err = json.Unmarshal([]byte(raw), &p)
-	return kind, p, rev, err
-}
 func makeSuggestion(q queryer, candidate int64) (string, error) {
-	all, err := loadBooks(q)
+	queue, err := loadQueue(q)
 	if err != nil {
 		return "", err
 	}
@@ -46,7 +19,7 @@ func makeSuggestion(q queryer, candidate int64) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	rows, err := Propose(queueOnly(all), prefs, candidate, time.Now().UTC())
+	rows, err := Propose(queue, prefs, candidate, time.Now().UTC())
 	if err != nil {
 		return "", bad(err.Error())
 	}
@@ -96,22 +69,11 @@ func (a *App) plan(w http.ResponseWriter, r *http.Request) error {
 		if len(preview) > 100 {
 			preview = preview[:100]
 		}
-		data := page{"Kind": kind, "Plan": p, "PreviewRecords": preview, "Stale": rev != state(r).Revision, "UpgradeSummary": upgradeSummary(p.Upgrades)}
-		if kind == "import" {
-			skipped, err := countTombstoned(a.store.DB, p.Records)
-			if err != nil {
-				return err
-			}
-			data["Skipped"] = skipped
-		}
+		data := page{"Kind": kind, "Plan": p, "PreviewRecords": preview, "Stale": rev != state(r).Revision, "UpgradeSummary": upgradeSummary(p.Upgrades), "Skipped": p.Skipped}
 		if kind == "triage" {
-			all, err := loadBooks(a.store.DB)
+			byID, err := getBooks(a.store.DB, p.BookIDs)
 			if err != nil {
 				return err
-			}
-			byID := map[int64]Book{}
-			for _, b := range all {
-				byID[b.ID] = b
 			}
 			books := []Book{}
 			for _, id := range p.BookIDs {
@@ -152,13 +114,9 @@ func (a *App) plan(w http.ResponseWriter, r *http.Request) error {
 				location += fmt.Sprintf("&skipped=%d", result.Skipped)
 			}
 		case "triage":
-			all, err := loadBooks(tx)
+			byID, err := getBooks(tx, p.BookIDs)
 			if err != nil {
 				return err
-			}
-			byID := map[int64]Book{}
-			for _, b := range all {
-				byID[b.ID] = b
 			}
 			for _, id := range p.BookIDs {
 				b, ok := byID[id]
@@ -174,12 +132,12 @@ func (a *App) plan(w http.ResponseWriter, r *http.Request) error {
 			}
 			location = unreviewedURL("", "triaged")
 		default:
-			all, err := loadBooks(tx)
+			queue, err := queueOrder(tx)
 			if err != nil {
 				return err
 			}
 			previous := []undoBook{}
-			for _, b := range queueOnly(all) {
+			for _, b := range queue {
 				previous = append(previous, undoBook{b.ID, b.NeedsPlacement})
 			}
 			raw, err := json.Marshal(previous)

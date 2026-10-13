@@ -3,6 +3,7 @@ package app
 import (
 	"math"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 )
@@ -77,4 +78,19 @@ func current(q queryer, r *http.Request) error {
 		return conflict("Your library changed since this page loaded. Reload before making another change.")
 	}
 	return nil
+}
+
+// listReturn is the book list page a row action was sent from, so the reader
+// stays on that page. Anything but a local list URL falls back to "/".
+func listReturn(r *http.Request) string {
+	u, err := url.Parse(r.FormValue("return"))
+	if err != nil || u.Scheme != "" || u.Host != "" || u.User != nil || u.Path != "/" {
+		return "/"
+	}
+	v := u.Query()
+	v.Del("notice")
+	if len(v) == 0 {
+		return "/"
+	}
+	return "/?" + v.Encode()
 }

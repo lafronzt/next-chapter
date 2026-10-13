@@ -7,6 +7,18 @@
   </div>
   <a class="button" href="/imports">Import activity ↓</a>
 </header>
+<form class="filters" method="get">
+  <label>Library<select name="source">
+    <option value="">All libraries</option>
+    {{range .Sources}}<option value="{{.}}" {{if eq . $.Filter.Source}}selected{{end}}>{{upper .}}</option>{{end}}
+  </select></label>
+  <label>Activity<select name="status">
+    <option value="">All activity</option>
+    {{range .LibraryStates}}<option value="{{.}}" {{if eq . $.Filter.Status}}selected{{end}}>{{.}}</option>{{end}}
+  </select></label>
+  <button class="button small">Show events</button>
+  {{if or .Filter.Source .Filter.Status}}<a class="text-button" href="/history">Clear filters</a>{{end}}
+</form>
 <div class="panel">
   {{range .Events}}
   <article class="history-row">
@@ -19,11 +31,19 @@
     <span>{{.Activity}}</span>
   </article>
   {{else}}
+  {{if or .Filter.Source .Filter.Status}}
+  <div class="empty">
+    <h2>No events match these filters.</h2>
+    <p>Try another library or activity, or clear the filters.</p>
+  </div>
+  {{else}}
   <div class="empty">
     <h2>Keep the story of your borrowing.</h2>
     <p>Import your Libby timeline or record an NYPL event from a book’s details.</p>
   </div>
   {{end}}
+  {{end}}
 </div>
-<p class="muted">Showing up to the 500 most recent events. Your export includes the complete history.</p>
+{{template "pager" .Pager}}
+<p class="muted">{{.Pager.Total}} events. Your export includes the complete history.</p>
 {{template "bottom" .}}

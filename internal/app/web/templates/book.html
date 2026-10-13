@@ -67,6 +67,7 @@
   <div class="event"><span>{{day .At}}</span><strong>{{.Activity}}</strong><span>{{upper .Source}} · {{.Format}}</span></div>
   {{end}}
 </div>
+{{if gt .EventTotal (len .Events)}}<p class="muted">Showing the latest {{len .Events}} of {{.EventTotal}} events. Your export includes the complete history.</p>{{end}}
 {{end}}
 <section class="section-heading">
   <h2>Tidy up</h2>

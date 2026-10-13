@@ -51,22 +51,17 @@ func (a *App) mergeBook(w http.ResponseWriter, r *http.Request) error {
 			}
 			return a.render(w, r, "merge.html", page{"Preview": preview, "Book": preview.Source}, 200)
 		}
-		all, err := loadBooks(a.store.DB)
+		source, err := getBook(a.store.DB, id)
 		if err != nil {
 			return err
 		}
-		var source Book
 		query := searchQuery(r.URL.Query().Get("q"))
 		results := []Book{}
-		for _, b := range all {
-			if b.ID == id {
-				source = b
-			} else if query != "" && matchesQuery(b, query) && len(results) < 50 {
-				results = append(results, b)
+		if query != "" {
+			where, args := bookFilter{Query: query}.where()
+			if results, err = queryBooks(a.store.DB, where+" AND b.id!=? ORDER BY b.position,b.id LIMIT 50", append(args, id)...); err != nil {
+				return err
 			}
-		}
-		if source.ID == 0 {
-			return sql.ErrNoRows
 		}
 		return a.render(w, r, "merge.html", page{"Book": source, "Query": query, "Results": results}, 200)
 	}

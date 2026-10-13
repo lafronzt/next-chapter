@@ -49,3 +49,13 @@
 {{define "csrf"}}<input type="hidden" name="csrf" value="{{.CSRF}}">{{end}}
 
 {{define "fields"}}{{template "csrf" .}}<input type="hidden" name="revision" value="{{.Revision}}">{{end}}
+
+{{define "pager"}}
+{{if gt .Pages 1}}
+<nav class="pager" aria-label="Pages">
+  {{if .Prev}}<a class="button small" href="{{.Prev}}" rel="prev">← Previous</a>{{else}}<span></span>{{end}}
+  <span>Showing {{.From}}–{{.To}} of {{.Total}}</span>
+  {{if .Next}}<a class="button small" href="{{.Next}}" rel="next">Next →</a>{{else}}<span></span>{{end}}
+</nav>
+{{end}}
+{{end}}

@@ -3,22 +3,39 @@ package app
 import (
 	"context"
 	"database/sql"
+	"database/sql/driver"
 	_ "embed"
 	"encoding/json"
 	"errors"
-	_ "modernc.org/sqlite"
+	"modernc.org/sqlite"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 //go:embed schema.sql
 var schema string
+
+func init() {
+	// nc_lower is strings.ToLower. Unlike SQLite's lower(), it folds non-ASCII
+	// letters, so list searches match the same books for "élan" and "Élan".
+	sqlite.MustRegisterDeterministicScalarFunction("nc_lower", 1, func(_ *sqlite.FunctionContext, args []driver.Value) (driver.Value, error) {
+		switch v := args[0].(type) {
+		case string:
+			return strings.ToLower(v), nil
+		case []byte:
+			return strings.ToLower(string(v)), nil
+		}
+		return args[0], nil
+	})
+}
 
 type Store struct{ DB *sql.DB }
 type queryer interface {
 	Exec(string, ...any) (sql.Result, error)
 	Query(string, ...any) (*sql.Rows, error)
 	QueryRow(string, ...any) *sql.Row
+	Prepare(string) (*sql.Stmt, error)
 }
 
 func OpenStore(path string) (*Store, error) {
@@ -81,81 +98,6 @@ func setMeta(q queryer, key string, value any) error {
 	}
 	_, err = q.Exec("INSERT INTO meta VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", key, string(raw))
 	return err
-}
-func loadBooks(q queryer) ([]Book, error) {
-	rows, err := q.Query(`SELECT id,title,author,identity,isbn,goodreads_id,pages,tags,interest,reading_status,position,pinned,needs_placement,series,series_number,added_at,source FROM books ORDER BY position,id`)
-	if err != nil {
-		return nil, err
-	}
-	result := []Book{}
-	lookup := map[int64]int{}
-	for rows.Next() {
-		var b Book
-		err = rows.Scan(&b.ID, &b.Title, &b.Author, &b.Identity, &b.ISBN, &b.GoodreadsID, &b.Pages, &b.Tags, &b.Interest, &b.Status, &b.Position, &b.Pinned, &b.NeedsPlacement, &b.Series, &b.SeriesNumber, &b.AddedAt, &b.Source)
-		if err != nil {
-			rows.Close()
-			return nil, err
-		}
-		b.Loans = []Loan{}
-		lookup[b.ID] = len(result)
-		result = append(result, b)
-	}
-	err = rows.Err()
-	rows.Close()
-	if err != nil {
-		return nil, err
-	}
-	rows, err = q.Query("SELECT book_id,source,format,status,due_date,observed_at FROM loans ORDER BY observed_at DESC")
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	for rows.Next() {
-		var l Loan
-		if err = rows.Scan(&l.BookID, &l.Source, &l.Format, &l.Status, &l.DueDate, &l.ObservedAt); err != nil {
-			return nil, err
-		}
-		if i, ok := lookup[l.BookID]; ok {
-			result[i].Loans = append(result[i].Loans, l)
-		}
-	}
-	return result, rows.Err()
-}
-func loadEvents(q queryer, bid int64, limit int) ([]Event, error) {
-	statement := `SELECT e.id,e.book_id,e.source,e.format,e.status,e.activity,e.at,e.due_date,e.fingerprint,b.title,b.author FROM events e JOIN books b ON b.id=e.book_id`
-	args := []any{}
-	if bid != 0 {
-		statement += " WHERE e.book_id=?"
-		args = append(args, bid)
-	}
-	statement += " ORDER BY e.at DESC,e.id DESC"
-	if limit > 0 {
-		statement += " LIMIT ?"
-		args = append(args, limit)
-	}
-	rows, err := q.Query(statement, args...)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	result := []Event{}
-	for rows.Next() {
-		var e Event
-		if err = rows.Scan(&e.ID, &e.BookID, &e.Source, &e.Format, &e.Status, &e.Activity, &e.At, &e.DueDate, &e.Fingerprint, &e.Title, &e.Author); err != nil {
-			return nil, err
-		}
-		result = append(result, e)
-	}
-	return result, rows.Err()
-}
-
-func reorder(q queryer, ids []int64) error {
-	for pos, id := range ids {
-		if _, err := q.Exec("UPDATE books SET position=? WHERE id=?", pos, id); err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 // VACUUM INTO takes a consistent SQLite snapshot including committed WAL pages.

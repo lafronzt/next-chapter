@@ -30,7 +30,7 @@ func (a *App) triageBook(w http.ResponseWriter, r *http.Request) error {
 		if err := current(tx, r); err != nil {
 			return err
 		}
-		b, err := bookByID(tx, id)
+		b, err := getBook(tx, id)
 		if err != nil {
 			return err
 		}
@@ -61,15 +61,9 @@ func (a *App) triageAll(w http.ResponseWriter, r *http.Request) error {
 		if err := current(tx, r); err != nil {
 			return err
 		}
-		all, err := loadBooks(tx)
+		ids, err := filteredIDs(tx, findView("unreviewed").filter(query))
 		if err != nil {
 			return err
-		}
-		ids := []int64{}
-		for _, b := range all {
-			if findView("unreviewed").shows(b, query) {
-				ids = append(ids, b.ID)
-			}
 		}
 		if len(ids) == 0 {
 			return bad("No books are waiting for review here.")

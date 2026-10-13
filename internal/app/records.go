@@ -17,7 +17,8 @@ func lookupBook(q queryer, r Record, aliases bool) (id int64, tombstoned bool, e
 			continue
 		}
 		// ISBN matches are accepted only when they identify one local book.
-		err := q.QueryRow("SELECT MIN(id) FROM books WHERE "+pair[0]+"=? HAVING count(*)=1", pair[1]).Scan(&id)
+		// The != '' term lets SQLite use the partial goodreads_id and isbn indexes.
+		err := q.QueryRow("SELECT MIN(id) FROM books WHERE "+pair[0]+"=? AND "+pair[0]+"!='' HAVING count(*)=1", pair[1]).Scan(&id)
 		if err == nil {
 			return id, false, nil
 		}

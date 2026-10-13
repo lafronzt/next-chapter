@@ -381,7 +381,7 @@ func TestMigrateLoginFailuresAlreadyPresent(t *testing.T) {
 		}
 	}
 	db.Close()
-	if err = migrateFile(path, migrations); err != nil {
+	if err = migrateFile(path, migrations[:4]); err != nil {
 		t.Fatal(err)
 	}
 	if v, _ := versionOf(t, path); v != 4 {
@@ -389,5 +389,43 @@ func TestMigrateLoginFailuresAlreadyPresent(t *testing.T) {
 	}
 	if n := scalar[int](t, path, "SELECT count(*) FROM login_failures"); n != 1 {
 		t.Fatal("lost login failures")
+	}
+}
+
+// Migration 5 only adds indexes: a version 4 library keeps its data, gains the
+// indexes, and is backed up first.
+func TestMigrateIndexesFromVersionFour(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "lib.sqlite3")
+	if err := migrateFile(path, migrations[:4]); err != nil {
+		t.Fatal(err)
+	}
+	db, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	db.SetMaxOpenConns(1)
+	s := &Store{db}
+	err = s.Write(func(tx *sql.Tx) error {
+		_, err := importRecords(tx, []Record{{Book: Book{Title: "Kept", Author: "Writer", Status: "to-read", Source: "manual"}}, libbyLoan("Borrowed")})
+		return err
+	})
+	s.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = migrateFile(path, migrations); err != nil {
+		t.Fatal(err)
+	}
+	if v, _ := versionOf(t, path); v != 5 {
+		t.Fatal(v)
+	}
+	if n := scalar[int](t, path, "SELECT count(*) FROM sqlite_master WHERE type='index' AND name IN ('books_status_position','books_position','books_isbn','events_book','events_at')"); n != 5 {
+		t.Fatalf("%d indexes", n)
+	}
+	if n := scalar[int](t, path, "SELECT count(*) FROM books") + scalar[int](t, path, "SELECT count(*) FROM events"); n != 3 {
+		t.Fatal("lost data")
+	}
+	if b := backups(t, path); len(b) != 1 || b[0] != path+".pre-v5.bak" {
+		t.Fatalf("backups %v", b)
 	}
 }

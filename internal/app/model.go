@@ -83,6 +83,8 @@ type Plan struct {
 	Source      string       `json:"source,omitempty"`
 	// Upgrades previews how many unreviewed books an import moves, by status.
 	Upgrades map[string]int `json:"upgrades,omitempty"`
+	// Skipped previews how many import rows match deleted books.
+	Skipped int `json:"skipped,omitempty"`
 	// BookIDs and Status describe a bulk triage of unreviewed books.
 	BookIDs []int64 `json:"book_ids,omitempty"`
 	Status  string  `json:"status,omitempty"`

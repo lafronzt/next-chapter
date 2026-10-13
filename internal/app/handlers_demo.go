@@ -14,11 +14,12 @@ func (a *App) demo(w http.ResponseWriter, r *http.Request) error {
 		if err := current(tx, r); err != nil {
 			return err
 		}
-		all, err := loadBooks(tx)
+		var count int
+		err := tx.QueryRow("SELECT count(*) FROM books").Scan(&count)
 		if err != nil {
 			return err
 		}
-		if len(all) != 0 {
+		if count != 0 {
 			return bad("Example books can only be added to an empty demo library.")
 		}
 		titles := [][3]string{{"The Creative Act", "Rick Rubin", "creative, reflective"}, {"Braiding Sweetgrass", "Robin Wall Kimmerer", "nature, hopeful"}, {"Tomorrow, and Tomorrow, and Tomorrow", "Gabrielle Zevin", "fiction, friendship"}, {"A Psalm for the Wild-Built", "Becky Chambers", "hopeful, fiction"}, {"Piranesi", "Susanna Clarke", "mystery, fiction"}}
