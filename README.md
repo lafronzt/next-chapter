@@ -22,7 +22,7 @@ Every suggestion has a preview and reasons. Pinned books keep their positions. Y
 - Separate library events for print, ebook, and audiobook; newest known event wins, regardless of import order.
 - Repeatable imports, matching by Goodreads ID, ISBN, then normalized title and author.
 - Library-only titles enter **unreviewed**, never automatically finished or added to your reading queue. They wait in **To review** (with a count in the sidebar), where one click marks each as Want to read, Already read, or Not interested, or you can sort every visible book at once after a confirmation step.
-- Password login, CSRF protection, local SQLite persistence, JSON export, and consistent SQLite backups.
+- Password login, CSRF protection, local SQLite persistence, JSON export and restore, and consistent SQLite backups.
 - Docker, Compose, Kubernetes manifests, automated tests, and tagged multi-platform image publishing.
 
 ## Integration boundaries
@@ -156,7 +156,7 @@ Both actions start from a book's edit page under **Tidy up**. Nothing is merged 
 
 ## Backup and restore
 
-In Preferences, download a **database backup** for full recovery, or JSON for portable readable data. Backups use SQLite’s `VACUUM INTO` snapshot operation, not a potentially incomplete copy of a live WAL file. Pending previews, login-failure counters, and the session key are omitted, so a restored copy never accepts sign-in cookies issued by the original; everyone signs in again after a restore. The backup still contains personal reading history and your public Goodreads connection settings.
+In Preferences, download a **database backup** for full recovery, or JSON for portable readable data that can also be restored (see below). Backups use SQLite’s `VACUUM INTO` snapshot operation, not a potentially incomplete copy of a live WAL file. Pending previews, the undo snapshot, login-failure counters, and the session key are omitted, so a restored copy never accepts sign-in cookies issued by the original; everyone signs in again after a restore. The backup still contains personal reading history and your public Goodreads connection settings.
 
 To restore:
 
@@ -164,7 +164,18 @@ To restore:
 2. Use a new empty data volume/directory, put the downloaded backup there as `next-chapter.sqlite3`, and set ownership to `10001:10001`.
 3. Point the app at that directory/volume and restart with your existing secret configuration. Keep `APP_SECRET_KEY` stable across normal restarts; changing it signs out existing sessions.
 
-Do not restore over a running database or mix an older database with newer `-wal`/`-shm` files. JSON import/restore is not implemented; use the SQLite backup for recovery.
+Do not restore over a running database or mix an older database with newer `-wal`/`-shm` files.
+
+### Restore from the JSON export
+
+The JSON export can also be loaded back, for example to move to a new instance when only the JSON was kept. On **Import books**, choose **Restore a Next Chapter JSON export** (up to 10 MB). Like an import, it validates the whole file, shows a preview with counts of books, library events, current loans, and aliases, and changes nothing until you confirm; a library change in between invalidates the preview.
+
+- Restore only works on an **empty library** (no books). Merging an export into an existing library is not supported.
+- Restored: books with their status, interest, pins, **Needs placement**, queue positions and order, series, tags, pages, identifiers, added date, and source; library events with their fingerprints, so re-importing the same CSV adds no duplicates; current loans, rebuilt from the events with the same newest-wins rule as imports; merge and deletion aliases; ranking preferences; and Goodreads settings.
+- Goodreads polling is always restored **off**. The preview and the confirmation say so; turn it on in Preferences when ready.
+- Not restored: previews, undo, sign-in state, and the session key. Books and events get new ID numbers.
+- Validation is strict and uses the same limits as the forms and CSV imports. Unknown fields, malformed JSON, out-of-range values, duplicate titles or Goodreads IDs, and exports from a newer schema version than this build supports are refused, and nothing is written. The export's `schema_version` is the database schema version it came from; this build restores versions 1 to 5.
+- The file is limited to 10 MB, 10,000 books, and 100,000 events. A 10,000-book export is typically about 6 MB; a library too large for JSON restore can still use the database backup.
 
 ### Schema upgrades and rollback
 

@@ -99,6 +99,8 @@ type Plan struct {
 	// BookIDs and Status describe a bulk triage of unreviewed books.
 	BookIDs []int64 `json:"book_ids,omitempty"`
 	Status  string  `json:"status,omitempty"`
+	// Restore is a validated JSON export and what restoring it would do.
+	Restore *restorePlan `json:"restore,omitempty"`
 }
 
 func score(b Book, p Preferences, today time.Time) (float64, []string) {

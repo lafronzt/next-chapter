@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/url"
-	"time"
 )
 
 // history pages through every library event, optionally for one source
@@ -36,27 +35,11 @@ func (a *App) history(w http.ResponseWriter, r *http.Request) error {
 func (a *App) export(w http.ResponseWriter, r *http.Request) error {
 	var data []byte
 	err := a.store.Write(func(tx *sql.Tx) error {
-		books, err := loadBooks(tx)
+		f, err := exportLibrary(tx)
 		if err != nil {
 			return err
 		}
-		events, err := loadEvents(tx, 0, 0)
-		if err != nil {
-			return err
-		}
-		prefs, err := readMeta(tx, "preferences", defaultPreferences)
-		if err != nil {
-			return err
-		}
-		version, _, err := schemaVersion(tx)
-		if err != nil {
-			return err
-		}
-		aliases, err := loadAliases(tx)
-		if err != nil {
-			return err
-		}
-		data, err = json.MarshalIndent(map[string]any{"schema_version": version, "aliases": aliases, "exported_at": canonicalTime(time.Now()), "books": books, "events": events, "preferences": prefs}, "", "  ")
+		data, err = json.MarshalIndent(f, "", "  ")
 		return err
 	})
 	if err != nil {

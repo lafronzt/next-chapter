@@ -54,7 +54,7 @@ func (a *App) suggest(w http.ResponseWriter, r *http.Request) error {
 }
 
 // planTitles name the preview page for each kind of plan.
-var planTitles = map[string]string{"import": "Import preview", "triage": "Confirm sorting", "insert": "Suggested place", "reorder": "Suggested order"}
+var planTitles = map[string]string{"import": "Import preview", "restore": "Restore preview", "triage": "Confirm sorting", "insert": "Suggested place", "reorder": "Suggested order"}
 
 type undoBook struct {
 	ID             int64 `json:"id"`
@@ -71,6 +71,11 @@ func (a *App) plan(w http.ResponseWriter, r *http.Request) error {
 		preview := p.Records
 		if len(preview) > 100 {
 			preview = preview[:100]
+		}
+		if p.Restore != nil {
+			for _, b := range p.Restore.File.Books[:min(100, len(p.Restore.File.Books))] {
+				preview = append(preview, Record{Book: b})
+			}
 		}
 		data := page{"Title": planTitles[kind], "Kind": kind, "Plan": p, "PreviewRecords": preview, "Stale": rev != state(r).Revision, "UpgradeSummary": upgradeSummary(p.Upgrades), "Skipped": p.Skipped}
 		if kind == "triage" {
@@ -134,7 +139,22 @@ func (a *App) plan(w http.ResponseWriter, r *http.Request) error {
 				return err
 			}
 			location = unreviewedURL("", "triaged")
-		default:
+		case "restore":
+			if p.Restore == nil {
+				return fmt.Errorf("restore plan %s has no data", id)
+			}
+			result, err := restoreExport(tx, p.Restore.File)
+			if err != nil {
+				return err
+			}
+			if err = bump(tx); err != nil {
+				return err
+			}
+			location = "/?notice=restored"
+			if result.SyncWasOn {
+				location = "/?notice=restored-sync"
+			}
+		case "reorder", "insert":
 			queue, err := queueOrder(tx)
 			if err != nil {
 				return err
@@ -168,6 +188,9 @@ func (a *App) plan(w http.ResponseWriter, r *http.Request) error {
 			if _, err = tx.Exec("INSERT OR REPLACE INTO undo_queue VALUES(1,?,?)", string(raw), now+1); err != nil {
 				return err
 			}
+		default:
+			// Never fall through to a reorder for a kind this code does not know.
+			return fmt.Errorf("unknown plan kind %q", kind)
 		}
 		_, err = tx.Exec("DELETE FROM plans WHERE id=?", id)
 		return err

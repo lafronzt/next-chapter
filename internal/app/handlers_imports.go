@@ -61,6 +61,45 @@ func (a *App) importPage(w http.ResponseWriter, r *http.Request) error {
 	return redirect(w, r, "/plans/"+id)
 }
 
+// restoreUpload validates a Next Chapter JSON export and previews restoring it
+// into this empty library.
+func (a *App) restoreUpload(w http.ResponseWriter, r *http.Request) error {
+	file, _, err := r.FormFile("file")
+	if err != nil {
+		return bad("Choose a Next Chapter JSON export.")
+	}
+	defer file.Close()
+	data, err := io.ReadAll(io.LimitReader(file, maxRestoreUpload+1))
+	if err != nil {
+		return err
+	}
+	f, problems, err := decodeExport(data)
+	if err != nil {
+		return bad(err.Error())
+	}
+	if len(problems) > 0 {
+		count := len(problems)
+		problems = problems[:min(count, maxProblemsShown)]
+		return a.render(w, r, "imports.html", page{"Title": "Import books", "RestoreErrors": problems, "RestoreErrorCount": count}, 400)
+	}
+	var id string
+	err = a.store.Write(func(tx *sql.Tx) error {
+		if err := current(tx, r); err != nil {
+			return err
+		}
+		preview, err := previewRestore(tx, f)
+		if err != nil {
+			return err
+		}
+		id, err = savePlan(tx, "restore", Plan{Restore: &preview})
+		return err
+	})
+	if err != nil {
+		return err
+	}
+	return redirect(w, r, "/plans/"+id)
+}
+
 func (a *App) example(w http.ResponseWriter, r *http.Request) error {
 	name := strings.TrimSuffix(r.PathValue("name"), ".csv")
 	if !in(name, []string{"goodreads", "nypl", "libby"}) {

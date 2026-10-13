@@ -1,10 +1,10 @@
 {{template "top" .}}
-{{if eq .Kind "triage"}}<a class="back" href="/?view=unreviewed"><span aria-hidden="true">←</span> Back to To review</a>{{else}}<a class="back" href="/"><span aria-hidden="true">←</span> Keep my current order</a>{{end}}
+{{if eq .Kind "triage"}}<a class="back" href="/?view=unreviewed"><span aria-hidden="true">←</span> Back to To review</a>{{else if eq .Kind "restore"}}<a class="back" href="/imports"><span aria-hidden="true">←</span> Back to Import books</a>{{else}}<a class="back" href="/"><span aria-hidden="true">←</span> Keep my current order</a>{{end}}
 <header class="page-heading">
   <div>
-    <div class="eyebrow">{{if eq .Kind "import"}}IMPORT PREVIEW{{else if eq .Kind "triage"}}PLEASE CONFIRM{{else}}A SUGGESTION, NOT A COMMAND{{end}}</div>
-    <h1>{{if eq .Kind "import"}}Make yourself at home.{{else if eq .Kind "triage"}}Sort {{len .Plan.BookIDs}} books at once.{{else if eq .Kind "insert"}}A place for your new curiosity.{{else}}See your list in a new light.{{end}}</h1>
-    <p>{{if eq .Kind "import"}}Check the records before bringing them into your library.{{else if eq .Kind "triage"}}Every book below moves from To review to {{.TriageLabel}}. Nothing changes until you confirm.{{else}}Nothing moves until you apply this suggestion. Pinned books stay in place.{{end}}</p>
+    <div class="eyebrow">{{if eq .Kind "import"}}IMPORT PREVIEW{{else if eq .Kind "restore"}}RESTORE PREVIEW{{else if eq .Kind "triage"}}PLEASE CONFIRM{{else}}A SUGGESTION, NOT A COMMAND{{end}}</div>
+    <h1>{{if eq .Kind "import"}}Make yourself at home.{{else if eq .Kind "restore"}}Welcome back, books.{{else if eq .Kind "triage"}}Sort {{len .Plan.BookIDs}} books at once.{{else if eq .Kind "insert"}}A place for your new curiosity.{{else}}See your list in a new light.{{end}}</h1>
+    <p>{{if eq .Kind "import"}}Check the records before bringing them into your library.{{else if eq .Kind "restore"}}Check what the export holds before restoring it into this empty library.{{else if eq .Kind "triage"}}Every book below moves from To review to {{.TriageLabel}}. Nothing changes until you confirm.{{else}}Nothing moves until you apply this suggestion. Pinned books stay in place.{{end}}</p>
   </div>
 </header>
 {{if .Stale}}<div class="notice error" role="alert">Your library has changed since this preview. Generate a fresh preview before applying it.</div>{{end}}
@@ -25,6 +25,24 @@
   </div>
   {{end}}
   {{if gt (len .Plan.Records) 100}}<p>Showing the first 100 records.</p>{{end}}
+</div>
+{{else if eq .Kind "restore"}}
+{{with .Plan.Restore}}
+<div class="notice" role="status">{{.Queue}} books in your queue and {{.Other}} other books, with {{.Events}} library events and {{.Loans}} current loans. Queue order, pins, and Needs placement are kept; books get new ID numbers.{{if .Aliases}} {{.Aliases}} merge and deletion aliases come along.{{end}}{{if .HasPreferences}} Your ranking preferences are restored.{{end}}</div>
+{{if .AliasesKept}}<div class="notice" role="status">{{.AliasesKept}} aliases in the file match deletions already recorded here; the local ones are kept.</div>{{end}}
+{{if .HasSync}}<div class="notice" role="status">Goodreads settings are restored with polling off{{if .SyncWasOn}} (it was on when exported){{end}}. Turn it on in Preferences when you are ready.</div>{{end}}
+{{end}}
+<div class="panel preview-list">
+  {{range .PreviewRecords}}
+  <div class="preview-row">
+    <div>
+      <strong>{{.Title}}</strong>
+      <p>{{.Author}}</p>
+    </div>
+    <span class="badge">{{label .Status}}</span>
+  </div>
+  {{end}}
+  {{if gt (len .Plan.Restore.File.Books) 100}}<p>Showing the first 100 books.</p>{{end}}
 </div>
 {{else if eq .Kind "triage"}}
 <div class="panel preview-list">
@@ -58,12 +76,12 @@
 <form class="apply-bar" method="post">
   {{template "fields" .}}
   <div>
-    <strong>{{if eq .Kind "import"}}Ready to bring these in?{{else}}Does this feel right?{{end}}</strong>
-    <p>{{if eq .Kind "import"}}Imports are repeatable and matched to existing books.{{else if eq .Kind "triage"}}Only reading status changes. Books you want to read join the end of your queue, marked Needs placement. There is no undo; edit a book to change it back.{{else}}You can undo this order until your next library change.{{end}}</p>
+    <strong>{{if eq .Kind "import"}}Ready to bring these in?{{else if eq .Kind "restore"}}Ready to restore?{{else}}Does this feel right?{{end}}</strong>
+    <p>{{if eq .Kind "import"}}Imports are repeatable and matched to existing books.{{else if eq .Kind "restore"}}This fills the empty library in one step. To undo it, start again from an empty database.{{else if eq .Kind "triage"}}Only reading status changes. Books you want to read join the end of your queue, marked Needs placement. There is no undo; edit a book to change it back.{{else}}You can undo this order until your next library change.{{end}}</p>
   </div>
   <div class="button-row">
-    <a class="button" href="{{if eq .Kind "triage"}}/?view=unreviewed{{else}}/{{end}}">Cancel</a>
-    <button class="button primary" {{if .Stale}}disabled title="Generate a fresh preview first."{{end}}><span>{{if eq .Kind "import"}}Import records{{else if eq .Kind "triage"}}Mark {{len .Plan.BookIDs}} books as {{.TriageLabel}}{{else}}Apply this order{{end}} <span aria-hidden="true">→</span></span></button>
+    <a class="button" href="{{if eq .Kind "triage"}}/?view=unreviewed{{else if eq .Kind "restore"}}/imports{{else}}/{{end}}">Cancel</a>
+    <button class="button primary" {{if .Stale}}disabled title="Generate a fresh preview first."{{end}}><span>{{if eq .Kind "import"}}Import records{{else if eq .Kind "restore"}}Restore library{{else if eq .Kind "triage"}}Mark {{len .Plan.BookIDs}} books as {{.TriageLabel}}{{else}}Apply this order{{end}} <span aria-hidden="true">→</span></span></button>
   </div>
 </form>
 {{template "bottom" .}}

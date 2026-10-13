@@ -48,7 +48,7 @@ func (a *App) middleware(mux http.Handler) http.Handler {
 		}
 		r = withState(r, requestState{id, s, rev})
 		if r.Method == http.MethodPost {
-			err := parseForm(w, r)
+			err := parseForm(w, r, uploadLimit(r.URL.Path))
 			if r.MultipartForm != nil {
 				defer r.MultipartForm.RemoveAll()
 			}
@@ -74,18 +74,27 @@ func (a *App) securityHeaders(w http.ResponseWriter) {
 	}
 }
 
-// parseForm reads a POST body of at most maxUpload bytes. The caller removes
-// any multipart temporary files.
-func parseForm(w http.ResponseWriter, r *http.Request) error {
-	r.Body = http.MaxBytesReader(w, r.Body, maxUpload)
+// uploadLimit is the largest POST body a route accepts: 2 MB, except for a
+// JSON restore.
+func uploadLimit(path string) int64 {
+	if path == "/imports/restore" {
+		return maxRestoreUpload
+	}
+	return maxUpload
+}
+
+// parseForm reads a POST body of at most limit bytes. The caller removes any
+// multipart temporary files.
+func parseForm(w http.ResponseWriter, r *http.Request, limit int64) error {
+	r.Body = http.MaxBytesReader(w, r.Body, limit)
 	var err error
 	if strings.HasPrefix(r.Header.Get("Content-Type"), "multipart/form-data") {
-		err = r.ParseMultipartForm(maxUpload)
+		err = r.ParseMultipartForm(limit)
 	} else {
 		err = r.ParseForm()
 	}
 	if err != nil {
-		return httpError{Status: 413, Message: "The form or file is too large or malformed. Upload at most 2 MB."}
+		return httpError{Status: 413, Message: fmt.Sprintf("The form or file is too large or malformed. Upload at most %d MB.", limit/1_000_000)}
 	}
 	return nil
 }
