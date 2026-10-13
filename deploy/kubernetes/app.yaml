@@ -52,6 +52,19 @@ spec:
             # Set 1 behind an Ingress controller so login limits apply per visitor.
             - name: TRUSTED_PROXY_HOPS
               value: "0"
+            # Optional AI assistance (README "AI assistance"). Either put the AI_*
+            # lines in the .env behind next-chapter-auth, or uncomment these and
+            # create the key's own Secret:
+            #   kubectl create secret generic next-chapter-ai --from-literal=AI_API_KEY='…'
+            # - name: AI_PROVIDER
+            #   value: anthropic
+            # - name: AI_MODEL
+            #   value: claude-opus-5-5
+            # - name: AI_API_KEY
+            #   valueFrom:
+            #     secretKeyRef:
+            #       name: next-chapter-ai
+            #       key: AI_API_KEY
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true

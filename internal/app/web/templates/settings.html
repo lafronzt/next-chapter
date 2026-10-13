@@ -44,6 +44,39 @@
     <button class="button" {{if not .Connection.UserID}}disabled title="Save a Goodreads user ID first."{{end}}>Check Goodreads now</button>
   </form>
 </div>
+<section class="section-heading" id="ai">
+  <h2>AI assistance <span class="badge">Optional</span></h2>
+  {{if .AI.Configured}}
+  <p>{{.AI.Provider}} · model <code>{{.AI.Model}}</code>. Set by whoever runs this app; the API key stays in the server’s environment and is never shown or stored here.</p>
+  {{else}}
+  <p>Not set up. Whoever runs this app can add an AI provider and their own API key in the environment (see the README). Until then nothing is ever sent to an AI service.</p>
+  {{end}}
+</section>
+{{if .AI.Configured}}
+<div class="panel ai-panel">
+  <h3>What gets shared</h3>
+  <ul class="ai-sharing">
+    <li>Nothing leaves this server until you press a button for an AI suggestion and confirm. Nothing is sent in the background, on a schedule, or when a page loads.</li>
+    <li>Each request shows exactly which books and fields it sends before you confirm: titles, authors, tags, page counts, series, interest, your ratings, and finish years.</li>
+    <li>Never sent: library card or loan account details, your password or sessions, ISBNs, Goodreads IDs, or review text (unless you tick a box for that one request).</li>
+    <li>The provider’s own terms apply to what you send. Answers are suggestions: you preview them, and nothing changes until you apply one.</li>
+  </ul>
+  <p class="muted"><small>This month: {{.AI.Usage.Requests}} of {{.AI.Cap}} requests · {{.AI.Usage.InputTokens}} input and {{.AI.Usage.OutputTokens}} output tokens.</small></p>
+  <div class="button-row">
+    <form method="post" action="/ai/settings">
+      {{template "csrf" .}}
+      {{if .AI.Enabled}}<button class="button" name="ai" value="off">Turn AI assistance off</button>{{else}}<button class="button primary" name="ai" value="on">Turn AI assistance on</button>{{end}}
+    </form>
+    {{if .AI.Enabled}}
+    <form method="post" action="/ai/test">
+      {{template "csrf" .}}
+      <button class="button">Test connection</button>
+    </form>
+    {{end}}
+  </div>
+  {{if .AI.Enabled}}<p class="muted"><small>The test sends a fixed prompt with no library data and counts as one request.</small></p>{{end}}
+</div>
+{{end}}
 <section class="section-heading">
   <h2>Take your library with you.</h2>
   <p>Download readable data, or a complete database backup for restoring your self-hosted app.</p>

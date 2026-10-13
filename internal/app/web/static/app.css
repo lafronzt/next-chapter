@@ -962,6 +962,23 @@ input[type=checkbox] {
   margin-top:8px;
 }
 
+.ai-panel {
+  max-width:870px;
+}
+
+.ai-panel h3 {
+  margin-bottom:10px;
+}
+
+.ai-sharing {
+  margin:0 0 14px 18px;
+  line-height:1.6;
+}
+
+.ai-panel .button-row {
+  margin-top:14px;
+}
+
 .event,.history-row {
   display:flex;
   gap:25px;

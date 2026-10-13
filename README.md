@@ -7,7 +7,7 @@ Next Chapter is a **single-reader web app** with two ways to organize your list:
 - **Find its place:** suggest where one book belongs, preserving the relative order of every other book.
 - **Rethink my queue:** reconsider the entire queue using your interest, library timing, preferred length, tags, and series order.
 
-Every suggestion has a preview and reasons. Pinned books keep their positions. You decide whether to apply a suggestion, and can undo it until another library change occurs. No AI service, API key, or subscription is required.
+Every suggestion has a preview and reasons. Pinned books keep their positions. You decide whether to apply a suggestion, and can undo it until another library change occurs. No AI service, API key, or subscription is required; [AI assistance](#ai-assistance-optional) is off unless you bring your own key and switch it on.
 
 ![Next Chapter with example books](docs/preview.png)
 
@@ -131,6 +131,47 @@ Full-queue suggestions sort by score while respecting pins and earlier queued bo
 
 Preferences affect the next suggestion; saving them does not move books. Reading/finished/archived/unreviewed books are outside the queue. Returning a book never changes its reading status.
 
+## AI assistance (optional)
+
+Next Chapter works fully without AI. If you want suggestions from a language model, you can connect your own Anthropic (Claude) or OpenAI account. There is no hosted proxy and no paid service from this project: you supply the key and pay the provider directly.
+
+It is **off by default** and needs two steps:
+
+1. **The operator** sets a provider, key, and model in the environment and restarts the app:
+
+   | Variable | Meaning |
+   | --- | --- |
+   | `AI_PROVIDER` | `off` (default), `anthropic`, or `openai` |
+   | `AI_API_KEY` | The provider API key. `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` also work for the matching provider. |
+   | `AI_MODEL` | The model name, required. Suggestions checked on 2026-10-13: `claude-opus-5-5` for Anthropic, `gpt-6-astra` for OpenAI. Any current model that supports structured JSON output works; a cheaper model costs less per request. |
+   | `AI_MAX_MONTHLY_REQUESTS` | Requests allowed per calendar month (UTC), default `100`. |
+
+   The app refuses to start if `AI_PROVIDER` is set without a key or model. `AI_BASE_URL` exists only for tests and accepts nothing but `https://127.0.0.1:<port>`.
+
+2. **The reader** turns on **AI assistance** in Preferences. Preferences shows the provider and model, this month's requests and tokens, a plain-language summary of what is shared, and a **Test connection** button that sends a fixed prompt with no library data.
+
+**What is sent, and when.** Nothing is sent in the background, on a schedule, during a Goodreads check, or when a page loads. Each AI action first shows a **What gets shared** list of the exact rows and fields it will send, and sends only after you confirm. Requests carry only what the task needs: titles, authors, tags, page counts, series, interest, your ratings, and finish years. They never carry library-card or loan account details, your password or session, ISBNs, Goodreads IDs, or review text (unless you keep reviews and tick a box for that one request). The provider's own data terms apply to what is sent; OpenAI requests ask it not to store the response (`store: false`).
+
+**Safety rails.**
+
+- Requests go only to `https://api.anthropic.com/v1/messages` or `https://api.openai.com/v1/responses`, with a 60-second timeout, a 1 MB response limit, no redirects, and `User-Agent: NextChapter/<version>`. Only `net/http` is used; there is no vendor SDK.
+- The key is read from the environment only. It is never stored in the database, exports, or backups, never shown on a page, and never logged. Logs record only a failure class such as `status-429` or `timeout`, never prompts, answers, or provider error bodies.
+- One AI request runs at a time, and never while holding the database: inputs are read first, the provider is called, then a short write saves the result. Every attempt, including failed ones, counts toward the monthly limit; when it is used up, AI actions say so until the next month.
+- Model output is untrusted. The app asks for JSON matching a schema, then decodes it strictly (unknown fields are an error) and checks every value: IDs must be ones it sent, with no repeats, and numbers must be in range. Anything else is discarded with a plain message. An answer can only propose; it never writes to your library directly.
+- Book data comes from imported files, so it is sent inside a delimited data block, and the model is told to treat it as data, not instructions. The schema check above is the real defence.
+
+To turn AI off again, switch it off in Preferences, or set `AI_PROVIDER=off` (or remove it) and restart.
+
+### AI on Kubernetes
+
+Keep the key in a Secret, separate from the manifest. The simplest way is to add the `AI_*` lines to the same `.env` you create `next-chapter-auth` from. To keep the AI key in its own Secret instead:
+
+```sh
+kubectl create secret generic next-chapter-ai --from-literal=AI_API_KEY='…'
+```
+
+Then uncomment the `AI_*` entries in `deploy/kubernetes/app.yaml`. Rotating the key means updating the Secret and restarting the pod.
+
 ## Imports and data ownership
 
 CSV files must be UTF-8, ≤2 MB, and ≤10,000 rows. A malformed row blocks the entire import, with row numbers shown. Import previews expire after an hour. A library change invalidates prior previews, preventing an old browser tab from overwriting newer work.
@@ -225,7 +266,7 @@ Open [localhost:8000](http://localhost:8000). Demo mode has no login and require
 
 For production, set `APP_PASSWORD` and `APP_SECRET_KEY` and omit `LOCAL_DEMO`. `DATABASE_PATH` defaults to `data/next-chapter.sqlite3`; `LISTEN_ADDR` defaults to `:8000`. `START_POLLER=0` disables the background checker. `TRUSTED_PROXY_HOPS` (default `0`) is described under Docker Compose. The executable includes `version` and `healthcheck` commands.
 
-The application uses Go’s HTTP server, escaped HTML templates, plain CSS, and a pure-Go SQLite driver. Templates, assets, and CSV examples are embedded in the executable. No font, analytics, cover-image, or AI provider receives reading data. The only outbound app request is opt-in Goodreads RSS.
+The application uses Go’s HTTP server, escaped HTML templates, plain CSS, and a pure-Go SQLite driver. Templates, assets, and CSV examples are embedded in the executable. No font, analytics, or cover-image service receives reading data. The app makes outbound requests only for opt-in Goodreads RSS and, if the operator configures a provider and the reader switches it on, for [AI assistance](#ai-assistance-optional) that the reader requests and confirms one request at a time.
 
 ## Project layout
 
@@ -238,6 +279,7 @@ The application uses Go’s HTTP server, escaped HTML templates, plain CSS, and 
 - `internal/app/plans.go`: compact storage for previews.
 - `internal/app/merge.go`: deleting and merging books, aliases that stop re-imports from recreating them.
 - `internal/app/feed.go`, `sync.go`: fixed-host RSS fetching, optional hourly polling with backoff.
+- `internal/app/ai.go`, `handlers_ai.go`: the optional AI provider layer (Anthropic and OpenAI over `net/http`), its monthly limit, strict answer parsing, and the Preferences switch.
 - `internal/app/server.go`: configuration and the routing table; `middleware.go`, `session.go`, `render.go`, `forms.go` hold the request pipeline, and `handlers_*.go` the handlers by area.
 - `internal/app/version.go`: the release version, set at build time with `-ldflags "-X github.com/lafronzt/next-chapter/internal/app.Version=…"`.
 - `internal/app/web/`: embedded templates, assets, and import examples.

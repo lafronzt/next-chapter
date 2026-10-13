@@ -69,7 +69,11 @@ func run() error {
 	if err != nil || hops < 0 || hops > 10 {
 		return fmt.Errorf("TRUSTED_PROXY_HOPS must be a whole number from 0 to 10")
 	}
-	a, err := app.New(app.Config{Database: env("DATABASE_PATH", "data/next-chapter.sqlite3"), Password: os.Getenv("APP_PASSWORD"), Secret: os.Getenv("APP_SECRET_KEY"), Demo: demo, SecureCookie: os.Getenv("COOKIE_SECURE") == "1", TrustedProxyHops: hops})
+	ai, err := app.LoadAIConfig(os.Getenv)
+	if err != nil {
+		return err
+	}
+	a, err := app.New(app.Config{Database: env("DATABASE_PATH", "data/next-chapter.sqlite3"), Password: os.Getenv("APP_PASSWORD"), Secret: os.Getenv("APP_SECRET_KEY"), Demo: demo, SecureCookie: os.Getenv("COOKIE_SECURE") == "1", TrustedProxyHops: hops, AI: ai})
 	if err != nil {
 		return err
 	}
@@ -95,6 +99,9 @@ func run() error {
 		}
 	}()
 	log.Printf("Next Chapter listening on %s", addr)
+	if ai.Enabled() {
+		log.Printf("AI provider %s configured with model %s; readers turn it on in Preferences", ai.Provider, ai.Model)
+	}
 	err = server.ListenAndServe()
 	stop()
 	<-shutdownDone

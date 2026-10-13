@@ -49,6 +49,8 @@ type browser struct {
 	cookie    *http.Cookie
 	csrf, rev string
 	remote    string // client address; httptest's default when empty
+	// gateway accepts 502 responses, which AI provider failures produce.
+	gateway bool
 }
 
 var csrfPattern = regexp.MustCompile(`name="csrf" value="([^"]+)"`)
@@ -96,7 +98,7 @@ func (b *browser) serve(req *http.Request) *httptest.ResponseRecorder {
 	if m := revisionPattern.FindStringSubmatch(rr.Body.String()); m != nil {
 		b.rev = m[1]
 	}
-	if rr.Code >= 500 {
+	if rr.Code >= 500 && !(b.gateway && rr.Code == http.StatusBadGateway) {
 		b.t.Fatalf("%s %s: %d %s", req.Method, req.URL, rr.Code, rr.Body)
 	}
 	return rr

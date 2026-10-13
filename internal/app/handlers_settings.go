@@ -62,5 +62,9 @@ func (a *App) settings(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
-	return a.render(w, r, "settings.html", page{"Title": "Preferences & sync", "Prefs": prefs, "Connection": conn, "LastSync": last, "LastReadSync": lastRead, "Poll": poll, "SchemaVersion": version}, 200)
+	ai, err := a.aiStatus(a.store.DB)
+	if err != nil {
+		return err
+	}
+	return a.render(w, r, "settings.html", page{"Title": "Preferences & sync", "Prefs": prefs, "Connection": conn, "LastSync": last, "LastReadSync": lastRead, "Poll": poll, "SchemaVersion": version, "AI": ai}, 200)
 }
