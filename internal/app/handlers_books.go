@@ -31,14 +31,12 @@ func (a *App) newBook(w http.ResponseWriter, r *http.Request) error {
 		if err = clearTombstones(tx, Record{Book: b}); err != nil {
 			return err
 		}
+		// bookFields validated Interest, so the new book takes it directly.
 		if _, err = importRecords(tx, []Record{{Book: b}}); err != nil {
 			return err
 		}
 		id, err = findBook(tx, Record{Book: b})
 		if err != nil {
-			return err
-		}
-		if _, err = tx.Exec("UPDATE books SET interest=? WHERE id=?", b.Interest, id); err != nil {
 			return err
 		}
 		if err = bump(tx); err != nil {

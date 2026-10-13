@@ -46,7 +46,13 @@ func (a *App) importPage(w http.ResponseWriter, r *http.Request) error {
 		if err != nil {
 			return err
 		}
-		id, err = savePlan(tx, "import", Plan{Records: records, Source: source, Upgrades: preview.Upgraded})
+		ignored := 0
+		for _, r := range records {
+			if r.RatingIgnored {
+				ignored++
+			}
+		}
+		id, err = savePlan(tx, "import", Plan{Records: records, Source: source, Upgrades: preview.Upgraded, Rated: preview.Rated, RatingsKept: preview.RatingsKept, RatingsIgnored: ignored})
 		return err
 	})
 	if err != nil {

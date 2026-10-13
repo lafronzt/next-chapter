@@ -328,3 +328,101 @@ func FuzzParseTime(f *testing.F) {
 		}
 	})
 }
+
+func TestGoodreadsRatingSeedsInterest(t *testing.T) {
+	t.Parallel()
+	csv := "Book Id,Title,Author,My Rating,Average Rating\n" +
+		"1,Loved,W,5,1.20\n2,Unrated,W,0,4.90\n3,Blank,W,,4.90\n4,Seven,W,7,4.90\n5,Word,W,abc,4.90\n6,Half,W,3.5,4.90\n7,Liked,W, 2 ,4.90\n"
+	rows, problems, err := ParseCSV([]byte(csv), "goodreads")
+	if err != nil || len(problems) != 0 || len(rows) != 7 {
+		t.Fatal(rows, problems, err)
+	}
+	for i, want := range []struct {
+		interest, rating int
+		ignored          bool
+	}{{5, 5, false}, {3, 0, false}, {3, 0, false}, {3, 0, true}, {3, 0, true}, {3, 0, true}, {2, 2, false}} {
+		r := rows[i]
+		if r.Interest != want.interest || r.Rating != want.rating || r.RatingIgnored != want.ignored {
+			t.Errorf("%s: interest %d rating %d ignored %v", r.Title, r.Interest, r.Rating, r.RatingIgnored)
+		}
+	}
+	// Average Rating alone is never the reader's opinion.
+	rows, _, _ = ParseCSV([]byte("Title,Author,Average Rating\nA,B,5\n"), "goodreads")
+	if rows[0].Interest != 3 || rows[0].Rating != 0 {
+		t.Fatalf("%+v", rows[0])
+	}
+	// Library exports have no ratings.
+	rows, _, _ = ParseCSV([]byte("Title,Author,My Rating,Activity,Date\nA,B,5,Borrowed,2026-10-01\n"), "libby")
+	if rows[0].Interest != 3 || rows[0].Rating != 0 {
+		t.Fatalf("%+v", rows[0])
+	}
+}
+
+func TestRSSRatingSeedsInterest(t *testing.T) {
+	t.Parallel()
+	item := func(title, rating string) string {
+		return "<item><book_title>" + title + "</book_title><author_name>W</author_name><user_rating>" + rating + "</user_rating><average_rating>4.5</average_rating></item>"
+	}
+	rows, err := ParseRSS([]byte("<rss><channel>" + item("Four", "4") + item("Zero", "0") + item("Nine", "9") + "<item><book_title>None</book_title><author_name>W</author_name><average_rating>5</average_rating></item></channel></rss>"))
+	if err != nil || len(rows) != 4 {
+		t.Fatal(rows, err)
+	}
+	for i, want := range []int{4, 3, 3, 3} {
+		if rows[i].Interest != want {
+			t.Errorf("%s: interest %d, want %d", rows[i].Title, rows[i].Interest, want)
+		}
+	}
+}
+
+func TestImportUsesRatingOnlyForNewBooks(t *testing.T) {
+	t.Parallel()
+	a := testApp(t, true)
+	rated := func(title string, rating int) Record {
+		r := shelf(title, "to-read")
+		r.Rating, r.Interest = rating, rating
+		return r
+	}
+	result := importResultFor(t, a, []Record{rated("Rated", 5), shelf("Unrated", "to-read"), rated("Read", 4)})
+	if result.Added != 3 || result.Rated != 2 || result.RatingsKept != 0 {
+		t.Fatalf("%+v", result)
+	}
+	if bookNamed(t, a, "Rated").Interest != 5 || bookNamed(t, a, "Unrated").Interest != 3 {
+		t.Fatal("rating not used for a new book")
+	}
+	// The reader changes their mind; a later import must not undo that.
+	if _, err := a.store.DB.Exec("UPDATE books SET interest=1 WHERE title='Rated'"); err != nil {
+		t.Fatal(err)
+	}
+	result = importResultFor(t, a, []Record{rated("Rated", 5), rated("Unrated", 4)})
+	if result.Added != 0 || result.Rated != 0 || result.RatingsKept != 2 || result.Changed {
+		t.Fatalf("%+v", result)
+	}
+	if bookNamed(t, a, "Rated").Interest != 1 || bookNamed(t, a, "Unrated").Interest != 3 {
+		t.Fatal("re-import changed a local interest")
+	}
+	// Records built without an interest (the demo, loans) still satisfy the
+	// column's 1-5 check.
+	importResultFor(t, a, []Record{{Book: Book{Title: "Zero", Author: "W", Status: "to-read", Source: "demo"}}, {Book: Book{Title: "Huge", Author: "W", Status: "to-read", Source: "demo", Interest: 9}}})
+	if bookNamed(t, a, "Zero").Interest != 3 || bookNamed(t, a, "Huge").Interest != 3 {
+		t.Fatal("out-of-range interest not clamped")
+	}
+}
+
+func TestStoredPlanKeepsRatings(t *testing.T) {
+	t.Parallel()
+	rows, _, err := ParseCSV([]byte("Title,Author,My Rating\nA,W,4\nB,W,0\n"), "goodreads")
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := encodePlan(Plan{Records: rows})
+	if err != nil {
+		t.Fatal(err)
+	}
+	p, err := decodePlan(nil, "reorder", raw)
+	if err != nil || len(p.Records) != 2 {
+		t.Fatal(p, err)
+	}
+	if p.Records[0].Interest != 4 || p.Records[0].Rating != 4 || p.Records[1].Interest != 3 || p.Records[1].Rating != 0 {
+		t.Fatalf("%+v %+v", p.Records[0], p.Records[1])
+	}
+}

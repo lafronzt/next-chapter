@@ -91,6 +91,20 @@ func activityStatus(s string) (string, error) {
 	return status, nil
 }
 
+// parseRating reads a Goodreads "My Rating" or user_rating. Blank and 0 mean
+// unrated. Anything else outside 1-5 is ignored rather than failing the row:
+// the rating only seeds interest, which the reader can set by hand.
+func parseRating(s string) (rating int, ignored bool) {
+	s = strings.TrimSpace(s)
+	if s == "" || s == "0" {
+		return 0, false
+	}
+	n, err := strconv.Atoi(s)
+	if err != nil || n < 1 || n > 5 {
+		return 0, true
+	}
+	return n, false
+}
 func ParseCSV(data []byte, source string) ([]Record, []string, error) {
 	if !in(source, []string{"goodreads", "libby", "nypl"}) {
 		return nil, nil, fmt.Errorf("choose a supported import source")
@@ -164,6 +178,11 @@ func parseRecord(row map[string]string, source string) (Record, error) {
 	if source == "goodreads" {
 		r.GoodreadsID = field(row, "book id")
 		r.Tags = truncate(field(row, "bookshelves"), 500)
+		// Only the reader's own rating; never "Average Rating".
+		r.Rating, r.RatingIgnored = parseRating(field(row, "my rating"))
+		if r.Rating > 0 {
+			r.Interest = r.Rating
+		}
 		switch field(row, "exclusive shelf") {
 		case "read":
 			r.Status = "read"
@@ -220,6 +239,7 @@ func ParseRSS(data []byte) ([]Record, error) {
 			ISBN        string `xml:"isbn"`
 			Pages       string `xml:"num_pages"`
 			NestedPages string `xml:"book>num_pages"`
+			UserRating  string `xml:"user_rating"`
 		} `xml:"channel>item"`
 	}
 	if err := xml.Unmarshal(data, &feed); err != nil {
@@ -245,6 +265,9 @@ func ParseRSS(data []byte) ([]Record, error) {
 		}
 		if n, e := strconv.Atoi(pages); e == nil && n > 0 && n < 100000 {
 			r.Pages = &n
+		}
+		if r.Rating, _ = parseRating(item.UserRating); r.Rating > 0 {
+			r.Interest = r.Rating
 		}
 		records = append(records, r)
 	}

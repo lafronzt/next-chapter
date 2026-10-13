@@ -12,6 +12,8 @@
 <div class="notice" role="status">{{len .Plan.Records}} rows from {{.Plan.Source}}. Repeated library events are ignored; existing books keep their reading status and queue order, except books still waiting in To review, which follow their Goodreads shelf. Library-only books are saved as unreviewed.</div>
 {{if .UpgradeSummary}}<div class="notice" role="status">{{.UpgradeSummary}}</div>{{end}}
 {{if .Skipped}}<div class="notice" role="status">{{.Skipped}} rows match books you deleted and will be skipped. Add a book by hand to bring it back.</div>{{end}}
+{{if or .Plan.Rated .Plan.RatingsKept}}<div class="notice" role="status">{{if .Plan.Rated}}{{.Plan.Rated}} new {{if eq .Plan.Rated 1}}book starts{{else}}books start{{end}} with your Goodreads rating as interest.{{end}}{{if .Plan.RatingsKept}} {{.Plan.RatingsKept}} rated {{if eq .Plan.RatingsKept 1}}book is{{else}}books are{{end}} already here and {{if eq .Plan.RatingsKept 1}}keeps its{{else}}keep their{{end}} current interest.{{end}}</div>{{end}}
+{{if .Plan.RatingsIgnored}}<div class="notice" role="status">{{.Plan.RatingsIgnored}} {{if eq .Plan.RatingsIgnored 1}}rating was{{else}}ratings were{{end}} not a whole number from 0 to 5 and {{if eq .Plan.RatingsIgnored 1}}was{{else}}were{{end}} ignored; {{if eq .Plan.RatingsIgnored 1}}that book starts{{else}}those books start{{end}} at interest 3.</div>{{end}}
 <div class="panel preview-list">
   {{range .PreviewRecords}}
   <div class="preview-row">

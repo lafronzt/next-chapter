@@ -120,6 +120,11 @@ func TestDemoAndLoginLimit(t *testing.T) {
 	expect(t, b.request("POST", "/demo", nil), 303)
 	expect(t, b.request("GET", "/", nil), 200)
 	expect(t, b.request("POST", "/demo", nil), 400)
+	for _, book := range mustBooks(t, a) {
+		if want := map[bool]int{true: 5, false: 3}[book.ID == 5]; book.Interest != want {
+			t.Fatalf("demo %s interest %d", book.Title, book.Interest)
+		}
+	}
 	prod := testApp(t, false)
 	p := browser{t: t, handler: prod.Handler(), remote: "198.51.100.1:4000"}
 	expect(t, p.request("GET", "/login", nil), 200)
@@ -607,5 +612,37 @@ func TestSettingsValidation(t *testing.T) {
 	expect(t, b.form("/settings", with("mood", strings.Repeat("m", 150))), 303)
 	if prefs, _ := readMeta(a.store.DB, "preferences", defaultPreferences); len(prefs.Mood) != 100 {
 		t.Fatalf("mood not truncated: %d", len(prefs.Mood))
+	}
+}
+
+func TestRatingsInImportPreview(t *testing.T) {
+	t.Parallel()
+	a := testApp(t, true)
+	addRecords(t, a, []Record{shelf("Already Here", "to-read")})
+	if _, err := a.store.DB.Exec("UPDATE books SET interest=2"); err != nil {
+		t.Fatal(err)
+	}
+	b := &browser{t: t, handler: a.Handler()}
+	expect(t, b.request("GET", "/imports", nil), 200)
+	rr := uploadCSV(b, "goodreads", "Title,Author,My Rating\nNew Five,Author,5\nNew Four,Author,4\nNew Unrated,Author,0\nAlready Here,Author,5\nOdd,Author,11\n")
+	expect(t, rr, 303)
+	planURL := rr.Header().Get("Location")
+	rr = b.request("GET", planURL, nil)
+	expect(t, rr, 200)
+	for _, text := range []string{"2 new books start with your Goodreads rating as interest.", "1 rated book is already here and keeps its current interest.", "1 rating was not a whole number from 0 to 5 and was ignored"} {
+		if !strings.Contains(rr.Body.String(), text) {
+			t.Fatalf("preview missing %q", text)
+		}
+	}
+	expect(t, b.request("POST", planURL, nil), 303)
+	for title, want := range map[string]int{"New Five": 5, "New Four": 4, "New Unrated": 3, "Already Here": 2, "Odd": 3} {
+		if got := bookNamed(t, a, title).Interest; got != want {
+			t.Errorf("%s: interest %d, want %d", title, got, want)
+		}
+	}
+	// A manual add takes the form's interest directly.
+	expect(t, b.form("/books/new", bookForm("By Hand", "read", "interest", "4")), 303)
+	if got := bookNamed(t, a, "By Hand").Interest; got != 4 {
+		t.Fatalf("manual interest %d", got)
 	}
 }

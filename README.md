@@ -135,7 +135,8 @@ Preferences affect the next suggestion; saving them does not move books. Reading
 CSV files must be UTF-8, ≤2 MB, and ≤10,000 rows. A malformed row blocks the entire import, with row numbers shown. Import previews expire after an hour. A library change invalidates prior previews, preventing an old browser tab from overwriting newer work.
 
 - `Title` and `Author` are required for every record.
-- Goodreads fields: `Book Id`, `ISBN13` or `ISBN`, `Number of Pages`, `Exclusive Shelf`, `Bookshelves`.
+- Goodreads fields: `Book Id`, `ISBN13` or `ISBN`, `Number of Pages`, `Exclusive Shelf`, `Bookshelves`, `My Rating`.
+- **Ratings seed interest for new books only.** A `My Rating` of 1–5 (or the RSS feed's `user_rating`) becomes the starting interest of a book the import adds. `0` or blank means unrated and starts at 3. Any other value, such as `7` or `abc`, is ignored rather than failing the import; the book starts at 3 and the preview says how many ratings were ignored. A book already in your library keeps the interest you set, whatever its Goodreads rating. `Average Rating` is never used: it is other readers' opinion, not yours. Rated books on the `read` shelf are stored as usual; interest only matters if they return to the queue. The preview shows how many new books take their rating and how many existing books keep theirs.
 - Library fields: `Timestamp` (or `Date`), `Activity` (or `Status`), optional `Format`, `ISBN`, and `Due Date`.
 - Prefer ISO 8601 timestamps with time zones and `YYYY-MM-DD` due dates. Date-only and timezone-free inputs are treated as UTC. If several different events share the same timestamp and format, the first one imported remains the current status; supply more precise timestamps or log the current status manually to resolve ambiguity.
 - Supported activities include Borrowed, Loan, Checked out, Renewed, Hold, Placed on hold, Requested, Ready, Ready for pickup, Returned, Cancelled/Canceled, and Available.

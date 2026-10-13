@@ -62,7 +62,10 @@ type importResult struct {
 	Skipped int
 	// Upgraded counts books that left unreviewed, keyed by their new status.
 	Upgraded map[string]int
-	Changed  bool
+	// Rated counts added books whose interest came from a rating; RatingsKept
+	// counts rated records for existing books, which keep their interest.
+	Rated, RatingsKept int
+	Changed            bool
 }
 
 func (r importResult) upgradedTotal() int {
@@ -130,8 +133,13 @@ func importRecords(q queryer, records []Record) (out importResult, err error) {
 			continue
 		}
 		if id == 0 {
+			// Several callers leave Interest at 0; the column requires 1-5.
+			interest := 3
+			if r.Interest >= 1 && r.Interest <= 5 {
+				interest = r.Interest
+			}
 			result, err := q.Exec(`INSERT INTO books(title,author,identity,isbn,goodreads_id,pages,tags,interest,reading_status,position,series,series_number,added_at,source)
-    VALUES(?,?,?,?,?,?,?,?,?,(SELECT COALESCE(MAX(position),-1)+1 FROM books),?,?,?,?)`, r.Title, r.Author, identity(r.Title, r.Author), r.ISBN, r.GoodreadsID, r.Pages, r.Tags, 3, r.Status, r.Series, r.SeriesNumber, canonicalTime(time.Now()), r.Source)
+    VALUES(?,?,?,?,?,?,?,?,?,(SELECT COALESCE(MAX(position),-1)+1 FROM books),?,?,?,?)`, r.Title, r.Author, identity(r.Title, r.Author), r.ISBN, r.GoodreadsID, r.Pages, r.Tags, interest, r.Status, r.Series, r.SeriesNumber, canonicalTime(time.Now()), r.Source)
 			if err != nil {
 				return out, err
 			}
@@ -139,8 +147,16 @@ func importRecords(q queryer, records []Record) (out importResult, err error) {
 				return out, err
 			}
 			out.Added++
+			if r.Rating > 0 {
+				out.Rated++
+			}
 			out.Changed = true
 		} else {
+			// Local choices are authoritative: a rating never changes the
+			// interest of a book that is already here.
+			if r.Rating > 0 {
+				out.RatingsKept++
+			}
 			for _, pair := range [][2]string{{"goodreads_id", r.GoodreadsID}, {"isbn", r.ISBN}} {
 				if pair[1] != "" {
 					changed, err := execChanged(q, "UPDATE books SET "+pair[0]+"=? WHERE id=? AND "+pair[0]+"=''", pair[1], id)

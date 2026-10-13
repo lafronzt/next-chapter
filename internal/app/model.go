@@ -53,6 +53,11 @@ type Event struct {
 type Record struct {
 	Book
 	Event *Event `json:"event"`
+	// Rating is the reader's own Goodreads rating, 1-5, or 0 when unrated.
+	// Parsers also copy it into Interest, which only a new book takes.
+	Rating int `json:"rating,omitempty"`
+	// RatingIgnored marks a rating that was present but not 0-5.
+	RatingIgnored bool `json:"-"`
 }
 
 type Preferences struct {
@@ -85,6 +90,12 @@ type Plan struct {
 	Upgrades map[string]int `json:"upgrades,omitempty"`
 	// Skipped previews how many import rows match deleted books.
 	Skipped int `json:"skipped,omitempty"`
+	// Rated counts new books that will start with their Goodreads rating as
+	// interest, RatingsKept matched books whose local interest wins, and
+	// RatingsIgnored ratings that were not a whole number from 0 to 5.
+	Rated          int `json:"rated,omitempty"`
+	RatingsKept    int `json:"ratings_kept,omitempty"`
+	RatingsIgnored int `json:"ratings_ignored,omitempty"`
 	// BookIDs and Status describe a bulk triage of unreviewed books.
 	BookIDs []int64 `json:"book_ids,omitempty"`
 	Status  string  `json:"status,omitempty"`
