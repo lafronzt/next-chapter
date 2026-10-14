@@ -552,50 +552,69 @@ func loadEstimateInputs(q queryer, bookID int64) (estimateInputs, error) {
 	return ei, nil
 }
 
+// estimateRequest is the prompt for one estimate.
+func estimateRequest(payload estimatePayload) (AIRequest, error) {
+	req, err := libraryPrompt(estimateTask, payload, 4000, estimateSchema)
+	req.LocalSchema = json.RawMessage(estimateLocalSchema)
+	return req, err
+}
+
 // estimateAI asks the provider for its estimate of a book, given the
-// fingerprint of the inputs the reader saw in the preview. The network call
-// happens outside any transaction; the result is saved in a short write that
-// first checks the inputs did not change meanwhile.
+// fingerprint of the inputs the reader saw in the preview.
 func (a *App) estimateAI(ctx context.Context, bookID int64, fingerprint string, reviews bool) error {
+	_, send, err := a.prepareEstimateAI(bookID, fingerprint, reviews)
+	if err != nil {
+		return err
+	}
+	return send(ctx)
+}
+
+// prepareEstimateAI checks an estimate request against the preview and
+// returns the book's title and a function that sends it, which may run in the
+// background. The network call happens outside any transaction; the result is
+// saved in a short write that first checks the inputs did not change
+// meanwhile.
+func (a *App) prepareEstimateAI(bookID int64, fingerprint string, reviews bool) (string, func(context.Context) error, error) {
 	ei, err := loadEstimateInputs(a.store.DB, bookID)
 	if err != nil {
-		return err
+		return "", nil, err
 	}
 	if ei.Rated {
-		return bad("You have already rated this book.")
+		return "", nil, bad("You have already rated this book.")
 	}
 	if ei.Baseline.Rated == 0 {
-		return bad("Rate a few finished books first; an estimate needs your own ratings.")
+		return "", nil, bad("Rate a few finished books first; an estimate needs your own ratings.")
 	}
 	if ei.Fingerprint != fingerprint {
-		return conflict("Your reading history or this book changed since the preview. Check what gets shared again.")
+		return "", nil, conflict("Your reading history or this book changed since the preview. Check what gets shared again.")
 	}
-	payload := buildEstimatePayload(ei.Book, ei.History, ei.Baseline, reviews && ei.KeepReviews)
-	req, err := libraryPrompt(estimateTask, payload, 4000, estimateSchema)
+	req, err := estimateRequest(buildEstimatePayload(ei.Book, ei.History, ei.Baseline, reviews && ei.KeepReviews))
 	if err != nil {
-		return err
+		return "", nil, err
 	}
-	req.LocalSchema = json.RawMessage(estimateLocalSchema)
-	resp, err := a.askAI(ctx, req)
-	if err != nil {
-		return err
-	}
-	var answer estimateAnswer
-	if err = decodeAnswer(resp.Text, &answer); err == nil {
-		err = checkEstimateAnswer(&answer)
-	}
-	if err != nil {
-		return aiRejected(err)
-	}
-	return a.store.Write(func(tx *sql.Tx) error {
-		now, err := loadEstimateInputs(tx, bookID)
+	send := func(ctx context.Context) error {
+		resp, err := a.askAI(ctx, req)
 		if err != nil {
 			return err
 		}
-		if now.Fingerprint != fingerprint {
-			return conflict("Your reading history changed while the AI was answering, so its estimate was not saved. Try again.")
+		var answer estimateAnswer
+		if err = decodeAnswer(resp.Text, &answer); err == nil {
+			err = checkEstimateAnswer(&answer)
 		}
-		return saveAIEstimate(tx, ratingEstimate{BookID: bookID, Fingerprint: fingerprint, Baseline: ei.Baseline.Estimate, AI: &answer.Estimate,
-			Confidence: answer.Confidence, Reasons: answer.Reasons, Model: a.config.AI.Model, CreatedAt: canonicalTime(a.now())})
-	})
+		if err != nil {
+			return aiRejected(err)
+		}
+		return a.store.Write(func(tx *sql.Tx) error {
+			now, err := loadEstimateInputs(tx, bookID)
+			if err != nil {
+				return err
+			}
+			if now.Fingerprint != fingerprint {
+				return conflict("Your reading history changed while the AI was answering, so its estimate was not saved. Try again.")
+			}
+			return saveAIEstimate(tx, ratingEstimate{BookID: bookID, Fingerprint: fingerprint, Baseline: ei.Baseline.Estimate, AI: &answer.Estimate,
+				Confidence: answer.Confidence, Reasons: answer.Reasons, Model: a.config.AI.Model, CreatedAt: canonicalTime(a.now())})
+		})
+	}
+	return ei.Book.Title, send, nil
 }

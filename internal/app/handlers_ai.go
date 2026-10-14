@@ -1,6 +1,8 @@
 package app
 
 import (
+	"cmp"
+	"context"
 	"database/sql"
 	"net/http"
 )
@@ -29,11 +31,16 @@ func (a *App) aiSettings(w http.ResponseWriter, r *http.Request) error {
 	return redirect(w, r, "/settings?notice=ai-off#ai")
 }
 
-// aiTest sends a fixed prompt with no library data.
+// aiTest sends a fixed prompt with no library data, in the background.
 func (a *App) aiTest(w http.ResponseWriter, r *http.Request) error {
-	a.allowSlowAI(w)
-	if err := a.testAI(r.Context()); err != nil {
+	if ai, err := a.aiStatus(a.store.DB); err != nil || !ai.Available() {
+		return cmp.Or(err, error(errAIOff))
+	}
+	id, err := a.startAIJob("the connection test", "/settings#ai", "", func(ctx context.Context) (string, error) {
+		return "/settings?notice=ai-tested#ai", a.testAI(ctx)
+	})
+	if err != nil {
 		return err
 	}
-	return redirect(w, r, "/settings?notice=ai-tested#ai")
+	return redirect(w, r, "/ai/jobs/"+id)
 }

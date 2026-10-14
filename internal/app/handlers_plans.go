@@ -2,6 +2,7 @@ package app
 
 import (
 	"cmp"
+	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -303,20 +304,31 @@ func (a *App) planAIData(data page, kind string, p Plan, r *http.Request) error 
 	if err != nil {
 		return err
 	}
-	data["Shared"], data["SharedFingerprint"] = ri.Payload, ri.Fingerprint
+	req, err := ri.request()
+	if err != nil {
+		return err
+	}
+	data["Shared"], data["SharedFingerprint"], data["Prompt"] = ri.Payload, ri.Fingerprint, a.previewPrompt(req)
 	return nil
 }
 
-// planAI sends a queue suggestion's previewed request to the AI provider and
-// shows the result beside the usual ranking.
+// planAI checks a queue suggestion's previewed request and sends it to the AI
+// provider in the background; the result is shown beside the usual ranking.
 func (a *App) planAI(w http.ResponseWriter, r *http.Request) error {
 	if ai, err := a.aiStatus(a.store.DB); err != nil || !ai.Available() {
 		return cmp.Or(err, error(errAIOff))
 	}
-	a.allowSlowAI(w)
-	id, err := a.rerankAI(r.Context(), r.PathValue("id"), r.FormValue("fingerprint"))
+	plan := r.PathValue("id")
+	send, err := a.prepareRerankAI(plan, r.FormValue("fingerprint"))
 	if err != nil {
 		return err
 	}
-	return redirect(w, r, "/plans/"+id)
+	job, err := a.startAIJob("a queue suggestion", "/plans/"+plan, "If your library changes before it answers, the suggestion cannot be used and you will need a fresh one.", func(ctx context.Context) (string, error) {
+		id, err := send(ctx)
+		return "/plans/" + id, err
+	})
+	if err != nil {
+		return err
+	}
+	return redirect(w, r, "/ai/jobs/"+job)
 }

@@ -6,6 +6,7 @@
   <title>{{with .Title}}{{.}} – {{end}}Next Chapter</title>
   <link rel="stylesheet" href="/static/app.css">
   <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+  {{with .Refresh}}<meta http-equiv="refresh" content="{{.}}">{{end}}
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to main content</a>
@@ -39,6 +40,7 @@
     <span class="edition">Personal edition · v{{version}}</span>
   </div>
   {{if .Notice}}<div class="notice" role="status">{{.Notice}}</div>{{end}}
+  {{with .AIJob}}<div class="notice ai-job{{if and .Done .Err}} error{{end}}" role="status">{{if not .Done}}<span class="ai-spinner small" aria-hidden="true"></span> The AI is working on {{.Label}}. Keep using the app; <a href="/ai/jobs/{{.ID}}">check on it</a>.{{else if .Err}}The AI request for {{.Label}} did not finish. <a href="/ai/jobs/{{.ID}}">See what happened</a>.{{else}}The AI has answered: {{.Label}} is ready. <a href="/ai/jobs/{{.ID}}">See the result</a>.{{end}}</div>{{end}}
 {{end}}
 
 {{define "bottom"}}
@@ -46,6 +48,20 @@
 </main>
 </body>
 </html>
+{{end}}
+
+{{define "prompt"}}
+<details class="prompt-preview">
+  <summary>Show the exact prompt</summary>
+  <p class="muted"><small>Word for word what {{.Provider}} receives, apart from the model name and the API’s own wrapping. The answer may use up to {{.MaxTokens}} tokens and must match the format below.</small></p>
+  <h4>Instructions (system prompt)</h4>
+  <pre tabindex="0">{{.System}}</pre>
+  <h4>Message with your library data</h4>
+  <pre tabindex="0">{{.User}}</pre>
+  {{with .Schema}}<h4>Required answer format (JSON Schema)</h4>
+  <pre tabindex="0">{{.}}</pre>{{end}}
+  {{with .Note}}<p class="muted"><small>{{.}}</small></p>{{end}}
+</details>
 {{end}}
 
 {{define "csrf"}}<input type="hidden" name="csrf" value="{{.CSRF}}">{{end}}

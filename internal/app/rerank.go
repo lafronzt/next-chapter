@@ -378,12 +378,22 @@ func movedFrom(desired, final []int) map[int]bool {
 }
 
 // rerankAI asks the provider about plan id, given the fingerprint of the
-// request the reader saw. Inputs are read in one short transaction, the
-// provider is called outside it, and the result is saved as a new plan in
-// another short one that first checks the library did not change meanwhile.
-// An answer that fails validation falls back to the usual ranking with a
-// notice.
+// request the reader saw, and returns the new plan's id.
 func (a *App) rerankAI(ctx context.Context, id, fingerprint string) (string, error) {
+	send, err := a.prepareRerankAI(id, fingerprint)
+	if err != nil {
+		return "", err
+	}
+	return send(ctx)
+}
+
+// prepareRerankAI checks a queue suggestion's AI request against the
+// preview and returns a function that sends it, which may run in the
+// background. Inputs are read in one short transaction, the provider is
+// called outside it, and the result is saved as a new plan in another short
+// one that first checks the library did not change meanwhile. An answer that
+// fails validation falls back to the usual ranking with a notice.
+func (a *App) prepareRerankAI(id, fingerprint string) (func(context.Context) (string, error), error) {
 	var kind string
 	var p Plan
 	var rev int64
@@ -410,43 +420,45 @@ func (a *App) rerankAI(ctx context.Context, id, fingerprint string) (string, err
 		return err
 	})
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	if ri.Fingerprint != fingerprint {
-		return "", conflict("What would be shared changed since the preview. Check it again before sending.")
+		return nil, conflict("What would be shared changed since the preview. Check it again before sending.")
 	}
 	req, err := ri.request()
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-	resp, err := a.askAI(ctx, req)
-	if err != nil {
-		return "", err
-	}
-	next := p
-	next.Rows = slices.Clone(p.Rows)
-	for i := range next.Rows {
-		next.Rows[i].Source = "rules"
-	}
-	next.AIModel, next.AIInputTokens, next.AIOutputTokens = a.config.AI.Model, resp.InputTokens, resp.OutputTokens
-	if next.AIRows, err = ri.aiRows(resp.Text); err != nil {
-		next.AIRows = nil
-		next.AINotice = "The AI’s answer could not be used (" + err.Error() + "), so this is your usual ranking. Nothing in your library changed."
-	}
-	var newID string
-	err = a.store.Write(func(tx *sql.Tx) error {
-		now, err := revision(tx)
+	return func(ctx context.Context) (string, error) {
+		resp, err := a.askAI(ctx, req)
 		if err != nil {
+			return "", err
+		}
+		next := p
+		next.Rows = slices.Clone(p.Rows)
+		for i := range next.Rows {
+			next.Rows[i].Source = "rules"
+		}
+		next.AIModel, next.AIInputTokens, next.AIOutputTokens = a.config.AI.Model, resp.InputTokens, resp.OutputTokens
+		if next.AIRows, err = ri.aiRows(resp.Text); err != nil {
+			next.AIRows = nil
+			next.AINotice = "The AI’s answer could not be used (" + err.Error() + "), so this is your usual ranking. Nothing in your library changed."
+		}
+		var newID string
+		err = a.store.Write(func(tx *sql.Tx) error {
+			now, err := revision(tx)
+			if err != nil {
+				return err
+			}
+			if now != rev {
+				return conflict("Your library changed while the AI was answering, so its suggestion was not saved. Generate a fresh suggestion.")
+			}
+			if newID, err = savePlan(tx, kind, next); err != nil {
+				return err
+			}
+			_, err = tx.Exec("DELETE FROM plans WHERE id=?", id)
 			return err
-		}
-		if now != rev {
-			return conflict("Your library changed while the AI was answering, so its suggestion was not saved. Generate a fresh suggestion.")
-		}
-		if newID, err = savePlan(tx, kind, next); err != nil {
-			return err
-		}
-		_, err = tx.Exec("DELETE FROM plans WHERE id=?", id)
-		return err
-	})
-	return newID, err
+		})
+		return newID, err
+	}, nil
 }

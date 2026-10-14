@@ -2,6 +2,7 @@ package app
 
 import (
 	"cmp"
+	"context"
 	"database/sql"
 	"fmt"
 	"net/http"
@@ -37,7 +38,16 @@ func (a *App) estimate(w http.ResponseWriter, r *http.Request) error {
 		data["Accuracy"] = acc
 	}
 	if ai.Available() && !inputs.Rated && inputs.Baseline.Rated > 0 {
-		data["Payload"] = buildEstimatePayload(inputs.Book, inputs.History, inputs.Baseline, false)
+		payload := buildEstimatePayload(inputs.Book, inputs.History, inputs.Baseline, false)
+		req, err := estimateRequest(payload)
+		if err != nil {
+			return err
+		}
+		prompt := a.previewPrompt(req)
+		if inputs.KeepReviews {
+			prompt.Note = "If you also send your review text, the books you reviewed gain a \"your_review\" field with up to 1,000 characters of it."
+		}
+		data["Payload"], data["Prompt"] = payload, prompt
 		if inputs.KeepReviews {
 			with := buildEstimatePayload(inputs.Book, inputs.History, inputs.Baseline, true)
 			reviewed := []estimateRow{}
@@ -78,7 +88,8 @@ func (a *App) predict(w http.ResponseWriter, r *http.Request) error {
 	return redirect(w, r, fmt.Sprintf("/books/%d/estimate", id))
 }
 
-// predictAI sends the previewed request to the AI provider.
+// predictAI checks the previewed request and sends it to the AI provider in
+// the background.
 func (a *App) predictAI(w http.ResponseWriter, r *http.Request) error {
 	id, err := requestID(r)
 	if err != nil {
@@ -87,9 +98,16 @@ func (a *App) predictAI(w http.ResponseWriter, r *http.Request) error {
 	if ai, err := a.aiStatus(a.store.DB); err != nil || !ai.Available() {
 		return cmp.Or(err, error(errAIOff))
 	}
-	a.allowSlowAI(w)
-	if err = a.estimateAI(r.Context(), id, r.FormValue("fingerprint"), r.FormValue("reviews") != ""); err != nil {
+	title, send, err := a.prepareEstimateAI(id, r.FormValue("fingerprint"), r.FormValue("reviews") != "")
+	if err != nil {
 		return err
 	}
-	return redirect(w, r, fmt.Sprintf("/books/%d/estimate?notice=estimated", id))
+	back := fmt.Sprintf("/books/%d/estimate", id)
+	job, err := a.startAIJob("an estimated rating for "+title, back, "If you rate books or edit this one before it answers, the estimate cannot be saved and you can ask again.", func(ctx context.Context) (string, error) {
+		return back + "?notice=estimated", send(ctx)
+	})
+	if err != nil {
+		return err
+	}
+	return redirect(w, r, "/ai/jobs/"+job)
 }

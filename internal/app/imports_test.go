@@ -426,3 +426,51 @@ func TestStoredPlanKeepsRatings(t *testing.T) {
 		t.Fatalf("%+v %+v", p.Records[0], p.Records[1])
 	}
 }
+
+// A Goodreads export lists the newest additions first; the queue should
+// follow the shelf instead: positions first, then Date Added.
+func TestGoodreadsImportKeepsShelfOrder(t *testing.T) {
+	t.Parallel()
+	csv := "Book Id,Title,Author,Date Added,Bookshelves,Bookshelves with positions,Exclusive Shelf\n" +
+		"1,Newest,Writer,2025/09/01,,,to-read\n" +
+		"2,Second,Writer,2025/08/01,\"fantasy, to-read\",\"fantasy (#1), to-read (#2)\",to-read\n" +
+		"3,Read Book,Writer,2025/07/01,,read (#1),read\n" +
+		"4,First,Writer,2025/06/01,,to-read (#1),to-read\n" +
+		"5,Oldest,Writer,2025/01/01,,,to-read\n" +
+		"6,Undated,Writer,,,,to-read\n"
+	rows, problems, err := ParseCSV([]byte(csv), "goodreads")
+	if err != nil || len(problems) != 0 {
+		t.Fatal(problems, err)
+	}
+	titles := []string{}
+	for _, r := range rows {
+		titles = append(titles, r.Title)
+	}
+	// "Read Book" has a position on its own shelf, which does not compare
+	// with the to-read shelf's.
+	if got, want := strings.Join(titles, ", "), "First, Second, Undated, Oldest, Read Book, Newest"; got != want {
+		t.Fatalf("order %s, want %s", got, want)
+	}
+	a := testApp(t, true)
+	addRecords(t, a, rows)
+	queue, err := loadQueue(a.store.DB)
+	if err != nil {
+		t.Fatal(err)
+	}
+	titles = titles[:0]
+	for _, b := range queue {
+		titles = append(titles, b.Title)
+	}
+	if got, want := strings.Join(titles, ", "), "First, Second, Undated, Oldest, Newest"; got != want {
+		t.Fatalf("queue %s, want %s", got, want)
+	}
+}
+
+func TestShelfPosition(t *testing.T) {
+	t.Parallel()
+	for cell, want := range map[string]int{"to-read (#12)": 12, "fantasy (#3), to-read (#40)": 40, "To-Read (#5)": 5, "fantasy (#3)": 0, "": 0, "to-read (#0)": 0, "to-read": 0, "to-read-later (#4)": 0} {
+		if got := shelfPosition(cell, "to-read"); got != want {
+			t.Errorf("%q: %d, want %d", cell, got, want)
+		}
+	}
+}

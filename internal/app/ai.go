@@ -611,6 +611,25 @@ func libraryPrompt(task string, data any, maxTokens int, schema string) (AIReque
 	return AIRequest{System: task + "\n\n" + untrustedNotice, User: block, MaxTokens: maxTokens, Schema: json.RawMessage(schema)}, nil
 }
 
+// promptPreview is a request as the configured provider receives it, for
+// the optional "exact prompt" view beside each AI action.
+type promptPreview struct {
+	Provider, System, User, Schema string
+	MaxTokens                      int
+	// Note explains a variation the reader can choose, if any.
+	Note string
+}
+
+// previewPrompt applies the same per-provider changes as Complete: a
+// self-hosted server gets the local schema, repeated in its system prompt.
+func (a *App) previewPrompt(req AIRequest) promptPreview {
+	p := promptPreview{Provider: a.config.AI.ProviderName(), System: req.System, User: req.User, Schema: string(req.Schema), MaxTokens: req.MaxTokens}
+	if a.config.AI.SelfHosted() {
+		p.System, p.Schema = schemaHint(req), string(req.localSchema())
+	}
+	return p
+}
+
 // aiSettings is the reader's switch, kept in meta and outside the export.
 type aiSettings struct {
 	Enabled bool `json:"enabled"`
@@ -731,18 +750,6 @@ func (a *App) askAI(ctx context.Context, req AIRequest) (AIResponse, error) {
 // aiRejected is the message for a model answer that failed validation.
 func aiRejected(err error) error {
 	return httpError{Status: 502, Message: "The AI's answer could not be used (" + err.Error() + "). Nothing in your library changed."}
-}
-
-// allowSlowAI lets a handler that waits for the provider respond after the
-// server's usual 60-second write timeout, since a request may take up to
-// AI_TIMEOUT_SECONDS.
-func (a *App) allowSlowAI(w http.ResponseWriter) {
-	timeout := a.config.AI.Timeout
-	if timeout <= 0 {
-		timeout = defaultAITimeout
-	}
-	// Recorders in tests do not support deadlines; that is fine.
-	_ = http.NewResponseController(w).SetWriteDeadline(time.Now().Add(timeout + 30*time.Second))
 }
 
 // testAIPrompt contains no library data.

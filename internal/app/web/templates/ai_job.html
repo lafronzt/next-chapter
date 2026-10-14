@@ -1,0 +1,33 @@
+{{template "top" .}}
+<a class="back" href="{{.Job.Back}}"><span aria-hidden="true">←</span> Back to where you asked</a>
+{{if .Job.Done}}
+<header class="page-heading">
+  <div>
+    <div class="eyebrow">AI REQUEST</div>
+    <h1>The AI request did not finish.</h1>
+    <p role="alert">{{.Message}}</p>
+  </div>
+</header>
+<a class="button primary" href="{{.Job.Back}}">Back to where you asked</a>
+{{else}}
+<header class="page-heading">
+  <div>
+    <div class="eyebrow">AI REQUEST</div>
+    <h1>Asking the AI…</h1>
+    <p>For {{.Job.Label}}, from {{.AI.Provider}} ({{.AI.Model}}). Started {{.Waited}} ago.</p>
+  </div>
+</header>
+<div class="panel ai-wait" data-ai-pending>
+  <span class="ai-spinner" aria-hidden="true"></span>
+  <div>
+    <p><strong>You don’t have to wait here.</strong> Keep using Next Chapter: a note at the top of every page says when the answer is ready. This page checks again every few seconds and opens the result when it arrives.</p>
+    {{with .Job.Warning}}<p class="muted"><small>{{.}}</small></p>{{end}}
+    {{if .AI.Endpoint}}<p class="muted"><small>Self-hosted models can take a few minutes.</small></p>{{end}}
+  </div>
+</div>
+<div class="button-row ai-wait-actions">
+  <a class="button" href="/">Go to my queue</a>
+  <a class="button" href="{{.Job.Back}}">Back to where you asked</a>
+</div>
+{{end}}
+{{template "bottom" .}}
