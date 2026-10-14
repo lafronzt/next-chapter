@@ -21,7 +21,11 @@ func (a *App) readingHistory(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
-	return a.render(w, r, "reading.html", page{"Title": pageTitle("Reading history", pages), "Readings": readings, "Stats": stats, "Pager": pages}, 200)
+	accuracy, err := loadAccuracy(a.store.DB, 0)
+	if err != nil {
+		return err
+	}
+	return a.render(w, r, "reading.html", page{"Title": pageTitle("Reading history", pages), "Readings": readings, "Stats": stats, "Pager": pages, "Accuracy": accuracy}, 200)
 }
 
 // readingFields reads a finish date and rating; both may be left blank.

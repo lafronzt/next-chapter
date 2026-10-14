@@ -7,7 +7,7 @@ Next Chapter is a **single-reader web app** with two ways to organize your list:
 - **Find its place:** suggest where one book belongs, preserving the relative order of every other book.
 - **Rethink my queue:** reconsider the entire queue using your interest, library timing, preferred length, tags, and series order.
 
-Every suggestion has a preview and reasons. Pinned books keep their positions. You decide whether to apply a suggestion, and can undo it until another library change occurs. No AI service, API key, or subscription is required.
+Every suggestion has a preview and reasons. Pinned books keep their positions. You decide whether to apply a suggestion, and can undo it until another library change occurs. No AI service, API key, or subscription is required; [AI assistance](#ai-assistance-optional) is off unless you connect a hosted model with your own key or a model on your own hardware, and switch it on.
 
 ![Next Chapter with example books](docs/preview.png)
 
@@ -16,8 +16,9 @@ Every suggestion has a preview and reasons. Pinned books keep their positions. Y
 - Add and edit books; move them manually; pin positions; mark reading, finished, abandoned, or archived.
 - Separate views for Up next, Reading, Finished, To review, Set aside (abandoned), Archived, and All books. Lists show 50 books per page (`per_page` up to 200); queue numbers always count from the top of the whole queue, and a page past the end shows the last page.
 - Delete a book, or merge a duplicate into the entry you keep, each after a confirmation preview. Re-imports never bring them back.
-- Explainable placement and full-queue reordering, with preview, stale-preview protection, and undo.
+- Explainable placement and full-queue reordering, with preview, stale-preview protection, and undo. With AI assistance on, a suggestion can also show an AI-suggested order beside the usual one.
 - Goodreads CSV imports and optional hourly public-shelf RSS checks for **new additions**.
+- **Estimated ratings**: “what might I give this?” for an unread book, from your own ratings, with an optional AI second opinion and a running check of how accurate past estimates were.
 - A **Reading history** of finished books, with finish dates, your ratings, books per year, and favorite shelves, from your Goodreads read shelf and readings you log yourself.
 - Libby timeline CSV imports and a standard CSV format for physical NYPL activity.
 - Separate library events for print, ebook, and audiobook; newest known event wins, regardless of import order.
@@ -57,7 +58,7 @@ openssl rand -hex 32
 docker compose up --build -d
 ```
 
-Open [localhost:8000](http://localhost:8000) and sign in with `APP_PASSWORD`. Your data is stored in the named `library` volume. Startup fails unless the password is at least 12 characters and the signing key at least 32. `.env` is ignored by Git and excluded from the image.
+Open [localhost:8000](http://localhost:8000) and sign in with `APP_PASSWORD`. Your data is stored in the named `library` volume. Optional AI assistance, including a local Ollama service under the `ollama` profile, is described in [AI with Docker Compose](#ai-with-docker-compose). Startup fails unless the password is at least 12 characters and the signing key at least 32. `.env` is ignored by Git and excluded from the image.
 
 Compose binds to loopback by default. For access from other devices, place the app behind your HTTPS reverse proxy and set `COOKIE_SECURE=1`, which also sends `Strict-Transport-Security`. Configure the proxy to reach container port 8000 and preserve the host. Keep the app password enabled. Do not publish unauthenticated demo mode.
 
@@ -79,6 +80,8 @@ docker run -d --name next-chapter \
   --cap-drop ALL --security-opt no-new-privileges:true \
   next-chapter:local
 ```
+
+To use an Ollama running on the same computer with `docker run`, add `--add-host=host.docker.internal:host-gateway` and set `AI_BASE_URL=http://host.docker.internal:11434` in `.env` (see [Self-hosted models](#self-hosted-models-ollama-and-openai-compatible-servers)).
 
 The published Go image is `ghcr.io/lafronzt/next-chapter:0.2.0` (also `:latest`), supporting `linux/amd64` and `linux/arm64`. A release tag triggers the included GitHub workflow. Prefer a version tag or digest in production. The final image contains a statically compiled Go executable and CA certificates, with no interpreter or shell. Rebuild with `docker build --pull` to refresh the Go toolchain.
 
@@ -106,6 +109,8 @@ kubectl apply -f deploy/kubernetes/app.yaml
 kubectl port-forward service/next-chapter 8000:80
 ```
 
+For optional AI assistance, see [AI on Kubernetes](#ai-on-kubernetes); `deploy/kubernetes/ollama.yaml` runs a private Ollama server in the cluster if you want local models.
+
 The PVC defaults to 1 GiB. The manifest includes resource limits, readiness/liveness checks, a non-root user, dropped capabilities, and a writable temporary directory. `/healthz` is unauthenticated and returns only a health status.
 
 For an HTTPS Ingress, configure your preferred controller and certificate, then set `COOKIE_SECURE` to `"1"` in the deployment. The example leaves it at `"0"` for HTTP loopback port-forwarding. Avoid setting conflicting values in both the secret and deployment; the explicit deployment value wins.
@@ -124,12 +129,133 @@ Each queued book starts with `interest × 10` points (10–50). Additional point
 | Loan / pickup deadline within 7 days, including overdue | +20 |
 | Exact mood tag match, case-insensitive | 15 |
 | Preferred length match (≤250 or ≥400 pages) | 10 |
+| Saved estimated rating, only if turned on in Preferences | −10 to +10 |
 
 Only the strongest library signal is used per book; multiple formats do not stack. Library points are multiplied by the selected timing weight (0, 0.5, 1, or 2). All dates used for ranking use UTC. Holds with no pickup date get no timing boost because a request does not imply availability.
 
 Full-queue suggestions sort by score while respecting pins and earlier queued books in the same series. Equal scores preserve existing order. Series metadata is supplied by the reader; Goodreads export/RSS does not reliably provide it. Insertion finds the earliest lower-scoring book, then the closest feasible slot that preserves the other books' order, pin slots, and the candidate's series dependencies. Impossible constraints produce a clear error instead of silently moving pins. Manual moves are intentional overrides of ranking; pin crossings must be unpinned first.
 
 Preferences affect the next suggestion; saving them does not move books. Reading/finished/archived/unreviewed books are outside the queue. Returning a book never changes its reading status.
+
+## Estimated ratings
+
+On a queued book (**Predict my rating**) or a book's page, Next Chapter estimates the rating you might give a book you have not rated yet, from the ratings you gave other books. It is an aid for deciding, not a fact, and it can be wrong.
+
+**The baseline needs no AI.** It starts from your average rating, then mixes in your averages for rated books by the same author, in the same series, and sharing any of its tags, each weighted by how many books it covers, and the Goodreads average, which counts like a single book because it is other readers' opinion:
+
+```
+(3 × your average + Σ books × average for author / series / shared tags + 1 × Goodreads average) ÷ (3 + Σ books + 1)
+```
+
+The page shows the result to one decimal, "Based on N rated books", and each factor. With fewer than 10 rated books it is labelled low confidence. Each book counts its latest rated reading; the candidate's own readings never count. A book you have already rated gets no estimate.
+
+**An AI second opinion is optional.** With AI assistance on, the estimate page lists exactly what would be sent: the candidate's title, author, tags, pages, series, Goodreads average, and baseline; your rating statistics; and at most 40 of your rated books (your 10 highest- and 10 lowest-rated, then those closest by tags, author, and series), each with title, author, tags, pages, series, your rating, and finish year. Review text is sent only if you keep reviews and tick the box for that request. Nothing else goes: no ISBNs, Goodreads IDs, loans, or library accounts. The answer must be JSON with an estimate from 1 to 5, a confidence of low, medium, or high, and one to three short reasons; anything else is discarded. It is shown next to the baseline, labelled AI-generated, and never replaces it.
+
+**Saved, not live.** Estimates are saved (in `rating_estimates`) with a fingerprint of their inputs and shown without contacting any provider. When your rated history or the book changes, the page marks the saved estimate as possibly out of date and offers to update it. Estimating never changes your library or its revision, and estimates are a cache: they are not in the JSON export and are dropped when the book is deleted.
+
+**Ranking, only if you want.** Preferences has **Let my saved estimated ratings nudge suggestions**, off by default. When on, a saved estimate adds `(estimate − 3) × 5` points (−10 to +10), shown as a reason such as "Estimated 4.3★ for you". It uses the AI value when there is one, otherwise the baseline, and the saved value even if it is out of date; ranking never calls a provider. Books without an estimate are ranked exactly as before.
+
+**How accurate was I?** When you rate a book that had an estimate, Reading history shows the average error of the baseline and of the AI estimates, in stars, and how many were within half a star. The book's page shows its estimate next to your rating.
+
+## AI assistance (optional)
+
+Next Chapter works fully without AI. If you want suggestions from a language model, you can connect:
+
+- **A hosted model** from Anthropic (Claude) or OpenAI with your own API key. You pay the provider directly.
+- **A model on your own hardware** with [Ollama](https://ollama.com), so nothing leaves your machine or network.
+- **Any other model** behind an OpenAI-compatible server, such as LM Studio, vLLM, llama.cpp's server, LocalAI, or a gateway you run.
+
+There is no hosted proxy and no paid service from this project.
+
+It is **off by default** and needs two steps:
+
+1. **The operator** sets a provider and model in the environment (plus a key for hosted providers) and restarts the app:
+
+   | Variable | Meaning |
+   | --- | --- |
+   | `AI_PROVIDER` | `off` (default), `anthropic`, `openai`, `ollama`, or `custom` |
+   | `AI_MODEL` | The model name, required. Hosted suggestions checked on 2026-10-13: `claude-opus-5-5` for Anthropic, `gpt-6-astra` for OpenAI; a cheaper model costs less per request. For `ollama`, any model you have pulled, such as `llama3.1:8b` or `qwen2.5:7b`. For `custom`, the model name your server lists. |
+   | `AI_API_KEY` | Required for `anthropic` and `openai` (`ANTHROPIC_API_KEY` or `OPENAI_API_KEY` also work outside Compose). Optional for `ollama` and `custom`, which send it as a bearer token when set, for a server behind an authenticating proxy. |
+   | `AI_BASE_URL` | For `ollama`, the server address, default `http://127.0.0.1:11434`. For `custom`, required: the OpenAI-compatible API root, usually ending in `/v1`, such as `http://127.0.0.1:1234/v1`. Plain `http://` is accepted only for servers on this machine or a private network (see below); anything else needs `https://`. For `anthropic` and `openai` it exists only for tests and accepts nothing but `https://127.0.0.1:<port>`. |
+   | `AI_TIMEOUT_SECONDS` | How long to wait for one answer, 5 to 600, default `60`. Raise it for slow local models; the request's page waits that long too. |
+   | `AI_MAX_MONTHLY_REQUESTS` | Requests allowed per calendar month (UTC), default `100`. Local models cost nothing per request, so raise it freely there. |
+
+   The app refuses to start if the provider is missing something it needs: a model, a key for hosted providers, a base URL for `custom`, or HTTPS for a server outside your network.
+
+2. **The reader** turns on **AI assistance** in Preferences. Preferences shows the provider, model, and (for self-hosted servers) the server address and whether it is on your network, this month's requests and tokens, a plain-language summary of what is shared, and a **Test connection** button that sends a fixed prompt with no library data.
+
+**What is sent, and when.** Nothing is sent in the background, on a schedule, during a Goodreads check, or when a page loads. Each AI action first shows a **What gets shared** list of the exact rows and fields it will send, and sends only after you confirm. Requests carry only what the task needs: titles, authors, tags, page counts, series, interest, your ratings and estimated ratings, finish dates, queue positions, whether a book is borrowed or ready for pickup and the days to its deadline, and any note you write for that request. They never carry library-card or loan account details, your password or session, ISBNs, Goodreads IDs, or review text (unless you keep reviews and tick a box for that one request). With a hosted provider, its data terms apply; OpenAI requests ask it not to store the response (`store: false`). With a self-hosted server, whoever runs that server can see what is sent.
+
+**Safety rails.**
+
+- Hosted requests go only to `https://api.anthropic.com/v1/messages` or `https://api.openai.com/v1/responses`. Self-hosted requests go only to the configured `AI_BASE_URL`, at `/api/chat` for Ollama or `/chat/completions` under the API root for `custom`. Plain `http://` is accepted only when the host is `localhost`, a loopback, private (10.x, 172.16-31.x, 192.168.x, fc00::/7), or link-local IP address, a single-word name such as a Compose service (`ollama`), or a name ending in `.local`, `.lan`, `.internal`, `.home.arpa`, or `.svc`. A URL with a username, password, query, or fragment is refused.
+- Every request has the configured timeout, a 1 MB response limit, no redirects, and `User-Agent: NextChapter/<version>`. Only `net/http` is used; there is no vendor SDK.
+- The key is read from the environment only. It is never stored in the database, exports, or backups, never shown on a page, and never logged. Logs record only a failure class such as `status-429` or `timeout`, never prompts, answers, or provider error bodies.
+- One AI request runs at a time, and never while holding the database: inputs are read first, the provider is called, then a short write saves the result. Every attempt, including failed ones, counts toward the monthly limit; when it is used up, AI actions say so until the next month.
+- Model output is untrusted. The app asks for JSON matching a schema, then decodes it strictly (unknown fields are an error) and checks every value: IDs must be ones it sent, with no repeats, and numbers must be in range. Anything else is discarded with a plain message. An answer can only propose; it never writes to your library directly.
+- Book data comes from imported files, so it is sent inside a delimited data block, and the model is told to treat it as data, not instructions. The schema check above is the real defence.
+
+To turn AI off again, switch it off in Preferences, or set `AI_PROVIDER=off` (or remove it) and restart.
+
+### AI-suggested order
+
+Your usual ranking stays the default. With AI assistance on, **Rethink my queue** has an optional note for the AI ("something light after a heavy book; a long flight Friday"), and every queue suggestion (**Rethink my queue** or **Find its place**) offers **Ask the AI for a second opinion** below the usual preview. That section lists exactly what would be sent; nothing goes until you press **Send and suggest**.
+
+- **What is sent.** For a full reorder: the 60 highest-scoring books in your queue plus up to 40 pinned books. For placing one book: the book and up to 60 books around its usual place, limited to positions that keep pins and series order. Each book has a number used only for this request (not its database or Goodreads ID), title, author, tags, pages, series and number, interest, saved estimated rating if any, library status (only "borrowed" or "ready for pickup" and the days to the deadline; never the library, format, or account), whether it is pinned, and its current position. Also sent: your note, if you wrote one, and your 5 most recently finished books (title, author, tags, your rating, and month). The note is stored only in the suggestion, which expires after an hour.
+- **What comes back.** For a reorder, every number exactly once and optional short reasons; for placing, one position from the offered range and a reason. Unknown, missing, or repeated numbers, extra fields, or reasons over 200 characters discard the answer: the page then says so plainly and shows only your usual ranking.
+- **Rules still win.** The AI's order replaces the score only as the sort key. The same solver as the usual ranking keeps pinned books in their slots and earlier series books first, moving as few books as it must; those books are marked "Moved from the AI's order to keep pins and series order". Books that were not sent keep their relative order after the ones that were. A placement must fall within the valid range, or it is discarded.
+- **You choose.** The preview switches between **Use my usual ranking** and **Use AI suggestion**, with movement, the usual score reasons, and the AI's reasons labelled AI, plus the model and token use. Applying either uses the same revision check and undo. If your library changes while the AI is answering, the result is not saved and you are asked to generate a fresh suggestion. New Goodreads books still wait in Needs placement; nothing is reordered automatically, on a schedule, or during a sync.
+- **Cost.** A full reorder of a large queue sends about 13,000 characters (measured on a synthetic 60-book request), roughly 3,500 to 4,500 input tokens. The answer is a few hundred tokens plus any reasoning tokens the model uses, which vary by model. Placing one book costs about the same. Preferences shows the real token counts each month. With Ollama or another self-hosted model there is no per-request charge, but a reorder can take minutes on a CPU or small GPU; set `AI_TIMEOUT_SECONDS` to match, since the page waits for the answer.
+
+### Self-hosted models: Ollama and OpenAI-compatible servers
+
+Requests to Ollama use its native chat API with a JSON Schema in `format`; requests to a `custom` server use Chat Completions with `response_format` set to a strict JSON schema. Both repeat the schema in the prompt and use temperature 0, which helps smaller models follow it. Self-hosted servers also get length limits in the schema (for example, at most three reasons of at most 240 characters), which their grammar-based decoding enforces while the model writes; without them, a small model can repeat itself until it reaches the token limit. Hosted APIs reject those keywords, so they get the plain schema and the app checks lengths afterwards. The server must support JSON-schema structured output: Ollama does, and so do current LM Studio, vLLM, and llama.cpp servers. A model that ignores the schema produces answers the app discards with a message, never a change. Instruction-tuned models of about 7B parameters or more follow it far more reliably than tiny ones. Small local models give simpler suggestions than large hosted ones.
+
+Ollama is also OpenAI-compatible, so `AI_PROVIDER=custom` with `AI_BASE_URL=http://127.0.0.1:11434/v1` works too; `ollama` is simpler and needs no path.
+
+Where Ollama runs decides `AI_BASE_URL`:
+
+| Ollama runs… | `AI_BASE_URL` |
+| --- | --- |
+| On the same computer, app run directly | `http://127.0.0.1:11434` (the default) |
+| In the Compose `ollama` profile (below) | `http://ollama:11434` |
+| On the computer that runs Docker, outside Docker | `http://host.docker.internal:11434`. Ollama listens only on 127.0.0.1 by default; start it with `OLLAMA_HOST=0.0.0.0` so containers can reach it, and keep port 11434 closed to the internet. |
+| On another machine on your network | `http://192.168.1.20:11434` (its address), with `OLLAMA_HOST=0.0.0.0` on that machine |
+| In Kubernetes from `deploy/kubernetes/ollama.yaml` | `http://ollama:11434` |
+| Anywhere reached over the internet | `https://…` only, ideally behind an authenticating proxy, with `AI_API_KEY` as its bearer token |
+
+Pull the model before switching AI on (`ollama pull llama3.1:8b`); otherwise the test reports that the server does not know the model. A first request after the server starts may be slow while the model loads, so allow for it in `AI_TIMEOUT_SECONDS`.
+
+### AI with Docker Compose
+
+`compose.yaml` passes the `AI_*` variables from `.env` to the app (as `AI_API_KEY`; Compose does not pass the vendor-specific key names). It also defines an optional `ollama` service under a profile, so it only runs when asked:
+
+```sh
+# in .env: AI_PROVIDER=ollama, AI_BASE_URL=http://ollama:11434, AI_MODEL=llama3.1:8b
+docker compose --profile ollama up -d
+docker compose exec ollama ollama pull llama3.1:8b
+```
+
+Models are kept in the `ollama` volume. The Ollama port is not published, so only the app can reach it; for GPU acceleration, add your GPU settings to the service as Ollama's Docker instructions describe. For a hosted provider, set `AI_PROVIDER`, `AI_MODEL`, and `AI_API_KEY` in `.env` and run `docker compose up -d` as usual.
+
+### AI on Kubernetes
+
+Keep any key in a Secret, separate from the manifest. The simplest way is to add the `AI_*` lines to the same `.env` you create `next-chapter-auth` from. To keep the AI key in its own Secret instead:
+
+```sh
+kubectl create secret generic next-chapter-ai --from-literal=AI_API_KEY='…'
+```
+
+Then uncomment the `AI_*` entries you need in `deploy/kubernetes/app.yaml`. Rotating the key means updating the Secret and restarting the pod.
+
+For models in your cluster, `deploy/kubernetes/ollama.yaml` adds a single Ollama Deployment with a 20 GiB volume for models and a cluster-internal Service. Size its memory limit and volume for your models, add a GPU resource limit if you have a device plugin, and pull a model once:
+
+```sh
+kubectl apply -f deploy/kubernetes/ollama.yaml
+kubectl exec deploy/ollama -- ollama pull llama3.1:8b
+```
+
+Then set `AI_PROVIDER=ollama`, `AI_BASE_URL=http://ollama:11434`, `AI_MODEL`, and a longer `AI_TIMEOUT_SECONDS` for the app. Restrict who can reach the Ollama Service with a NetworkPolicy if your cluster is shared.
 
 ## Imports and data ownership
 
@@ -187,7 +313,7 @@ The JSON export can also be loaded back, for example to move to a new instance w
 - Restored: books with their status, interest, pins, **Needs placement**, queue positions and order, series, tags, pages, identifiers, added date, and source; reading history (review text only if the restored preferences keep reviews); library events with their fingerprints, so re-importing the same CSV adds no duplicates; current loans, rebuilt from the events with the same newest-wins rule as imports; merge and deletion aliases; ranking preferences; and Goodreads settings.
 - Goodreads polling is always restored **off**. The preview and the confirmation say so; turn it on in Preferences when ready.
 - Not restored: previews, undo, sign-in state, and the session key. Books and events get new ID numbers.
-- Validation is strict and uses the same limits as the forms and CSV imports. Unknown fields, malformed JSON, out-of-range values, duplicate titles or Goodreads IDs, and exports from a newer schema version than this build supports are refused, and nothing is written. The export's `schema_version` is the database schema version it came from; this build restores versions 1 to 6. An export from before version 6 has no reading history, and its Goodreads connection starts following the `read` shelf.
+- Validation is strict and uses the same limits as the forms and CSV imports. Unknown fields, malformed JSON, out-of-range values, duplicate titles or Goodreads IDs, and exports from a newer schema version than this build supports are refused, and nothing is written. The export's `schema_version` is the database schema version it came from; this build restores versions 1 to 7. An export from before version 6 has no reading history, and its Goodreads connection starts following the `read` shelf.
 - The file is limited to 10 MB, 10,000 books, and 100,000 events. A 10,000-book export is typically about 6 MB; a library too large for JSON restore can still use the database backup.
 
 ### Schema upgrades and rollback
@@ -203,6 +329,8 @@ The app refuses to start if the database has a newer schema version than the run
 3. Start the previous image.
 
 Changes made after the upgrade are not in the `.bak`. Export JSON first if you need a record of them.
+
+Schema migration 7 adds the `rating_estimates` table for saved estimated ratings; no existing data changes. Roll back with `next-chapter.sqlite3.pre-v7.bak` as above, or keep later changes and run an older image after `DROP TABLE rating_estimates; UPDATE meta SET value='6' WHERE key='schema_version';`. Estimates are a cache, so nothing else is lost. A saved **use_estimates** preference is ignored by older images.
 
 Schema migration 6 adds the `reading_log` table, the `books.published_year` and `books.avg_rating` columns, and a `read_shelf` of `read` to a saved Goodreads connection. Roll back with `next-chapter.sqlite3.pre-v6.bak` as above. To keep changes made since the upgrade instead, run an older image after `DROP TABLE reading_log; ALTER TABLE books DROP COLUMN published_year; ALTER TABLE books DROP COLUMN avg_rating; UPDATE meta SET value='5' WHERE key='schema_version';`; this discards the reading history, so export JSON first.
 
@@ -223,9 +351,18 @@ CI also requires `gofmt`, `staticcheck`, `govulncheck`, a tidy `go.mod`, and a c
 
 Open [localhost:8000](http://localhost:8000). Demo mode has no login and requires a loopback `LISTEN_ADDR` (default `127.0.0.1:8000`). The empty-library page lets you load example books. Production starts with an empty library and never seeds examples.
 
+To try AI assistance locally without an API key, run Ollama, pull a model, and start the app with it:
+
+```sh
+ollama pull llama3.1:8b
+AI_PROVIDER=ollama AI_MODEL=llama3.1:8b AI_TIMEOUT_SECONDS=300 LOCAL_DEMO=1 START_POLLER=0 ./bin/next-chapter
+```
+
+Then switch AI on in Preferences. Tests never contact a real provider; they use `httptest` servers.
+
 For production, set `APP_PASSWORD` and `APP_SECRET_KEY` and omit `LOCAL_DEMO`. `DATABASE_PATH` defaults to `data/next-chapter.sqlite3`; `LISTEN_ADDR` defaults to `:8000`. `START_POLLER=0` disables the background checker. `TRUSTED_PROXY_HOPS` (default `0`) is described under Docker Compose. The executable includes `version` and `healthcheck` commands.
 
-The application uses Go’s HTTP server, escaped HTML templates, plain CSS, and a pure-Go SQLite driver. Templates, assets, and CSV examples are embedded in the executable. No font, analytics, cover-image, or AI provider receives reading data. The only outbound app request is opt-in Goodreads RSS.
+The application uses Go’s HTTP server, escaped HTML templates, plain CSS, and a pure-Go SQLite driver. Templates, assets, and CSV examples are embedded in the executable. No font, analytics, or cover-image service receives reading data. The app makes outbound requests only for opt-in Goodreads RSS and, if the operator configures a provider and the reader switches it on, for [AI assistance](#ai-assistance-optional) that the reader requests and confirms one request at a time. With Ollama or another self-hosted model, those requests can stay on your own machine or network.
 
 ## Project layout
 
@@ -238,11 +375,14 @@ The application uses Go’s HTTP server, escaped HTML templates, plain CSS, and 
 - `internal/app/plans.go`: compact storage for previews.
 - `internal/app/merge.go`: deleting and merging books, aliases that stop re-imports from recreating them.
 - `internal/app/feed.go`, `sync.go`: fixed-host RSS fetching, optional hourly polling with backoff.
+- `internal/app/estimate.go`, `handlers_estimate.go`: estimated ratings, the deterministic baseline, the optional AI estimate, and accuracy tracking.
+- `internal/app/rerank.go`: AI-suggested queue orders and placements, validated and merged through the ranking constraints.
+- `internal/app/ai.go`, `handlers_ai.go`: the optional AI provider layer (Anthropic, OpenAI, Ollama, and OpenAI-compatible servers over `net/http`), its monthly limit, strict answer parsing, and the Preferences switch.
 - `internal/app/server.go`: configuration and the routing table; `middleware.go`, `session.go`, `render.go`, `forms.go` hold the request pipeline, and `handlers_*.go` the handlers by area.
 - `internal/app/version.go`: the release version, set at build time with `-ldflags "-X github.com/lafronzt/next-chapter/internal/app.Version=…"`.
 - `internal/app/web/`: embedded templates, assets, and import examples.
 - `internal/app/*_test.go`: ranking, import integrity, migrations, delete/merge, feed and poller, authentication, and web-flow tests.
-- `deploy/kubernetes/`: single-replica persistent deployment.
+- `deploy/kubernetes/`: single-replica persistent deployment, and an optional Ollama server for local AI models.
 
 ## Next steps
 

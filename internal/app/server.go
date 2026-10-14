@@ -25,6 +25,8 @@ type Config struct {
 	// TrustedProxyHops is how many reverse proxies append to X-Forwarded-For
 	// in front of the app. Zero ignores the header.
 	TrustedProxyHops int
+	// AI is the optional AI provider; see ai.go.
+	AI AIConfig
 }
 type App struct {
 	store       *Store
@@ -36,6 +38,10 @@ type App struct {
 	now         func() time.Time
 	pollTick    time.Duration // how often Poll checks whether a sync is due
 	logger      *slog.Logger
+	// ai is nil unless the operator configured a provider. aiMu allows one
+	// AI request at a time.
+	ai   Completer
+	aiMu sync.Mutex
 }
 type requestState struct {
 	ID       string
@@ -97,7 +103,11 @@ func New(c Config) (*App, error) {
 		store.Close()
 		return nil, err
 	}
-	return &App{store: store, config: c, templates: templates, passwordKey: key, fetch: FetchGoodreads, now: time.Now, pollTick: time.Minute, logger: slog.New(slog.NewTextHandler(os.Stderr, nil))}, nil
+	a := &App{store: store, config: c, templates: templates, passwordKey: key, fetch: FetchGoodreads, now: time.Now, pollTick: time.Minute, logger: slog.New(slog.NewTextHandler(os.Stderr, nil))}
+	if client := newAIClient(c.AI, nil); client != nil {
+		a.ai = client
+	}
+	return a, nil
 }
 
 // passwordIterations is the PBKDF2-SHA256 cost (OWASP's 2023 figure). Tests
@@ -132,11 +142,13 @@ func (a *App) Handler() http.Handler {
 		"GET /books/new": a.newBook, "POST /books/new": a.newBook, "GET /books/{id}": a.editBook, "POST /books/{id}": a.editBook,
 		"POST /books/{id}/action": a.bookAction, "POST /books/{id}/loan": a.loan,
 		"GET /books/{id}/delete": a.deleteBook, "POST /books/{id}/delete": a.deleteBook, "GET /books/{id}/merge": a.mergeBook, "POST /books/{id}/merge": a.mergeBook,
-		"POST /suggest": a.suggest, "GET /plans/{id}": a.plan, "POST /plans/{id}": a.plan, "POST /undo": a.undo,
+		"POST /suggest": a.suggest, "GET /plans/{id}": a.plan, "POST /plans/{id}": a.plan, "POST /plans/{id}/ai": a.planAI, "POST /undo": a.undo,
 		"GET /imports": a.importPage, "POST /imports": a.importPage, "POST /imports/restore": a.restoreUpload, "GET /examples/{name}": a.example,
 		"GET /settings": a.settings, "POST /settings": a.settings, "POST /sync": a.syncNow, "POST /sessions/revoke": a.revokeSessions,
 		"POST /books/{id}/triage": a.triageBook, "POST /triage": a.triageAll,
 		"GET /history": a.history, "GET /reading": a.readingHistory, "POST /books/{id}/readings": a.addReading, "POST /readings/{rid}": a.editReading, "GET /export.json": a.export, "GET /backup.sqlite3": a.backup, "POST /demo": a.demo,
+		"POST /ai/settings": a.aiSettings, "POST /ai/test": a.aiTest,
+		"GET /books/{id}/estimate": a.estimate, "POST /books/{id}/estimate": a.predict, "POST /books/{id}/estimate/ai": a.predictAI,
 	}
 	for pattern, handler := range endpoints {
 		mux.HandleFunc(pattern, func(w http.ResponseWriter, r *http.Request) {

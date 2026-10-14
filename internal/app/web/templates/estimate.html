@@ -1,0 +1,84 @@
+{{template "top" .}}
+<a class="back" href="/books/{{.Book.ID}}"><span aria-hidden="true">←</span> Back to {{.Book.Title}}</a>
+<header class="page-heading">
+  <div>
+    <div class="eyebrow">AN AID FOR DECIDING, NOT A FACT</div>
+    <h1>What might you give it?</h1>
+    <p>{{.Book.Title}} · {{.Book.Author}}. An estimate from your own ratings. It can be wrong, and it never changes your library.</p>
+  </div>
+</header>
+{{if .Inputs.Rated}}
+<div class="notice" role="status">You have already rated this book, so there is nothing to estimate.{{with .Accuracy}}{{if .Books}} Before you read it, the estimate was {{star (deref .BaselineValue)}}{{with .AIValue}} and the AI’s was {{star .}}{{end}}; you gave it {{.Actual}}★.{{end}}{{end}}</div>
+{{else}}
+<div class="two-columns estimate-columns">
+  <section class="panel estimate-card">
+    <h2>Baseline <span class="badge">No AI</span></h2>
+    {{with .Inputs.Baseline}}
+    {{if .Rated}}
+    <p class="estimate-value">{{star .Estimate}}</p>
+    <p>Based on {{.Rated}} rated {{if eq .Rated 1}}book{{else}}books{{end}} · {{.Confidence}} confidence</p>
+    {{if eq .Confidence "low"}}<p class="muted"><small>Fewer than 10 rated books: treat this as a rough guess.</small></p>{{end}}
+    <ul class="estimate-factors">{{range .Factors}}<li>{{.}}</li>{{end}}</ul>
+    {{else}}
+    <p>{{index .Factors 0}}</p>
+    {{end}}
+    {{end}}
+    {{if .Inputs.Baseline.Rated}}
+    <form method="post" action="/books/{{.Book.ID}}/estimate">
+      {{template "csrf" .}}
+      {{if and .Saved (not .Stale)}}<p class="muted"><small>Saved {{minute .Saved.CreatedAt}} UTC.</small></p>{{else}}<button class="button">{{if .Saved}}Update the saved estimate{{else}}Save this estimate{{end}}</button>
+      <p class="muted"><small>{{if .Saved}}Your history changed since the saved estimate ({{star .Saved.Baseline}}).{{else}}Saved estimates appear on your queue and can nudge suggestions if you turn that on in Preferences.{{end}}</small></p>{{end}}
+    </form>
+    {{end}}
+  </section>
+  <section class="panel estimate-card">
+    <h2>AI second opinion <span class="badge">AI-generated</span></h2>
+    {{if and .Saved .Saved.AI}}
+    <p class="estimate-value">{{star (deref .Saved.AI)}}</p>
+    <p>{{.Saved.Confidence}} confidence · {{.Saved.Model}} · {{minute .Saved.CreatedAt}} UTC</p>
+    {{if .Stale}}<p class="notice error">Your reading history or this book changed since the AI answered, so this may be out of date.</p>{{end}}
+    <ul class="estimate-factors">{{range .Saved.Reasons}}<li>{{.}}</li>{{end}}</ul>
+    {{else if .AI.Available}}
+    <p>{{if .Inputs.Baseline.Rated}}Not asked yet. See what would be shared below.{{else}}The AI needs your ratings too.{{end}}</p>
+    {{else if .AI.Configured}}
+    <p>Turn on AI assistance in <a href="/settings#ai">Preferences</a> to ask for a second opinion.</p>
+    {{else}}
+    <p>No AI provider is set up. The baseline works without one.</p>
+    {{end}}
+  </section>
+</div>
+{{with .Payload}}
+<section class="section-heading" id="shared">
+  <h2>What gets shared</h2>
+  <p>Asking the AI sends exactly this to {{$.AI.Provider}} ({{$.AI.Model}}{{with $.AI.Endpoint}} at {{.}}{{end}}), once, and saves its answer next to the baseline. Never sent: ISBNs, Goodreads IDs, library loans or accounts, or anything about you beyond these books.</p>
+</section>
+<div class="panel shared">
+  <h3>The book</h3>
+  <p>{{.Candidate.Title}} · {{.Candidate.Author}}{{with .Candidate.Tags}} · tags: {{.}}{{end}}{{with .Candidate.Pages}} · {{pages .}} pages{{end}}{{with .Candidate.Series}} · series: {{.}}{{end}}{{with .Candidate.Goodreads}} · Goodreads average {{printf "%.2f" .}}{{end}} · baseline {{star .Candidate.Baseline}}</p>
+  <h3>Your ratings overall</h3>
+  <p>{{.Stats.RatedBooks}} rated books, averaging {{printf "%.2f" .Stats.AverageRating}}★; {{range $i, $n := .Stats.RatingCounts}}{{if $i}}, {{end}}{{$n}} × {{inc $i}}★{{end}}.</p>
+  <h3>{{len .RatedBooks}} of your rated books</h3>
+  <div class="table-scroll">
+    <table>
+      <thead><tr><th scope="col">Title</th><th scope="col">Author</th><th scope="col">Tags</th><th scope="col">Pages</th><th scope="col">Series</th><th scope="col">Your rating</th><th scope="col">Finished</th></tr></thead>
+      <tbody>
+        {{range .RatedBooks}}<tr><td>{{.Title}}</td><td>{{.Author}}</td><td>{{.Tags}}</td><td>{{pages .Pages}}</td><td>{{.Series}}</td><td>{{.Rating}}★</td><td>{{.Finished}}</td></tr>{{end}}
+      </tbody>
+    </table>
+  </div>
+</div>
+<form class="apply-bar" method="post" action="/books/{{$.Book.ID}}/estimate/ai">
+  {{template "csrf" $}}
+  <input type="hidden" name="fingerprint" value="{{$.Inputs.Fingerprint}}">
+  <div>
+    <strong>Send this to the AI?</strong>
+    <p>One request ({{$.AI.Usage.Requests}} of {{$.AI.Cap}} used this month). The answer is checked before it is saved, and your library does not change.</p>
+    {{if $.Reviewed}}<label class="checkbox"><input type="checkbox" name="reviews"> Also send my review text (up to 1,000 characters each) for {{len $.Reviewed}} of these books: {{range $i, $r := $.Reviewed}}{{if $i}}, {{end}}{{$r.Title}}{{end}}</label>{{end}}
+  </div>
+  <div class="button-row">
+    <button class="button primary"><span>Send and estimate <span aria-hidden="true">→</span></span></button>
+  </div>
+</form>
+{{end}}
+{{end}}
+{{template "bottom" .}}

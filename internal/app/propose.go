@@ -87,149 +87,185 @@ func Propose(books []Book, p Preferences, candidateID int64, today time.Time) ([
 	for i, b := range books {
 		scores[i], reasons[i] = score(b, p, today)
 	}
-	order := make([]int, 0, len(books))
+	var order []int
 	if candidateID != 0 {
-		c := -1
-		for i, b := range books {
-			if b.ID == candidateID {
-				c = i
-				break
-			}
+		c, err := candidateIndex(books, candidateID)
+		if err != nil {
+			return nil, err
 		}
-		if c < 0 || books[c].Pinned {
-			return nil, fmt.Errorf("choose an unpinned book in your queue")
+		lo, hi, ideal, err := insertBounds(books, scores, c)
+		if err != nil {
+			return nil, err
 		}
-		// Slot i inserts the candidate before rest[i], where rest is the queue
-		// without the candidate. Each constraint bounds i from one side, so the
-		// valid slots form the interval [lo, hi].
-		restIndex := func(j int) int {
-			if j > c {
-				return j - 1
-			}
-			return j
+		order = insertAt(books, c, min(max(ideal, lo), hi))
+	} else {
+		var err error
+		if order, err = rankOrder(books, scores); err != nil {
+			return nil, err
 		}
-		lo, hi := 0, len(books)-1
-		ideal, found := len(books)-1, false
-		for j, b := range books {
-			if j == c {
-				continue
-			}
-			r := restIndex(j)
-			if !found && scores[c] > scores[j] {
-				ideal, found = r, true
-			}
-			switch {
-			case b.Pinned && j < c:
-				lo = max(lo, j+1) // a pin before the candidate must not shift
-			case b.Pinned:
-				hi = min(hi, j-1) // a pin after the candidate must shift into place
-			}
-			if prerequisite(b, books[c]) {
-				lo = max(lo, r+1)
-			}
-			if prerequisite(books[c], b) {
-				hi = min(hi, r)
-			}
+	}
+	return suggestionRows(books, order, scores, reasons), nil
+}
+
+// candidateIndex finds the unpinned book to place.
+func candidateIndex(books []Book, candidateID int64) (int, error) {
+	for i, b := range books {
+		if b.ID == candidateID && !b.Pinned {
+			return i, nil
 		}
-		if lo > hi {
-			return nil, fmt.Errorf("pins and series order leave no valid position; unpin a book or check series numbers")
+	}
+	return -1, fmt.Errorf("choose an unpinned book in your queue")
+}
+
+// insertBounds returns the valid slots [lo, hi] for book c and the slot its
+// score suggests. Slot i inserts the candidate before rest[i], where rest is
+// the queue without the candidate; each constraint bounds i from one side.
+func insertBounds(books []Book, scores []float64, c int) (lo, hi, ideal int, err error) {
+	restIndex := func(j int) int {
+		if j > c {
+			return j - 1
 		}
-		slot := min(max(ideal, lo), hi)
-		for j := range books {
-			if j == c {
-				continue
-			}
-			if restIndex(j) == slot {
-				order = append(order, c)
-			}
-			order = append(order, j)
+		return j
+	}
+	lo, hi = 0, len(books)-1
+	ideal, found := len(books)-1, false
+	for j, b := range books {
+		if j == c {
+			continue
 		}
-		if slot == len(books)-1 {
+		r := restIndex(j)
+		if !found && scores[c] > scores[j] {
+			ideal, found = r, true
+		}
+		switch {
+		case b.Pinned && j < c:
+			lo = max(lo, j+1) // a pin before the candidate must not shift
+		case b.Pinned:
+			hi = min(hi, j-1) // a pin after the candidate must shift into place
+		}
+		if prerequisite(b, books[c]) {
+			lo = max(lo, r+1)
+		}
+		if prerequisite(books[c], b) {
+			hi = min(hi, r)
+		}
+	}
+	if lo > hi {
+		return 0, 0, 0, fmt.Errorf("pins and series order leave no valid position; unpin a book or check series numbers")
+	}
+	return lo, hi, ideal, nil
+}
+
+// insertAt returns the queue order with book c moved to slot.
+func insertAt(books []Book, c, slot int) []int {
+	order := make([]int, 0, len(books))
+	r := 0
+	for j := range books {
+		if j == c {
+			continue
+		}
+		if r == slot {
 			order = append(order, c)
 		}
-	} else {
-		deps := seriesPrerequisites(books)
-		index := make(map[int64]int, len(books))
-		pins := []int{}
-		for i, b := range books {
-			index[b.ID] = i
-			if b.Pinned {
-				pins = append(pins, i)
-			}
+		order = append(order, j)
+		r++
+	}
+	if slot == len(books)-1 {
+		order = append(order, c)
+	}
+	return order
+}
+
+// rankOrder orders the whole queue by keys, highest first and ties in queue
+// order, while keeping pins in their slots and series prerequisites first.
+func rankOrder(books []Book, keys []float64) ([]int, error) {
+	order := make([]int, 0, len(books))
+	deps := seriesPrerequisites(books)
+	index := make(map[int64]int, len(books))
+	pins := []int{}
+	for i, b := range books {
+		index[b.ID] = i
+		if b.Pinned {
+			pins = append(pins, i)
 		}
-		done := make([]bool, len(books))
-		waiting := make([]int, len(books))
-		dependents := make([][]int, len(books))
-		ready := &readyBooks{scores: scores}
-		for i, b := range books {
-			waiting[i] = len(deps[b.ID])
-			for id := range deps[b.ID] {
-				dependents[index[id]] = append(dependents[index[id]], i)
-			}
-			if waiting[i] == 0 && !b.Pinned {
-				ready.items = append(ready.items, i)
-			}
+	}
+	done := make([]bool, len(books))
+	waiting := make([]int, len(books))
+	dependents := make([][]int, len(books))
+	ready := &readyBooks{scores: keys}
+	for i, b := range books {
+		waiting[i] = len(deps[b.ID])
+		for id := range deps[b.ID] {
+			dependents[index[id]] = append(dependents[index[id]], i)
 		}
-		heap.Init(ready)
-		nextPin := 0
-		for slot := range books {
-			chosen := -1
-			for nextPin < len(pins) && pins[nextPin] < slot {
-				nextPin++
+		if waiting[i] == 0 && !b.Pinned {
+			ready.items = append(ready.items, i)
+		}
+	}
+	heap.Init(ready)
+	nextPin := 0
+	for slot := range books {
+		chosen := -1
+		for nextPin < len(pins) && pins[nextPin] < slot {
+			nextPin++
+		}
+		if nextPin < len(pins) && pins[nextPin] == slot {
+			chosen = slot
+			if waiting[chosen] > 0 {
+				return nil, fmt.Errorf("a pinned book precedes an earlier queued book in its series; unpin it first")
 			}
-			if nextPin < len(pins) && pins[nextPin] == slot {
-				chosen = slot
-				if waiting[chosen] > 0 {
-					return nil, fmt.Errorf("a pinned book precedes an earlier queued book in its series; unpin it first")
+		} else {
+			// Find the first later pin whose unplaced, unpinned prerequisites
+			// exactly fill the free slots before it; only those may go here.
+			var urgent map[int64]bool
+			required := map[int64]bool{}
+			for k, deadline := range pins[nextPin:] {
+				available := deadline - slot - k
+				for dep := range deps[books[deadline].ID] {
+					if j := index[dep]; !done[j] && !books[j].Pinned {
+						required[dep] = true
+					}
+				}
+				if len(required) > available {
+					return nil, fmt.Errorf("pinned positions conflict with series order; unpin a book first")
+				}
+				if len(required) > 0 && len(required) == available {
+					urgent = required
+					break
+				}
+			}
+			if urgent == nil {
+				for ready.Len() > 0 && done[ready.items[0]] {
+					heap.Pop(ready)
+				}
+				if ready.Len() > 0 {
+					chosen = heap.Pop(ready).(int)
 				}
 			} else {
-				// Find the first later pin whose unplaced, unpinned prerequisites
-				// exactly fill the free slots before it; only those may go here.
-				var urgent map[int64]bool
-				required := map[int64]bool{}
-				for k, deadline := range pins[nextPin:] {
-					available := deadline - slot - k
-					for dep := range deps[books[deadline].ID] {
-						if j := index[dep]; !done[j] && !books[j].Pinned {
-							required[dep] = true
-						}
+				for id := range urgent {
+					j := index[id]
+					if waiting[j] == 0 && (chosen < 0 || ready.before(j, chosen)) {
+						chosen = j
 					}
-					if len(required) > available {
-						return nil, fmt.Errorf("pinned positions conflict with series order; unpin a book first")
-					}
-					if len(required) > 0 && len(required) == available {
-						urgent = required
-						break
-					}
-				}
-				if urgent == nil {
-					for ready.Len() > 0 && done[ready.items[0]] {
-						heap.Pop(ready)
-					}
-					if ready.Len() > 0 {
-						chosen = heap.Pop(ready).(int)
-					}
-				} else {
-					for id := range urgent {
-						j := index[id]
-						if waiting[j] == 0 && (chosen < 0 || ready.before(j, chosen)) {
-							chosen = j
-						}
-					}
-				}
-				if chosen < 0 {
-					return nil, fmt.Errorf("pins conflict with series order; unpin a book first")
 				}
 			}
-			order = append(order, chosen)
-			done[chosen] = true
-			for _, j := range dependents[chosen] {
-				if waiting[j]--; waiting[j] == 0 && !books[j].Pinned {
-					heap.Push(ready, j)
-				}
+			if chosen < 0 {
+				return nil, fmt.Errorf("pins conflict with series order; unpin a book first")
+			}
+		}
+		order = append(order, chosen)
+		done[chosen] = true
+		for _, j := range dependents[chosen] {
+			if waiting[j]--; waiting[j] == 0 && !books[j].Pinned {
+				heap.Push(ready, j)
 			}
 		}
 	}
+	return order, nil
+}
+
+// suggestionRows describes an order as preview rows.
+func suggestionRows(books []Book, order []int, scores []float64, reasons [][]string) []Suggestion {
 	rows := make([]Suggestion, 0, len(order))
 	for i, j := range order {
 		b := books[j]
@@ -237,7 +273,7 @@ func Propose(books []Book, p Preferences, candidateID int64, today time.Time) ([
 		if b.Pinned {
 			why = append(why, "Pinned position")
 		}
-		rows = append(rows, Suggestion{b.ID, b.Title, b.Author, j + 1, i + 1, b.Pinned, scores[j], why})
+		rows = append(rows, Suggestion{ID: b.ID, Title: b.Title, Author: b.Author, Old: j + 1, New: i + 1, Pinned: b.Pinned, Score: scores[j], Reasons: why})
 	}
-	return rows, nil
+	return rows
 }

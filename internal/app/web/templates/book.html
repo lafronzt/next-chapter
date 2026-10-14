@@ -31,6 +31,18 @@
   </div>
 </form>
 {{if .Editing}}
+<section class="section-heading" id="estimate">
+  <h2>What might you give it?</h2>
+  {{if .Rated}}
+  <p class="estimate-line">{{with .Accuracy}}{{if .Books}}Before you read it, the estimate was {{star (deref .BaselineValue)}}{{with .AIValue}} and the AI’s was {{star .}}{{end}}; you gave it {{.Actual}}★.{{end}}{{else}}You have rated this book, so it needs no estimate.{{end}}</p>
+  {{else}}
+  <p class="estimate-line">{{with .Estimate}}Saved estimate: {{star .Baseline}} from your ratings{{with .AI}}, {{star .}} from the AI{{end}}. <a href="/books/{{$.Book.ID}}/estimate">See how</a>.{{else}}An estimate from the ratings you gave other books. It never changes your library.{{end}}</p>
+  <form method="post" action="/books/{{.Book.ID}}/estimate">
+    {{template "csrf" .}}
+    <button class="button">{{if .Estimate}}Update my estimate{{else}}Predict my rating{{end}}</button>
+  </form>
+  {{end}}
+</section>
 <section class="section-heading" id="reading">
   <h2>When you read it</h2>
   <p>Your finish dates and ratings. Changing them here keeps them yours: later Goodreads checks leave them alone. Reading history never changes this book’s status or interest.</p>
