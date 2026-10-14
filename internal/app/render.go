@@ -32,6 +32,11 @@ func (a *App) render(w http.ResponseWriter, r *http.Request, name string, data p
 			return err
 		}
 		data["UnreviewedCount"] = waiting
+		// A note about the background AI request, until its outcome is seen,
+		// except on its own page.
+		if job := a.currentAIJob(); job != nil && !job.Seen && r.URL.Path != "/ai/jobs/"+job.ID {
+			data["AIJob"] = job
+		}
 	}
 	notice := r.URL.Query().Get("notice")
 	data["Notice"] = notices[notice]
@@ -55,13 +60,23 @@ func (a *App) render(w http.ResponseWriter, r *http.Request, name string, data p
 var notices = map[string]string{"triaged": "Sorted. Only reading status changed; books you want to read wait at the end of your queue for placement.", "saved": "Saved to your library.", "ordered": "Your new order is saved. You can undo it until your next library change.", "undone": "Previous order restored.", "imported": "Import complete. Existing reading status and queue order were preserved.", "loan": "Library event recorded. Reading status stays the same.", "synced": "Goodreads checked. New books are marked Needs placement.", "signedout": "Signed out on every device. Sign in again to continue.", "deleted": "Book deleted. Future imports will skip it.", "merged": "Books merged. Future imports of the merged book will update this one.", "restored": "Library restored from your JSON export.", "reading": "Reading history saved. Your queue is unchanged.", "ai-on": "AI assistance is on. Nothing is sent until you ask for a suggestion and confirm what gets shared.", "ai-off": "AI assistance is off. Nothing will be sent to the AI provider.", "estimated": "The AI’s estimate is saved next to the baseline. Your library did not change.", "ai-tested": "The AI provider answered the test prompt. No library data was sent.", "restored-sync": "Library restored from your JSON export. Goodreads polling is off; turn it back on in Preferences when you are ready."}
 
 func (a *App) fail(w http.ResponseWriter, r *http.Request, err error) {
+	var h httpError
+	if errors.As(err, &h) {
+		for key, values := range h.Header {
+			w.Header()[key] = values
+		}
+	}
+	status, message := a.failure(r, err)
+	a.respond(w, r, status, message)
+}
+
+// failure is the status and reader-facing message for err, logging server
+// errors.
+func (a *App) failure(r *http.Request, err error) (int, string) {
 	status, message := 500, genericFailure
 	var h httpError
 	if errors.As(err, &h) {
 		status, message = h.Status, h.Message
-		for key, values := range h.Header {
-			w.Header()[key] = values
-		}
 	} else if errors.Is(err, sql.ErrNoRows) {
 		status, message = 404, "That record or preview could not be found."
 	}
@@ -69,7 +84,7 @@ func (a *App) fail(w http.ResponseWriter, r *http.Request, err error) {
 		// Never log query strings, form values, or cookies.
 		a.logger.Error("request failed", "request_id", state(r).ID, "method", r.Method, "path", r.URL.Path, "err", err)
 	}
-	a.respond(w, r, status, message)
+	return status, message
 }
 
 // respond renders the error page. Server errors show the request ID so a

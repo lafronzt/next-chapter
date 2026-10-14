@@ -42,6 +42,13 @@ type App struct {
 	// AI request at a time.
 	ai   Completer
 	aiMu sync.Mutex
+	// job is the latest background AI request (see jobs.go). jobCtx ends
+	// when the app closes, and Close waits for jobs.
+	jobMu    sync.Mutex
+	job      *aiJob
+	jobCtx   context.Context
+	stopJobs context.CancelFunc
+	jobs     sync.WaitGroup
 }
 type requestState struct {
 	ID       string
@@ -107,6 +114,7 @@ func New(c Config) (*App, error) {
 	if client := newAIClient(c.AI, nil); client != nil {
 		a.ai = client
 	}
+	a.jobCtx, a.stopJobs = context.WithCancel(context.Background())
 	return a, nil
 }
 
@@ -117,7 +125,14 @@ var passwordIterations = 600_000
 func deriveKey(password, secret string) ([]byte, error) {
 	return pbkdf2.Key(sha256.New, password, []byte("next-chapter:"+secret), passwordIterations, 32)
 }
-func (a *App) Close() error { return a.store.Close() }
+
+// Close cancels any AI request still running, waits for it, and closes the
+// database.
+func (a *App) Close() error {
+	a.stopJobs()
+	a.jobs.Wait()
+	return a.store.Close()
+}
 func state(r *http.Request) requestState {
 	s, _ := r.Context().Value(contextKey{}).(requestState)
 	return s
@@ -147,7 +162,7 @@ func (a *App) Handler() http.Handler {
 		"GET /settings": a.settings, "POST /settings": a.settings, "POST /sync": a.syncNow, "POST /sessions/revoke": a.revokeSessions,
 		"POST /books/{id}/triage": a.triageBook, "POST /triage": a.triageAll,
 		"GET /history": a.history, "GET /reading": a.readingHistory, "POST /books/{id}/readings": a.addReading, "POST /readings/{rid}": a.editReading, "GET /export.json": a.export, "GET /backup.sqlite3": a.backup, "POST /demo": a.demo,
-		"POST /ai/settings": a.aiSettings, "POST /ai/test": a.aiTest,
+		"POST /ai/settings": a.aiSettings, "POST /ai/test": a.aiTest, "GET /ai/jobs/{id}": a.aiJobPage,
 		"GET /books/{id}/estimate": a.estimate, "POST /books/{id}/estimate": a.predict, "POST /books/{id}/estimate/ai": a.predictAI,
 	}
 	for pattern, handler := range endpoints {

@@ -11,6 +11,7 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 )
 
 func testApp(t *testing.T, demo bool) *App {
@@ -51,6 +52,8 @@ type browser struct {
 	remote    string // client address; httptest's default when empty
 	// gateway accepts 502 responses, which AI provider failures produce.
 	gateway bool
+	// background leaves AI requests running instead of waiting for them.
+	background bool
 }
 
 var csrfPattern = regexp.MustCompile(`name="csrf" value="([^"]+)"`)
@@ -101,7 +104,25 @@ func (b *browser) serve(req *http.Request) *httptest.ResponseRecorder {
 	if rr.Code >= 500 && !(b.gateway && rr.Code == http.StatusBadGateway) {
 		b.t.Fatalf("%s %s: %d %s", req.Method, req.URL, rr.Code, rr.Body)
 	}
+	if job := rr.Header().Get("Location"); req.Method == "POST" && rr.Code == http.StatusSeeOther && strings.HasPrefix(job, "/ai/jobs/") && !b.background {
+		return b.awaitJob(job)
+	}
 	return rr
+}
+
+// awaitJob reloads a background AI request's page until it finishes, and
+// returns that response: a redirect to the result, or the error.
+func (b *browser) awaitJob(path string) *httptest.ResponseRecorder {
+	b.t.Helper()
+	for range 5000 {
+		rr := b.request("GET", path, nil)
+		if rr.Code != http.StatusOK || !strings.Contains(rr.Body.String(), "data-ai-pending") {
+			return rr
+		}
+		time.Sleep(2 * time.Millisecond)
+	}
+	b.t.Fatalf("AI job %s never finished", path)
+	return nil
 }
 func expect(t *testing.T, r *httptest.ResponseRecorder, code int) {
 	t.Helper()

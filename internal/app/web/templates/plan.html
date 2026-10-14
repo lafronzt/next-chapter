@@ -105,6 +105,7 @@
   <h3>Recently finished</h3>
   <ul class="ai-sharing">{{range .Recent}}<li>{{.Title}} · {{.Author}}{{with .Tags}} · {{.}}{{end}}{{with .Rating}} · {{.}}★{{end}}{{with .Finished}} · {{.}}{{end}}</li>{{end}}</ul>
   {{end}}
+  {{template "prompt" $.Prompt}}
   <form method="post" action="/plans/{{$.PlanID}}/ai">
     {{template "csrf" $}}
     <input type="hidden" name="fingerprint" value="{{$.SharedFingerprint}}">
