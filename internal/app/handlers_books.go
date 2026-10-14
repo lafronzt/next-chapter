@@ -4,6 +4,8 @@ import (
 	"database/sql"
 	"fmt"
 	"net/http"
+	"strconv"
+	"strings"
 	"time"
 )
 
@@ -171,12 +173,32 @@ func (a *App) bookAction(w http.ResponseWriter, r *http.Request) error {
 			if target < 0 || target >= len(queue) || b.Pinned || queue[target].Pinned {
 				return bad("This move would cross a pinned book or the end of the queue.")
 			}
-			queue[idx], queue[target] = queue[target], queue[idx]
-			ids := []int64{}
-			for _, b := range queue {
-				ids = append(ids, b.ID)
+			if err = reorder(tx, moveEntry(queue, idx, target)); err != nil {
+				return err
 			}
-			err = reorder(tx, ids)
+			_, err = tx.Exec("UPDATE books SET moved_by_hand=1 WHERE id=?", id)
+		case "move":
+			n, parseErr := strconv.Atoi(strings.TrimSpace(r.FormValue("position")))
+			if parseErr != nil || n < 1 || n > len(queue) {
+				return bad(fmt.Sprintf("Enter a queue position from 1 to %d.", len(queue)))
+			}
+			target := n - 1
+			if target == idx {
+				return nil
+			}
+			if b.Pinned {
+				return bad("Pinned books stay in place. Unpin it to move it.")
+			}
+			lo, hi := min(idx, target), max(idx, target)
+			for i := lo; i <= hi; i++ {
+				if queue[i].Pinned {
+					return bad(fmt.Sprintf("This move would cross the pinned book at #%d. Unpin it or choose a position on this side of it.", i+1))
+				}
+			}
+			if err = reorder(tx, moveEntry(queue, idx, target)); err != nil {
+				return err
+			}
+			_, err = tx.Exec("UPDATE books SET moved_by_hand=1 WHERE id=?", id)
 		default:
 			return bad("Choose a valid action.")
 		}

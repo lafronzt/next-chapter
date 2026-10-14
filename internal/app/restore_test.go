@@ -101,7 +101,7 @@ func richLibrary(t *testing.T) *App {
 		if err := reorder(tx, []int64{ids["Queue C"], ids["Queue A"], ids["Queue B"]}); err != nil {
 			return err
 		}
-		if _, err := tx.Exec("UPDATE books SET pinned=1, needs_placement=0 WHERE id=?; UPDATE books SET needs_placement=0 WHERE id=?", ids["Queue A"], ids["Queue C"]); err != nil {
+		if _, err := tx.Exec("UPDATE books SET pinned=1, needs_placement=0 WHERE id=?; UPDATE books SET needs_placement=0, moved_by_hand=1 WHERE id=?", ids["Queue A"], ids["Queue C"]); err != nil {
 			return err
 		}
 		if err := setMeta(tx, "preferences", Preferences{LibraryWeight: 0.5, Length: "short", Mood: "hopeful"}); err != nil {

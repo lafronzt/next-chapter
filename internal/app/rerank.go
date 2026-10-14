@@ -23,6 +23,7 @@ import (
 const (
 	rerankTop       = 60 // highest-scoring books sent for a full reorder
 	rerankPins      = 40 // pinned books sent as fixed points
+	rerankMoved     = 40 // books the reader moved by hand, sent as their choices
 	rerankRecent    = 5  // recently finished books sent for variety
 	insertWindow    = 30 // books sent on each side of the usual slot
 	maxRerankReason = 200
@@ -41,6 +42,7 @@ type rerankBook struct {
 	Estimate     *float64 `json:"estimated_rating,omitempty"`
 	Library      string   `json:"library,omitempty"`
 	Pinned       bool     `json:"pinned,omitempty"`
+	MovedByHand  bool     `json:"moved_by_hand,omitempty"`
 	Position     int      `json:"current_position"`
 }
 type recentBook struct {
@@ -151,7 +153,7 @@ func loadRerankInputs(q queryer, kind string, p Plan, today time.Time) (rerankIn
 	describe := func(id, i int) rerankBook {
 		b := ri.Queue[i]
 		return rerankBook{ID: id, Title: b.Title, Author: b.Author, Tags: b.Tags, Pages: b.Pages, Series: b.Series, SeriesNumber: b.SeriesNumber,
-			Interest: b.Interest, Estimate: b.Estimate, Library: libraryStatus(b, today), Pinned: b.Pinned, Position: i + 1}
+			Interest: b.Interest, Estimate: b.Estimate, Library: libraryStatus(b, today), Pinned: b.Pinned, MovedByHand: b.MovedByHand, Position: i + 1}
 	}
 	ri.Payload = rerankPayload{Task: "reorder", Note: p.Intent, QueueSize: len(ri.Queue), Books: []rerankBook{}, Recent: recent}
 	if kind == "insert" {
@@ -188,11 +190,14 @@ func loadRerankInputs(q queryer, kind string, p Plan, today time.Time) (rerankIn
 		for _, i := range byScore[:min(rerankTop, len(byScore))] {
 			chosen[i] = true
 		}
-		pins := 0
+		pins, moved := 0, 0
 		for i, b := range ri.Queue {
 			if b.Pinned && pins < rerankPins {
 				chosen[i] = true
 				pins++
+			} else if b.MovedByHand && !b.Pinned && moved < rerankMoved {
+				chosen[i] = true
+				moved++
 			}
 		}
 		for i := range ri.Queue {
@@ -211,11 +216,11 @@ func loadRerankInputs(q queryer, kind string, p Plan, today time.Time) (rerankIn
 	return ri, nil
 }
 
-const reorderTask = `You suggest a reading order for one reader's queue. The data lists part of the queue (each book has an id, its current position, interest from 1 to 5, and sometimes an estimated rating and a library deadline), the books the reader finished most recently, and an optional note from the reader about what they want now. Order every listed book from what to read first to last, weighing the reader's note, variety after what they just finished, pacing between long and short or heavy and light books, interest, estimated rating, and library deadlines. The app keeps pinned books in place and series in order afterwards, so you need not. Answer with "order", every listed id exactly once, and "reasons", an array of {"id", "reason"} objects giving one short plain-language reason (under 160 characters, addressed to the reader as "you") for each book you moved noticeably; other books may have no reason.`
+const reorderTask = `You suggest a reading order for one reader's queue. The data lists part of the queue (each book has an id, its current position, interest from 1 to 5, and sometimes an estimated rating and a library deadline), the books the reader finished most recently, and an optional note from the reader about what they want now. Order every listed book from what to read first to last, weighing the reader's note, variety after what they just finished, pacing between long and short or heavy and light books, interest, estimated rating, and library deadlines. A book marked moved_by_hand is where the reader put it themselves: keep it near its current position unless the reader's note gives a reason to move it. The app keeps pinned books in place and series in order afterwards, so you need not. Answer with "order", every listed id exactly once, and "reasons", an array of {"id", "reason"} objects giving one short plain-language reason (under 160 characters, addressed to the reader as "you") for each book you moved noticeably; other books may have no reason.`
 
 const reorderSchema = `{"type":"object","properties":{"order":{"type":"array","items":{"type":"integer"}},"reasons":{"type":"array","items":{"type":"object","properties":{"id":{"type":"integer"},"reason":{"type":"string"}},"required":["id","reason"],"additionalProperties":false}}},"required":["order","reasons"],"additionalProperties":false}`
 
-const placeTask = `You suggest where one new book belongs in a reader's reading queue. The data has the book to place, a stretch of the queue in order (each book with an id, its current position, interest from 1 to 5, and sometimes an estimated rating and a library deadline), the books the reader finished most recently, and an optional note from the reader. Positions are numbered from 1 to "positions": position 1 puts the book before the first listed book, position n puts it before the n-th listed book, and position positions, when it is one more than the number of listed books, puts it after the last. Weigh the reader's note, variety, pacing, interest, estimated rating, and library deadlines. Answer with "position" and "reason", one short plain-language sentence under 160 characters addressed to the reader as "you".`
+const placeTask = `You suggest where one new book belongs in a reader's reading queue. The data has the book to place, a stretch of the queue in order (each book with an id, its current position, interest from 1 to 5, and sometimes an estimated rating and a library deadline), the books the reader finished most recently, and an optional note from the reader. Positions are numbered from 1 to "positions": position 1 puts the book before the first listed book, position n puts it before the n-th listed book, and position positions, when it is one more than the number of listed books, puts it after the last. Weigh the reader's note, variety, pacing, interest, estimated rating, and library deadlines. A book marked moved_by_hand is where the reader put it themselves, so treat its place as the reader's choice. Answer with "position" and "reason", one short plain-language sentence under 160 characters addressed to the reader as "you".`
 
 const placeSchema = `{"type":"object","properties":{"position":{"type":"integer"},"reason":{"type":"string"}},"required":["position","reason"],"additionalProperties":false}`
 

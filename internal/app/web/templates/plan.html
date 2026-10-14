@@ -90,14 +90,14 @@
 </section>
 <div class="panel shared">
   <h3>What gets shared with {{$.AI.Provider}} ({{$.AI.Model}}{{with $.AI.Endpoint}} at {{.}}{{end}})</h3>
-  <p>{{if eq .Task "place"}}The book to place, {{len .Books}} books around its usual place{{else}}{{len .Books}} of the {{.QueueSize}} books in your queue (the highest-ranked, plus pinned books){{end}}{{if .Recent}}, and your {{len .Recent}} most recently finished {{if eq (len .Recent) 1}}book{{else}}books{{end}}{{end}}. Books are numbered for this request only; no database IDs, ISBNs, Goodreads IDs, or library accounts are sent. Library status says only “borrowed” or “ready for pickup” and the days until the deadline.</p>
+  <p>{{if eq .Task "place"}}The book to place, {{len .Books}} books around its usual place{{else}}{{len .Books}} of the {{.QueueSize}} books in your queue (the highest-ranked, plus pinned books and books you moved by hand){{end}}{{if .Recent}}, and your {{len .Recent}} most recently finished {{if eq (len .Recent) 1}}book{{else}}books{{end}}{{end}}. Books are numbered for this request only; no database IDs, ISBNs, Goodreads IDs, or library accounts are sent. Library status says only “borrowed” or “ready for pickup” and the days until the deadline.</p>
   {{with .Note}}<p><strong>Your note:</strong> “{{.}}”</p>{{end}}
   {{with .Candidate}}<p><strong>To place:</strong> {{.Title}} · {{.Author}}{{with .Tags}} · {{.}}{{end}}{{with .Pages}} · {{pages .}} pages{{end}}{{with .Series}} · {{.}}{{end}} · interest {{.Interest}}/5{{with .Estimate}} · estimated {{star (deref .)}}{{end}}</p>{{end}}
   <div class="table-scroll">
     <table>
       <thead><tr><th scope="col">#</th><th scope="col">Title</th><th scope="col">Author</th><th scope="col">Tags</th><th scope="col">Pages</th><th scope="col">Series</th><th scope="col">Interest</th><th scope="col">Estimate</th><th scope="col">Library</th><th scope="col">Now at</th></tr></thead>
       <tbody>
-        {{range .Books}}<tr><td>{{.ID}}</td><td>{{.Title}}</td><td>{{.Author}}</td><td>{{.Tags}}</td><td>{{pages .Pages}}</td><td>{{.Series}}{{with .SeriesNumber}} #{{seriesNumber .}}{{end}}</td><td>{{.Interest}}</td><td>{{with .Estimate}}{{star (deref .)}}{{end}}</td><td>{{.Library}}</td><td>{{.Position}}{{if .Pinned}} (pinned){{end}}</td></tr>{{end}}
+        {{range .Books}}<tr><td>{{.ID}}</td><td>{{.Title}}</td><td>{{.Author}}</td><td>{{.Tags}}</td><td>{{pages .Pages}}</td><td>{{.Series}}{{with .SeriesNumber}} #{{seriesNumber .}}{{end}}</td><td>{{.Interest}}</td><td>{{with .Estimate}}{{star (deref .)}}{{end}}</td><td>{{.Library}}</td><td>{{.Position}}{{if .Pinned}} (pinned){{else if .MovedByHand}} (moved by hand){{end}}</td></tr>{{end}}
       </tbody>
     </table>
   </div>

@@ -667,6 +667,33 @@ h2 {
   padding:3px 7px;
 }
 
+.move-to {
+  display:flex;
+  align-items:center;
+  gap:5px;
+  font-size:10px;
+  color:#69785e;
+}
+
+.move-to input {
+  width:58px;
+  padding:4px 6px;
+  font-size:12px;
+}
+
+.move-to button {
+  background:none;
+  border:1px solid #c9cfbd;
+  border-radius:4px;
+  font-size:10px;
+  color:#69785e;
+  padding:4px 8px;
+}
+
+.move-to input:disabled {
+  opacity:.4;
+}
+
 .mini-actions button:hover,.text-button:hover {
   text-decoration:underline;
 }
@@ -1369,6 +1396,10 @@ input[type=checkbox] {
 
 /* Touch-sized targets (44x44 CSS px) on narrow and touch screens. */
 @media (max-width:1100px), (pointer:coarse) {
+  .move-to input,.move-to button {
+    min-height:44px;
+    font-size:16px;
+  }
   .mini-actions button,.book-actions .button.small,.triage .button,.book-actions .text-button,.pager .button,.search button,.sidebar-bottom .text-button {
     min-width:44px;
     min-height:44px;

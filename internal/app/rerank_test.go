@@ -386,7 +386,7 @@ func TestRerankRequestSendsOnlyWhitelistedFields(t *testing.T) {
 	found := map[string]bool{}
 	keys(generic, found)
 	allowed := map[string]bool{"task": true, "reader_note": true, "queue_size": true, "books": true, "recently_finished": true, "id": true, "title": true, "author": true,
-		"tags": true, "pages": true, "series": true, "series_number": true, "interest": true, "estimated_rating": true, "library": true, "pinned": true, "current_position": true,
+		"tags": true, "pages": true, "series": true, "series_number": true, "interest": true, "estimated_rating": true, "library": true, "pinned": true, "moved_by_hand": true, "current_position": true,
 		"your_rating": true, "finished": true}
 	for k := range found {
 		if !allowed[k] {
