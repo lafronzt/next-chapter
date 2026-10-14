@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"slices"
 )
 
 type Connection struct {
@@ -106,5 +107,10 @@ func (f *feedClient) Fetch(ctx context.Context, c Connection) ([]Record, error) 
 	if err != nil {
 		return nil, feedError("parse", err)
 	}
+	// The feed asks for the newest additions first, so a busy shelf's latest
+	// books are never cut off. New books join the end of the queue in the
+	// order they are imported, so apply them oldest first, as Goodreads
+	// numbers a shelf.
+	slices.Reverse(records)
 	return records, nil
 }

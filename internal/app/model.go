@@ -72,6 +72,11 @@ type Record struct {
 	Review      string `json:"review,omitempty"`
 	// DateIgnored marks an unreadable feed date that was skipped.
 	DateIgnored bool `json:"-"`
+	// shelfPosition is the book's place on its Goodreads exclusive shelf
+	// (0 when unknown) and addedOn its Date Added; they put a Goodreads CSV
+	// in the reader's shelf order.
+	shelfPosition int
+	addedOn       string
 }
 
 type Preferences struct {

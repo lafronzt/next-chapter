@@ -371,3 +371,28 @@ func TestPollTicksUntilCancelled(t *testing.T) {
 	// A context that is already cancelled returns without polling.
 	a.Poll(ctx)
 }
+
+// The feed is fetched newest first and applied oldest first, so new books
+// join the queue in the order Goodreads numbers the shelf.
+func TestFeedAppliesOldestFirst(t *testing.T) {
+	body := `<rss><channel>` +
+		`<item><book_title>Newest</book_title><author_name>Writer</author_name></item>` +
+		`<item><book_title>Middle</book_title><author_name>Writer</author_name></item>` +
+		`<item><book_title>Oldest</book_title><author_name>Writer</author_name></item>` +
+		`</channel></rss>`
+	feed, seen := stubFeed(200, body, nil)
+	rows, err := feed.Fetch(context.Background(), testConnection)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(*seen) != 1 || !strings.Contains((*seen)[0], "sort=date_added") {
+		t.Fatalf("requested %v", *seen)
+	}
+	titles := []string{}
+	for _, r := range rows {
+		titles = append(titles, r.Title)
+	}
+	if got := strings.Join(titles, ", "); got != "Oldest, Middle, Newest" {
+		t.Fatalf("order %s", got)
+	}
+}

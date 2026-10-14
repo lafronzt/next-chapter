@@ -10,6 +10,8 @@ import (
 	"golang.org/x/text/cases"
 	"golang.org/x/text/unicode/norm"
 	"io"
+	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -215,7 +217,46 @@ func ParseCSV(data []byte, source string) ([]Record, []string, error) {
 	if len(records) == 0 && len(errors) == 0 {
 		return nil, nil, fmt.Errorf("the CSV contains no book rows")
 	}
+	if source == "goodreads" {
+		shelfOrder(records)
+	}
 	return records, errors, nil
+}
+
+// shelfOrder puts Goodreads rows in the reader's shelf order, because new
+// books join the end of the queue in the order they are imported. The export
+// lists the newest additions first, but a shelf on Goodreads runs by
+// position: the reader's own order, or the order books were added when they
+// never reordered it. Books with a position come first, by position, then the
+// rest by Date Added; ties keep the file's order.
+func shelfOrder(records []Record) {
+	slices.SortStableFunc(records, func(a, b Record) int {
+		switch {
+		case a.shelfPosition > 0 && b.shelfPosition > 0:
+			return a.shelfPosition - b.shelfPosition
+		case a.shelfPosition > 0:
+			return -1
+		case b.shelfPosition > 0:
+			return 1
+		}
+		return strings.Compare(a.addedOn, b.addedOn)
+	})
+}
+
+var shelfPositionPattern = regexp.MustCompile(`^(.+?)\s*\(#(\d+)\)$`)
+
+// shelfPosition finds shelf's position in a "Bookshelves with positions" cell
+// such as "to-read (#12), fantasy (#3)", or 0.
+func shelfPosition(cell, shelf string) int {
+	for _, part := range strings.Split(cell, ",") {
+		m := shelfPositionPattern.FindStringSubmatch(strings.TrimSpace(part))
+		if m != nil && strings.EqualFold(m[1], shelf) {
+			if n, err := strconv.Atoi(m[2]); err == nil && n > 0 {
+				return n
+			}
+		}
+	}
+	return 0
 }
 func parseRecord(row map[string]string, source string) (Record, error) {
 	title, author := field(row, "title"), field(row, "author", "authors", "author name", "creator")
@@ -245,6 +286,8 @@ func parseRecord(row map[string]string, source string) (Record, error) {
 		r.setReview(field(row, "my review"))
 		r.PublishedYear = parseYear(field(row, "original publication year", "year published"))
 		r.AvgRating = parseAverage(field(row, "average rating"))
+		// A bad Date Added only loses its place in the order.
+		r.addedOn, _ = parseDate(field(row, "date added"))
 		switch field(row, "exclusive shelf") {
 		case "read":
 			r.Status = "read"
@@ -253,6 +296,10 @@ func parseRecord(row map[string]string, source string) (Record, error) {
 		case "to-read", "":
 		default:
 			r.Status = "archived"
+		}
+		// Positions on other shelves do not compare with the queue's.
+		if r.Status == "to-read" {
+			r.shelfPosition = shelfPosition(field(row, "bookshelves with positions"), "to-read")
 		}
 	} else {
 		r.Status = "unreviewed"

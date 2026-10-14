@@ -50,11 +50,16 @@ func TestParseGoodreadsHistory(t *testing.T) {
 	if err != nil || len(problems) != 0 || len(rows) != 3 {
 		t.Fatal(rows, problems, err)
 	}
-	read := rows[2]
+	// Rows come back in shelf order, so find them by title.
+	byTitle := map[string]Record{}
+	for _, r := range rows {
+		byTitle[r.Title] = r
+	}
+	read := byTitle["The Left Hand of Darkness"]
 	if read.Status != "read" || read.FinishedAt != "2024-03-09" || read.Rating != 5 || *read.PublishedYear != 1969 || *read.AvgRating != 4.09 || read.ReviewChars != 63 || !strings.HasPrefix(read.Review, "A slow") {
 		t.Fatalf("%+v", read)
 	}
-	if queued := rows[0]; queued.FinishedAt != "" || queued.Rating != 0 || *queued.PublishedYear != 2021 || queued.ReviewChars != 0 {
+	if queued := byTitle["A Psalm for the Wild-Built"]; queued.FinishedAt != "" || queued.Rating != 0 || *queued.PublishedYear != 2021 || queued.ReviewChars != 0 {
 		t.Fatalf("%+v", queued)
 	}
 	cases := []struct{ date, want string }{{"2024/03/09", "2024-03-09"}, {"2024-03-09", "2024-03-09"}, {"", ""}, {"03/09/2024", "2024-03-09"}}
