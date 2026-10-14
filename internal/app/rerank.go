@@ -382,16 +382,6 @@ func movedFrom(desired, final []int) map[int]bool {
 	return moved
 }
 
-// rerankAI asks the provider about plan id, given the fingerprint of the
-// request the reader saw, and returns the new plan's id.
-func (a *App) rerankAI(ctx context.Context, id, fingerprint string) (string, error) {
-	send, err := a.prepareRerankAI(id, fingerprint)
-	if err != nil {
-		return "", err
-	}
-	return send(ctx)
-}
-
 // prepareRerankAI checks a queue suggestion's AI request against the
 // preview and returns a function that sends it, which may run in the
 // background. Inputs are read in one short transaction, the provider is
