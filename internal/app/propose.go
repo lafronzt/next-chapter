@@ -273,6 +273,9 @@ func suggestionRows(books []Book, order []int, scores []float64, reasons [][]str
 		if b.Pinned {
 			why = append(why, "Pinned position")
 		}
+		if b.MovedByHand {
+			why = append(why, "You moved this by hand")
+		}
 		rows = append(rows, Suggestion{ID: b.ID, Title: b.Title, Author: b.Author, Old: j + 1, New: i + 1, Pinned: b.Pinned, Score: scores[j], Reasons: why})
 	}
 	return rows

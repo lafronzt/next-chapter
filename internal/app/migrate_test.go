@@ -443,3 +443,39 @@ INSERT INTO events(book_id,source,format,status,activity,at,due_date,fingerprint
 		t.Fatalf("backups %v", b)
 	}
 }
+
+func TestMigrateMovedByHandFromVersionSeven(t *testing.T) {
+	t.Parallel()
+	path := filepath.Join(t.TempDir(), "lib.sqlite3")
+	if err := migrateFile(path, migrations[:7]); err != nil {
+		t.Fatal(err)
+	}
+	db, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	db.SetMaxOpenConns(1)
+	s := &Store{db}
+	err = s.Write(func(tx *sql.Tx) error {
+		_, err := tx.Exec(`INSERT INTO books(id,title,author,identity,reading_status,position,pinned,added_at,source) VALUES
+  (1,'First','Writer','first|writer','to-read',0,1,'2026-10-01T00:00:00.000000000+00:00','manual'),
+  (2,'Second','Writer','second|writer','to-read',1,0,'2026-10-01T00:00:00.000000000+00:00','manual');`)
+		return err
+	})
+	s.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = migrateFile(path, migrations[:8]); err != nil {
+		t.Fatal(err)
+	}
+	if v, _ := versionOf(t, path); v != 8 {
+		t.Fatal(v)
+	}
+	if n := scalar[int](t, path, "SELECT count(*) FROM books WHERE moved_by_hand=0 AND ((id=1 AND pinned AND position=0) OR (id=2 AND NOT pinned AND position=1))"); n != 2 {
+		t.Fatal("books changed or were marked")
+	}
+	if b := backups(t, path); len(b) != 1 || b[0] != path+".pre-v8.bak" {
+		t.Fatalf("backups %v", b)
+	}
+}

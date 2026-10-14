@@ -65,6 +65,7 @@
     <div class="book-info">
       <div class="book-badges">
         {{if .Pinned}}<span class="badge pin"><span aria-hidden="true">◆</span> Pinned</span>{{end}}
+        {{if and .MovedByHand (eq .Status "to-read")}}<span class="badge">Moved by hand</span>{{end}}
         {{if and .NeedsPlacement (eq .Status "to-read")}}<span class="badge new">Needs placement</span>{{end}}
         {{if ne .Status "to-read"}}<span class="badge">{{label .Status}}</span>{{end}}
         {{range .Loans}}{{if activeLoan .Status}}<span class="badge {{if eq .Status "borrowed"}}warm{{else}}green{{end}}">{{upper .Source}} · {{.Status}}{{if .DueDate}} · {{.DueDate}}{{end}}</span>{{end}}{{end}}
@@ -87,6 +88,14 @@
         <button name="action" value="down" aria-label="Move {{.Title}} down" {{if not .CanDown}}disabled title="{{.DownBlock}}"{{end}}>↓</button>
         <button name="action" value="pin" aria-label="{{if .Pinned}}Unpin{{else}}Pin{{end}} {{.Title}}">{{if .Pinned}}Unpin{{else}}Pin{{end}}</button>
         {{if .NeedsPlacement}}<button name="action" value="placed" aria-label="Keep here: {{.Title}}" title="Keep the current position">Keep here</button>{{end}}
+      </form>
+      <form class="move-to" method="post" action="/books/{{.ID}}/action">
+        {{template "fields" $}}
+        <input type="hidden" name="return" value="{{$.Pager.Self}}">
+        <input type="hidden" name="action" value="move">
+        <label for="move-{{.ID}}">Move to #<span class="sr-only"> in the queue: {{.Title}}</span></label>
+        <input id="move-{{.ID}}" name="position" type="number" inputmode="numeric" min="1" max="{{$.Stats.Queue}}" required placeholder="{{.QueuePos}}" {{if .Pinned}}disabled title="Pinned books stay in place. Unpin it to move it."{{end}}>
+        <button aria-label="Move {{.Title}} to that position" {{if .Pinned}}disabled title="Pinned books stay in place. Unpin it to move it."{{end}}>Move</button>
       </form>
       {{if not .Estimate}}<form method="post" action="/books/{{.ID}}/estimate">
         {{template "csrf" $}}

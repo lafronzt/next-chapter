@@ -14,6 +14,7 @@ var migrations = []migration{
 	{5, "indexes for paging and imports", migrateIndexes},
 	{6, "reading history", migrateReadingLog},
 	{7, "estimated ratings", migrateRatingEstimates},
+	{8, "books moved by hand", migrateMovedByHand},
 }
 
 func migrateBaseline(tx *sql.Tx) error {
@@ -131,5 +132,13 @@ func migrateRatingEstimates(tx *sql.Tx) error {
  model TEXT NOT NULL DEFAULT '',
  created_at TEXT NOT NULL
 );`)
+	return err
+}
+
+// moved_by_hand marks a queued book the reader moved with the arrows or Move
+// to #, so suggestions can treat its place as the reader's choice. Applying a
+// suggestion clears it; no existing book has been marked.
+func migrateMovedByHand(tx *sql.Tx) error {
+	_, err := tx.Exec("ALTER TABLE books ADD COLUMN moved_by_hand INTEGER NOT NULL DEFAULT 0")
 	return err
 }

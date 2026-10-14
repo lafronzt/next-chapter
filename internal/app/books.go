@@ -3,16 +3,17 @@ package app
 import (
 	"database/sql"
 	"encoding/json"
+	"slices"
 	"strings"
 )
 
 // bookColumns are the books columns scanBook reads, in order. Queries alias
 // the table as b.
-const bookColumns = "b.id,b.title,b.author,b.identity,b.isbn,b.goodreads_id,b.pages,b.tags,b.interest,b.reading_status,b.position,b.pinned,b.needs_placement,b.series,b.series_number,b.published_year,b.avg_rating,b.added_at,b.source"
+const bookColumns = "b.id,b.title,b.author,b.identity,b.isbn,b.goodreads_id,b.pages,b.tags,b.interest,b.reading_status,b.position,b.pinned,b.needs_placement,b.moved_by_hand,b.series,b.series_number,b.published_year,b.avg_rating,b.added_at,b.source"
 
 func scanBook(rows *sql.Rows, extra ...any) (Book, error) {
 	b := Book{Loans: []Loan{}}
-	dest := append([]any{&b.ID, &b.Title, &b.Author, &b.Identity, &b.ISBN, &b.GoodreadsID, &b.Pages, &b.Tags, &b.Interest, &b.Status, &b.Position, &b.Pinned, &b.NeedsPlacement, &b.Series, &b.SeriesNumber, &b.PublishedYear, &b.AvgRating, &b.AddedAt, &b.Source}, extra...)
+	dest := append([]any{&b.ID, &b.Title, &b.Author, &b.Identity, &b.ISBN, &b.GoodreadsID, &b.Pages, &b.Tags, &b.Interest, &b.Status, &b.Position, &b.Pinned, &b.NeedsPlacement, &b.MovedByHand, &b.Series, &b.SeriesNumber, &b.PublishedYear, &b.AvgRating, &b.AddedAt, &b.Source}, extra...)
 	return b, rows.Scan(dest...)
 }
 
@@ -116,11 +117,12 @@ type queueEntry struct {
 	ID             int64
 	Pinned         bool
 	NeedsPlacement bool
+	MovedByHand    bool
 }
 
 // queueOrder lists the queue without loading whole books.
 func queueOrder(q queryer) ([]queueEntry, error) {
-	rows, err := q.Query("SELECT id,pinned,needs_placement FROM books WHERE reading_status='to-read' ORDER BY position,id")
+	rows, err := q.Query("SELECT id,pinned,needs_placement,moved_by_hand FROM books WHERE reading_status='to-read' ORDER BY position,id")
 	if err != nil {
 		return nil, err
 	}
@@ -128,12 +130,24 @@ func queueOrder(q queryer) ([]queueEntry, error) {
 	result := []queueEntry{}
 	for rows.Next() {
 		var e queueEntry
-		if err = rows.Scan(&e.ID, &e.Pinned, &e.NeedsPlacement); err != nil {
+		if err = rows.Scan(&e.ID, &e.Pinned, &e.NeedsPlacement, &e.MovedByHand); err != nil {
 			return nil, err
 		}
 		result = append(result, e)
 	}
 	return result, rows.Err()
+}
+
+// moveEntry returns the queue's IDs with the book at from moved to to; the
+// books between shift by one and the rest keep their places.
+func moveEntry(queue []queueEntry, from, to int) []int64 {
+	ids := make([]int64, 0, len(queue))
+	for _, e := range queue {
+		ids = append(ids, e.ID)
+	}
+	moved := ids[from]
+	ids = slices.Delete(ids, from, from+1)
+	return slices.Insert(ids, to, moved)
 }
 
 // reorder gives the books in ids the positions 0..n-1, in order. It writes only

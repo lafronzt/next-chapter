@@ -77,6 +77,7 @@ var planTitles = map[string]string{"import": "Import preview", "restore": "Resto
 type undoBook struct {
 	ID             int64 `json:"id"`
 	NeedsPlacement bool  `json:"needs_placement"`
+	MovedByHand    bool  `json:"moved_by_hand,omitempty"`
 }
 
 func (a *App) plan(w http.ResponseWriter, r *http.Request) error {
@@ -184,7 +185,7 @@ func (a *App) plan(w http.ResponseWriter, r *http.Request) error {
 			}
 			previous := []undoBook{}
 			for _, b := range queue {
-				previous = append(previous, undoBook{b.ID, b.NeedsPlacement})
+				previous = append(previous, undoBook{b.ID, b.NeedsPlacement, b.MovedByHand})
 			}
 			raw, err := json.Marshal(previous)
 			if err != nil {
@@ -204,10 +205,12 @@ func (a *App) plan(w http.ResponseWriter, r *http.Request) error {
 			if err = reorder(tx, ids); err != nil {
 				return err
 			}
+			// The reader chose the suggested place, which replaces any place
+			// they had given the book by hand.
 			if p.CandidateID != 0 {
-				_, err = tx.Exec("UPDATE books SET needs_placement=0 WHERE id=?", p.CandidateID)
+				_, err = tx.Exec("UPDATE books SET needs_placement=0,moved_by_hand=0 WHERE id=?", p.CandidateID)
 			} else {
-				_, err = tx.Exec("UPDATE books SET needs_placement=0 WHERE reading_status='to-read'")
+				_, err = tx.Exec("UPDATE books SET needs_placement=0,moved_by_hand=0 WHERE reading_status='to-read'")
 			}
 			if err != nil {
 				return err
@@ -252,7 +255,7 @@ func (a *App) undo(w http.ResponseWriter, r *http.Request) error {
 			return err
 		}
 		for i, b := range previous {
-			if _, err = tx.Exec("UPDATE books SET position=?,needs_placement=? WHERE id=?", i, b.NeedsPlacement, b.ID); err != nil {
+			if _, err = tx.Exec("UPDATE books SET position=?,needs_placement=?,moved_by_hand=? WHERE id=?", i, b.NeedsPlacement, b.MovedByHand, b.ID); err != nil {
 				return err
 			}
 		}

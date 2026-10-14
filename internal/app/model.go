@@ -21,6 +21,7 @@ type Book struct {
 	Position       int      `json:"position"`
 	Pinned         bool     `json:"pinned"`
 	NeedsPlacement bool     `json:"needs_placement"`
+	MovedByHand    bool     `json:"moved_by_hand,omitempty"` // the reader moved it in the queue
 	Series         string   `json:"series"`
 	SeriesNumber   *float64 `json:"series_number"`
 	PublishedYear  *int     `json:"published_year"`
