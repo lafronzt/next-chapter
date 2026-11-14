@@ -48,7 +48,7 @@
     <span>MAKE ROOM FOR YOUR NEXT GOOD BOOK</span>
     <span class="edition">Personal edition · v{{version}}</span>
   </div>
-  {{if .Notice}}<div class="notice" role="status">{{.Notice}}</div>{{end}}
+  {{if .Notice}}<div class="notice" role="status">{{.Notice}}{{with .NoticeUndo}}<form class="notice-undo" method="post" action="/undo">{{template "fields" $}}<button class="text-button" aria-label="Undo: {{.}}"><span aria-hidden="true">↶</span> Undo</button></form>{{end}}</div>{{end}}
   {{with .AIJob}}<div class="notice ai-job{{if and .Done .Err}} error{{end}}" role="status">{{if not .Done}}<span class="ai-spinner small" aria-hidden="true"></span> The AI is working on {{.Label}}. Keep using the app; <a href="/ai/jobs/{{.ID}}">check on it</a>.{{else if .Err}}The AI request for {{.Label}} did not finish. <a href="/ai/jobs/{{.ID}}">See what happened</a>.{{else}}The AI has answered: {{.Label}} is ready. <a href="/ai/jobs/{{.ID}}">See the result</a>.{{end}}</div>{{end}}
 {{end}}
 

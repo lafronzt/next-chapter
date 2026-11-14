@@ -2,7 +2,6 @@
 {{if eq .Kind "triage"}}<a class="back" href="/?view=unreviewed"><span aria-hidden="true">←</span> Back to To review</a>{{else if eq .Kind "restore"}}<a class="back" href="/imports"><span aria-hidden="true">←</span> Back to Import books</a>{{else}}<a class="back" href="/"><span aria-hidden="true">←</span> Keep my current order</a>{{end}}
 <header class="page-heading">
   <div>
-    <div class="eyebrow">{{if eq .Kind "import"}}IMPORT PREVIEW{{else if eq .Kind "restore"}}RESTORE PREVIEW{{else if eq .Kind "triage"}}PLEASE CONFIRM{{else}}A SUGGESTION, NOT A COMMAND{{end}}</div>
     <h1>{{if eq .Kind "import"}}Make yourself at home.{{else if eq .Kind "restore"}}Welcome back, books.{{else if eq .Kind "triage"}}Sort {{len .Plan.BookIDs}} books at once.{{else if eq .Kind "insert"}}A place for your new curiosity.{{else}}See your list in a new light.{{end}}</h1>
     <p>{{if eq .Kind "import"}}Check the records before bringing them into your library.{{else if eq .Kind "restore"}}Check what the export holds before restoring it into this empty library.{{else if eq .Kind "triage"}}Every book below moves from To review to {{.TriageLabel}}. Nothing changes until you confirm.{{else}}Nothing moves until you apply this suggestion. Pinned books stay in place.{{end}}</p>
   </div>

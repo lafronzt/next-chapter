@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // bookFilter selects the books of one list: a reading status ("" for every
@@ -91,6 +92,10 @@ type listedBook struct {
 	QueuePos           int
 	CanUp, CanDown     bool
 	UpBlock, DownBlock string
+	// Reason is the one short reason for this place in the queue, and
+	// HandPlaced marks books the reader pinned or moved themselves.
+	Reason     string
+	HandPlaced bool
 }
 
 // listBooks returns one page of the filter's books in list order.
@@ -112,9 +117,14 @@ func listBooks(q queryer, f bookFilter, limit, offset int) ([]listedBook, error)
 		}
 	}
 	if f.Sort != "" {
-		return items, placeSorted(q, queued)
+		err = placeSorted(q, queued)
+	} else {
+		err = placeInQueue(q, queued, f.Query != "")
 	}
-	return items, placeInQueue(q, queued, f.Query != "")
+	if err != nil {
+		return nil, err
+	}
+	return items, attachReasons(q, items, time.Now())
 }
 
 // placeInQueue numbers the page's queued books within the whole queue and

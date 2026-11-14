@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 )
 
 func (a *App) render(w http.ResponseWriter, r *http.Request, name string, data page, status int) error {
@@ -49,6 +50,10 @@ func (a *App) render(w http.ResponseWriter, r *http.Request, name string, data p
 		skipped, _ := strconv.Atoi(q.Get("skipped"))
 		data["Notice"] = fmt.Sprintf("Placement done: %d placed in a new spot, %d kept where they were, %d left for later.", placed, kept, skipped)
 	}
+	if added, err := strconv.Atoi(r.URL.Query().Get("added")); err == nil && notice == "imported" {
+		needs, _ := strconv.Atoi(r.URL.Query().Get("needs"))
+		data["Notice"] = fmt.Sprintf("Import complete: %d %s added, %d %s a spot. Existing reading status and queue order were preserved.", added, plural(added, "book", "books"), needs, plural(needs, "needs", "need"))
+	}
 	if moved, _ := strconv.Atoi(r.URL.Query().Get("moved")); notice == "imported" && moved > 0 {
 		data["Notice"] = fmt.Sprintf("Import complete. %d library-only books moved out of To review to match Goodreads; other books kept their reading status and queue order.", moved)
 	}
@@ -57,6 +62,10 @@ func (a *App) render(w http.ResponseWriter, r *http.Request, name string, data p
 	}
 	if skipped, _ := strconv.Atoi(r.URL.Query().Get("skipped")); notice == "imported" && skipped > 0 {
 		data["Notice"] = fmt.Sprintf("%s Skipped %d rows for books you deleted.", data["Notice"], skipped)
+	}
+	if v := r.URL.Query().Get("n"); v != "" && (a.config.Demo || s.Session.Authenticated) {
+		text, undo := a.resolveNotice(a.store.DB, v, s.Revision)
+		data["Notice"], data["NoticeUndo"] = text, undo
 	}
 	var buf bytes.Buffer
 	if err := a.templates.ExecuteTemplate(&buf, name, data); err != nil {
@@ -69,7 +78,7 @@ func (a *App) render(w http.ResponseWriter, r *http.Request, name string, data p
 }
 
 // notices are the confirmations a redirect can request with ?notice=.
-var notices = map[string]string{"started": "Started. Nothing else in your queue moved.", "stopped": "Set aside. You can bring it back from its book page.", "finished": "Marked finished and logged in your reading history. Your queue is unchanged.", "triaged": "Sorted. Only reading status changed; books you want to read wait at the end of your queue for placement.", "saved": "Saved to your library.", "ordered": "Your new order is saved. You can undo it until your next library change.", "undone": "Previous order restored.", "imported": "Import complete. Existing reading status and queue order were preserved.", "loan": "Library event recorded. Reading status stays the same.", "signedout": "Signed out on every device. Sign in again to continue.", "deleted": "Book deleted. Future imports will skip it.", "merged": "Books merged. Future imports of the merged book will update this one.", "restored": "Library restored from your JSON export.", "reading": "Reading history saved. Your queue is unchanged.", "ai-on": "AI assistance is on. Nothing is sent until you ask for a suggestion and confirm what gets shared.", "ai-off": "AI assistance is off. Nothing will be sent to the AI provider.", "estimated": "The AI’s estimate is saved next to the baseline. Your library did not change.", "ai-tested": "The AI provider answered the test prompt. No library data was sent."}
+var notices = map[string]string{"requeued": "Back in your queue, marked Needs placement. Nothing else moved.", "started": "Started. Nothing else in your queue moved.", "stopped": "Set aside. You can bring it back from its book page.", "finished": "Marked finished and logged in your reading history. Your queue is unchanged.", "triaged": "Sorted. Only reading status changed; books you want to read wait at the end of your queue for placement.", "saved": "Saved to your library.", "ordered": "Your new order is saved. You can undo it until your next library change.", "undone": "Previous order restored.", "imported": "Import complete. Existing reading status and queue order were preserved.", "loan": "Library event recorded. Reading status stays the same.", "signedout": "Signed out on every device. Sign in again to continue.", "deleted": "Book deleted. Future imports will skip it.", "merged": "Books merged. Future imports of the merged book will update this one.", "restored": "Library restored from your JSON export.", "reading": "Reading history saved. Your queue is unchanged.", "ai-on": "AI assistance is on. Nothing is sent until you ask for a suggestion and confirm what gets shared.", "ai-off": "AI assistance is off. Nothing will be sent to the AI provider.", "estimated": "The AI’s estimate is saved next to the baseline. Your library did not change.", "ai-tested": "The AI provider answered the test prompt. No library data was sent."}
 
 func (a *App) fail(w http.ResponseWriter, r *http.Request, err error) {
 	var h httpError
@@ -142,7 +151,7 @@ func templateFuncs() template.FuncMap {
 			}
 			return strconv.FormatFloat(*n, 'f', -1, 64)
 		},
-		"cover": func(id int64) int64 { return id % 5 },
+		"cover": coverClass,
 		"pos": func(n int) string {
 			if n == 0 {
 				return "—"
@@ -172,10 +181,11 @@ func templateFuncs() template.FuncMap {
 			}
 			return out
 		},
-		"noRating":   func() *float64 { return nil },
-		"ratingText": ratingText,
-		"isWhole":    func(n float64) bool { return n == math.Floor(n) },
-		"rated":      func(r *float64, n float64) bool { return r != nil && *r == n },
+		"ratingFloors": func() []float64 { return []float64{1, 2, 3, 3.5, 4, 4.5, 5} },
+		"noRating":     func() *float64 { return nil },
+		"ratingText":   ratingText,
+		"isWhole":      func(n float64) bool { return n == math.Floor(n) },
+		"rated":        func(r *float64, n float64) bool { return r != nil && *r == n },
 		"ratingShort": func(n float64) string {
 			switch frac := n - math.Floor(n); frac {
 			case 0:
@@ -206,8 +216,20 @@ func templateFuncs() template.FuncMap {
 		"star":    func(f float64) string { return fmt.Sprintf("%.1f★", f) },
 		"deref":   func(f *float64) float64 { return *f },
 		"inc":     func(i int) int { return i + 1 },
-		"sub":     func(a, b int) int { return a - b },
-		"join":    strings.Join,
+		"month": func(date *string) string {
+			if date == nil {
+				return ""
+			}
+			if t, err := time.Parse(time.DateOnly, *date); err == nil {
+				return t.Format("January")
+			}
+			if t, err := time.Parse("2006-01", (*date)[:min(7, len(*date))]); err == nil {
+				return t.Format("January")
+			}
+			return ""
+		},
+		"sub":  func(a, b int) int { return a - b },
+		"join": strings.Join,
 		"minute": func(s string) string {
 			if len(s) >= 16 {
 				return strings.Replace(s[:16], "T", " ", 1)

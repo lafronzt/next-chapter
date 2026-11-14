@@ -10,7 +10,7 @@
 {{with .Home}}
 {{with .Next}}
 <section class="next-up" aria-labelledby="next-up-title">
-  <a href="/books/{{.ID}}" class="book-cover cover-{{cover .ID}}" aria-hidden="true" tabindex="-1">
+  <a href="/books/{{.ID}}" class="book-cover {{cover .Title .Author}}" aria-hidden="true" tabindex="-1">
     <span class="cover-line"></span>
     <span class="cover-title">{{.Title}}</span>
     <span class="cover-author">{{.Author}}</span>
@@ -128,14 +128,15 @@
 {{if .CanUndo}}
 <form class="undo" method="post" action="/undo">
   {{template "fields" .}}
-  <button class="text-button"><span aria-hidden="true">↶</span> Undo the last suggested order</button>
+  <button class="text-button"><span aria-hidden="true">↶</span> Undo {{.UndoLabel}}</button>
 </form>
 {{end}}
+{{if eq .View "queue"}}<p class="queue-legend muted"><small><span aria-hidden="true">◆</span> Pinned and <span aria-hidden="true">✎</span> hand-placed books stay where you put them. Every other book follows your ranking. The note under a title says why it is where it is; it never moves anything.</small></p>{{end}}
 <div class="queue-list">
   {{range .Items}}
-  <article class="book-row" id="book-{{.ID}}">
+  <article class="book-row{{if .HandPlaced}} hand-placed{{end}}" id="book-{{.ID}}">
     <div class="position">{{if .QueuePos}}<span class="sr-only">Queue position </span>{{end}}{{pos .QueuePos}}</div>
-    <a href="/books/{{.ID}}" class="book-cover cover-{{cover .ID}}" aria-label="Edit {{.Title}}">
+    <a href="/books/{{.ID}}" class="book-cover {{cover .Title .Author}}" aria-label="{{.Title}}">
       <span class="cover-line"></span>
       <span class="cover-title">{{.Title}}</span>
       <span class="cover-author">{{.Author}}</span>
@@ -150,6 +151,7 @@
       </div>
       <h2><a href="/books/{{.ID}}">{{.Title}}</a></h2>
       <p class="author">{{.Author}}{{if .Pages}}<span> · {{pages .Pages}} pages</span>{{end}}</p>
+      {{if .Reason}}<p class="queue-reason">{{if .HandPlaced}}<span aria-hidden="true">{{if .Pinned}}◆{{else}}✎{{end}}</span> {{end}}{{.Reason}}</p>{{end}}
       <p class="book-meta">{{pips .Interest}}{{if .Estimate}}<span> · <a class="estimate-link" href="/books/{{.ID}}/estimate">estimated {{star (deref .Estimate)}}</a></span>{{end}}{{if .Tags}}<span> · {{.Tags}}</span>{{end}}</p>
     </div>
     <div class="book-actions">
@@ -189,7 +191,7 @@
             {{template "csrf" $}}
             <button class="sheet-button" aria-label="Predict my rating: {{.Title}}"><span>Predict my rating</span><small>An estimate from your other ratings. It never changes your library.</small></button>
           </form>{{end}}
-          <a class="sheet-button" href="/books/{{.ID}}" aria-label="Edit book: {{.Title}}"><span>Edit book</span></a>
+          <a class="sheet-button" href="/books/{{.ID}}/edit" aria-label="Edit book: {{.Title}}"><span>Edit book</span></a>
         </div>
       </details>
       {{else if and (eq .Status "unreviewed") (eq $.View "unreviewed")}}
@@ -200,9 +202,9 @@
         <button class="button small" name="action" value="read" aria-label="Already read {{.Title}}">Already read</button>
         <button class="button small" name="action" value="skip" aria-label="Not interested in {{.Title}}">Not interested</button>
       </form>
-      <a class="text-button" href="/books/{{.ID}}" aria-label="Edit book: {{.Title}}">Edit book</a>
+      <a class="text-button" href="/books/{{.ID}}/edit" aria-label="Edit book: {{.Title}}">Edit book</a>
       {{else}}
-      <a class="button small" href="/books/{{.ID}}" aria-label="Edit book: {{.Title}}"><span>Edit book <span aria-hidden="true">↗</span></span></a>
+      <a class="button small" href="/books/{{.ID}}/edit" aria-label="Edit book: {{.Title}}"><span>Edit book <span aria-hidden="true">↗</span></span></a>
       {{end}}
     </div>
   </article>
@@ -213,17 +215,18 @@
     <h2>Nothing waiting for review.</h2>
     <p>Books from Libby or NYPL imports land here until you decide whether you want to read them.</p>
     <div class="button-row">
-      <a class="button" href="/imports">Import library activity</a>
+      <a class="button primary" href="/imports">Import library activity</a>
     </div>
   </section>
   {{else}}
   <section class="empty">
     <div class="empty-mark" aria-hidden="true">✧</div>
     <h2>{{if .Query}}No matching books.{{else}}Your next chapter starts here.{{end}}</h2>
-    <p>{{if .Query}}Try another title, author, or tag.{{else}}Add a book you’re excited about, or bring your shelves over from Goodreads.{{end}}</p>
+    <p>{{if .Query}}Nothing matches “{{.Query}}”. Clear the search to see the whole list.{{else if eq .View "queue"}}Bring your shelves over from a Goodreads CSV, or add a book you’re excited about.{{else}}Nothing is here yet.{{end}}</p>
     <div class="button-row">
-      <a class="button primary" href="/books/new">Add your first book</a>
-      <a class="button" href="/imports">Import a reading list</a>
+      {{if .Query}}<a class="button primary" href="/?view={{.View}}">Clear the search</a>
+      {{else}}<a class="button primary" href="/imports">Import your Goodreads CSV</a>
+      <a class="button" href="/books/new">Add a book</a>{{end}}
       {{if and .Demo (not .Stats.Books)}}
       <form action="/demo" method="post">
         {{template "fields" .}}

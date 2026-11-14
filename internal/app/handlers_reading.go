@@ -5,30 +5,12 @@ import (
 	"fmt"
 	"math"
 	"net/http"
-	"net/url"
 	"strconv"
 	"strings"
 )
 
 // readingHistory pages through finished readings, newest first, with stats
 // over the whole history.
-func (a *App) readingHistory(w http.ResponseWriter, r *http.Request) error {
-	stats, err := historyStats(a.store.DB)
-	if err != nil {
-		return err
-	}
-	pages := newPager(r, stats.Readings, "/reading", url.Values{})
-	readings, err := pageReadings(a.store.DB, pages.PerPage, pages.offset())
-	if err != nil {
-		return err
-	}
-	accuracy, err := loadAccuracy(a.store.DB, 0)
-	if err != nil {
-		return err
-	}
-	return a.render(w, r, "reading.html", page{"Title": pageTitle("Reading history", pages), "Readings": readings, "Stats": stats, "Pager": pages, "Accuracy": accuracy}, 200)
-}
-
 // readingFields reads a finish date and rating; both may be left blank.
 func readingFields(r *http.Request) (finished *string, rating *float64, err error) {
 	if raw := strings.TrimSpace(r.FormValue("finished_at")); raw != "" {

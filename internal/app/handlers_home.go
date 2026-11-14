@@ -106,12 +106,18 @@ func (a *App) bookStatus(w http.ResponseWriter, r *http.Request) error {
 		if err != nil {
 			return err
 		}
+		before, err := snapshotBooks(tx, "id=?", id)
+		if err != nil {
+			return err
+		}
 		switch {
 		case action == "start" && b.Status == "to-read":
 			err = setStatus(tx, b, "reading")
 		case action == "stop" && b.Status == "reading":
 			err = setStatus(tx, b, "abandoned")
-		case action == "start" || action == "stop":
+		case action == "requeue" && (b.Status == "abandoned" || b.Status == "archived"):
+			err = setStatus(tx, b, "to-read")
+		case action == "start" || action == "stop" || action == "requeue":
 			return bad("That book is no longer in that state. Reload and try again.")
 		default:
 			return bad("Choose a valid action.")
@@ -119,21 +125,18 @@ func (a *App) bookStatus(w http.ResponseWriter, r *http.Request) error {
 		if err != nil {
 			return err
 		}
-		return bump(tx)
+		if err = bump(tx); err != nil {
+			return err
+		}
+		return recordUndo(tx, noticeText(action, b.Title, 0), before)
 	})
 	if err != nil {
 		return err
 	}
-	notice := "started"
-	if action == "stop" {
-		notice = "stopped"
+	if r.FormValue("back") == "book" {
+		return redirect(w, r, a.withNotice(fmt.Sprintf("/books/%d", id), action, id, 0))
 	}
-	dest := listReturn(r)
-	sep := "?"
-	if dest != "/" {
-		sep = "&"
-	}
-	return redirect(w, r, dest+sep+"notice="+notice)
+	return redirect(w, r, a.withNotice(listReturn(r), action, id, 0))
 }
 
 // finishBook shows and saves the Finished form: a finish date (today by

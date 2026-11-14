@@ -182,7 +182,7 @@ func TestPlacePageShowsProgressAndNeighbors(t *testing.T) {
 	a := placementLibrary(t)
 	b := &browser{t: t, handler: a.Handler()}
 	body := b.request("GET", "/place", nil).Body.String()
-	for _, want := range []string{"PLACE A BOOK · 1 OF 4", "Back to my queue", "Suggested spot: number", `class="candidate"`, "Put it here", "Keep it at the end", "Decide later"} {
+	for _, want := range []string{"Book 1 of 4", "Back to my queue", "Suggested spot: number", `class="candidate"`, "Put it here", "Keep it at the end", "Decide later"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("missing %q", want)
 		}

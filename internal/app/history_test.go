@@ -172,7 +172,7 @@ func TestReviewTextNeedsOptIn(t *testing.T) {
 	if rs := readingsOf(t, a, "Reviewed"); rs[0].Review != nil || rs[0].ReviewChars != 9 {
 		t.Fatalf("%+v", rs[0])
 	}
-	if !strings.Contains(b.request("GET", fmt.Sprintf("/books/%d", bookNamed(t, a, "Reviewed").ID), nil).Body.String(), "9-character review") {
+	if !strings.Contains(b.request("GET", fmt.Sprintf("/books/%d/edit", bookNamed(t, a, "Reviewed").ID), nil).Body.String(), "9-character review") {
 		t.Fatal("review length not shown")
 	}
 	// Without the opt-in, review text is not even kept in a stored preview.
@@ -286,15 +286,17 @@ func TestReadingHistoryPageAndStats(t *testing.T) {
 	rr := b.request("GET", "/reading", nil)
 	expect(t, rr, 200)
 	body := rr.Body.String()
-	if strings.Count(body, `class="history-row"`) != 50 || !strings.Contains(body, `<meter min="0" max="19" value="18">`) || !strings.Contains(body, "Showing 1–50 of 56") {
+	if strings.Count(body, `<li>
+      <a class="book-cover`) != 50 || !strings.Contains(body, `<meter min="0" max="19" value="18"`) || !strings.Contains(body, "Showing 1–50 of 56") {
 		t.Fatal("first page")
 	}
 	// Newest first; the undated reading comes last.
-	if first := strings.Index(body, "2025-"); first < 0 || first > strings.Index(body, "2024-06") {
+	if first := strings.Index(body, `id="year-2025-s"`); first < 0 || first > strings.Index(body, `id="year-2024-s"`) {
 		t.Fatal("order")
 	}
 	body = b.request("GET", "/reading?page=2", nil).Body.String()
-	if strings.Count(body, `class="history-row"`) != 6 || !strings.Contains(body, "Date unknown") || !strings.Contains(body, "Reading history, page 2 of 2") {
+	if strings.Count(body, `<li>
+      <a class="book-cover`) != 6 || !strings.Contains(body, "No finish date") || !strings.Contains(body, "Reading history, page 2 of 2") {
 		t.Fatal("second page")
 	}
 	// An empty history explains where it comes from.

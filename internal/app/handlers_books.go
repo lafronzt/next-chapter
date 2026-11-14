@@ -63,42 +63,68 @@ func (a *App) newBook(w http.ResponseWriter, r *http.Request) error {
 // when there are more, and the export has them all.
 const bookEventLimit = 200
 
+// bookPageData loads what a book's pages show: the book, its readings,
+// loans, events, and estimate, in a fixed handful of queries.
+func (a *App) bookPageData(id int64) (page, error) {
+	b, err := getBook(a.store.DB, id)
+	if err != nil {
+		return nil, err
+	}
+	events, err := loadEvents(a.store.DB, id, bookEventLimit)
+	if err != nil {
+		return nil, err
+	}
+	total, err := countEvents(a.store.DB, eventFilter{BookID: id})
+	if err != nil {
+		return nil, err
+	}
+	readings, err := bookReadings(a.store.DB, id)
+	if err != nil {
+		return nil, err
+	}
+	estimate, err := readEstimate(a.store.DB, id)
+	if err != nil {
+		return nil, err
+	}
+	data := page{"Title": b.Title, "Book": b, "Editing": true, "Events": events, "EventTotal": total, "Readings": readings, "Estimate": estimate}
+	for _, e := range readings {
+		if e.Rating != nil {
+			data["Rated"] = true
+		}
+	}
+	if estimate != nil && data["Rated"] != nil {
+		if data["Accuracy"], err = loadAccuracy(a.store.DB, id); err != nil {
+			return nil, err
+		}
+	}
+	return data, nil
+}
+
+// viewBook is the read-only page for a book: what it is, where it stands,
+// the one obvious next step, and its readings, library activity, and estimate.
+func (a *App) viewBook(w http.ResponseWriter, r *http.Request) error {
+	id, err := requestID(r)
+	if err != nil {
+		return err
+	}
+	data, err := a.bookPageData(id)
+	if err != nil {
+		return err
+	}
+	return a.render(w, r, "book_view.html", data, 200)
+}
+
+// editBook shows and saves the edit form, with the forms for readings and
+// library events beneath it.
 func (a *App) editBook(w http.ResponseWriter, r *http.Request) error {
 	id, err := requestID(r)
 	if err != nil {
 		return err
 	}
 	if r.Method == http.MethodGet {
-		b, err := getBook(a.store.DB, id)
+		data, err := a.bookPageData(id)
 		if err != nil {
 			return err
-		}
-		events, err := loadEvents(a.store.DB, id, bookEventLimit)
-		if err != nil {
-			return err
-		}
-		total, err := countEvents(a.store.DB, eventFilter{BookID: id})
-		if err != nil {
-			return err
-		}
-		readings, err := bookReadings(a.store.DB, id)
-		if err != nil {
-			return err
-		}
-		estimate, err := readEstimate(a.store.DB, id)
-		if err != nil {
-			return err
-		}
-		data := page{"Title": b.Title, "Book": b, "Editing": true, "Events": events, "EventTotal": total, "Readings": readings, "Estimate": estimate}
-		for _, e := range readings {
-			if e.Rating != nil {
-				data["Rated"] = true
-			}
-		}
-		if estimate != nil && data["Rated"] != nil {
-			if data["Accuracy"], err = loadAccuracy(a.store.DB, id); err != nil {
-				return err
-			}
 		}
 		return a.render(w, r, "book.html", data, 200)
 	}
@@ -142,6 +168,9 @@ func (a *App) bookAction(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
+	// What the reader sees afterwards: the action key and any number. An
+	// empty key means nothing changed, so there is nothing to say or undo.
+	noticeKey, noticeArg := "", 0
 	err = a.store.Write(func(tx *sql.Tx) error {
 		if err := current(tx, r); err != nil {
 			return err
@@ -160,23 +189,48 @@ func (a *App) bookAction(w http.ResponseWriter, r *http.Request) error {
 			return bad("Choose a book in your reading queue.")
 		}
 		b := queue[idx]
-		switch r.FormValue("action") {
+		// Capture what this action can touch before it runs: the whole queue
+		// for a move (positions shift), just this book otherwise.
+		var before []bookState
+		snapshot := func(all bool) error {
+			var err error
+			if all {
+				before, err = snapshotBooks(tx, "reading_status='to-read'")
+			} else {
+				before, err = snapshotBooks(tx, "id=?", id)
+			}
+			return err
+		}
+		action := r.FormValue("action")
+		switch action {
 		case "pin":
+			if err = snapshot(false); err != nil {
+				return err
+			}
 			_, err = tx.Exec("UPDATE books SET pinned=? WHERE id=?", !b.Pinned, id)
+			noticeKey = map[bool]string{true: "unpin", false: "pin"}[b.Pinned]
 		case "placed":
+			if err = snapshot(false); err != nil {
+				return err
+			}
 			_, err = tx.Exec("UPDATE books SET needs_placement=0 WHERE id=?", id)
+			noticeKey = "placed"
 		case "up", "down":
 			target := idx - 1
-			if r.FormValue("action") == "down" {
+			if action == "down" {
 				target = idx + 1
 			}
 			if target < 0 || target >= len(queue) || b.Pinned || queue[target].Pinned {
 				return bad("This move would cross a pinned book or the end of the queue.")
 			}
+			if err = snapshot(true); err != nil {
+				return err
+			}
 			if err = reorder(tx, moveEntry(queue, idx, target)); err != nil {
 				return err
 			}
 			_, err = tx.Exec("UPDATE books SET moved_by_hand=1 WHERE id=?", id)
+			noticeKey = action
 		case "move":
 			n, parseErr := strconv.Atoi(strings.TrimSpace(r.FormValue("position")))
 			if parseErr != nil || n < 1 || n > len(queue) {
@@ -195,23 +249,38 @@ func (a *App) bookAction(w http.ResponseWriter, r *http.Request) error {
 					return bad(fmt.Sprintf("This move would cross the pinned book at #%d. Unpin it or choose a position on this side of it.", i+1))
 				}
 			}
+			if err = snapshot(true); err != nil {
+				return err
+			}
 			if err = reorder(tx, moveEntry(queue, idx, target)); err != nil {
 				return err
 			}
 			_, err = tx.Exec("UPDATE books SET moved_by_hand=1 WHERE id=?", id)
+			noticeKey, noticeArg = "move", n
 		default:
 			return bad("Choose a valid action.")
 		}
 		if err != nil {
 			return err
 		}
-		return bump(tx)
+		if err = bump(tx); err != nil {
+			return err
+		}
+		var title string
+		if err = tx.QueryRow("SELECT title FROM books WHERE id=?", id).Scan(&title); err != nil {
+			return err
+		}
+		return recordUndo(tx, noticeText(noticeKey, title, noticeArg), before)
 	})
 	if err != nil {
 		return err
 	}
+	dest := listReturn(r)
+	if noticeKey != "" {
+		dest = a.withNotice(dest, noticeKey, id, noticeArg)
+	}
 	// Land on the row that changed, without scrolling from the top.
-	return redirect(w, r, fmt.Sprintf("%s#book-%d", listReturn(r), id))
+	return redirect(w, r, fmt.Sprintf("%s#book-%d", dest, id))
 }
 func (a *App) loan(w http.ResponseWriter, r *http.Request) error {
 	id, err := requestID(r)
