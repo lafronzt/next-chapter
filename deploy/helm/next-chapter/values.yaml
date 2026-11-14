@@ -1,5 +1,6 @@
 # Single replica + Recreate is deliberate: SQLite writers must not overlap.
 image:
+  replicas: 1
   repository: ghcr.io/lafronzt/next-chapter
   tag: ""            # defaults to the chart appVersion
   pullPolicy: IfNotPresent
