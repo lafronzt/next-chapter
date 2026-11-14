@@ -2181,3 +2181,24 @@ input[type=checkbox] {
     min-height:48px;
   }
 }
+
+/* Queue reasons */
+.queue-reason {
+  margin:2px 0;
+  font-size:13px;
+  color:var(--muted);
+}
+
+.hand-placed .queue-reason {
+  color:var(--ink);
+  font-weight:600;
+}
+
+.book-row.hand-placed {
+  border-left:3px solid var(--accent);
+  padding-left:12px;
+}
+
+.queue-legend {
+  margin:0 0 8px;
+}

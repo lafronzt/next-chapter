@@ -199,25 +199,39 @@ func score(b Book, p Preferences, today time.Time) (float64, []string) {
 		}
 	}
 	total += float64(best) * p.LibraryWeight
-	if mood := strings.TrimSpace(p.Mood); mood != "" {
-		for _, tag := range strings.Split(b.Tags, ",") {
-			if strings.EqualFold(mood, strings.TrimSpace(tag)) {
-				total += 15
-				reasons = append(reasons, "Matches your "+mood+" mood")
-				break
-			}
-		}
+	if moodMatch(b, p) {
+		total += 15
+		reasons = append(reasons, "Matches your "+strings.TrimSpace(p.Mood)+" mood")
 	}
 	if p.UseEstimates && b.Estimate != nil {
 		// ±5 points per star from the middle of the scale, at most ±10.
 		total += math.Round((*b.Estimate-3)*50) / 10
 		reasons = append(reasons, fmt.Sprintf("Estimated %.1f★ for you", *b.Estimate))
 	}
-	if b.Pages != nil && ((p.Length == "short" && *b.Pages <= 250) || (p.Length == "long" && *b.Pages >= 400)) {
+	if lengthFit(b, p) {
 		total += 10
 		reasons = append(reasons, "Matches your preferred length")
 	}
 	return total, reasons
+}
+
+// moodMatch reports whether one of the book's tags is the preferred mood.
+func moodMatch(b Book, p Preferences) bool {
+	mood := strings.TrimSpace(p.Mood)
+	if mood == "" {
+		return false
+	}
+	for _, tag := range strings.Split(b.Tags, ",") {
+		if strings.EqualFold(mood, strings.TrimSpace(tag)) {
+			return true
+		}
+	}
+	return false
+}
+
+// lengthFit reports whether the book's page count suits the preferred length.
+func lengthFit(b Book, p Preferences) bool {
+	return b.Pages != nil && ((p.Length == "short" && *b.Pages <= 250) || (p.Length == "long" && *b.Pages >= 400))
 }
 
 func in(value string, values []string) bool {

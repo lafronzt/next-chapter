@@ -131,9 +131,10 @@
   <button class="text-button"><span aria-hidden="true">↶</span> Undo the last suggested order</button>
 </form>
 {{end}}
+{{if eq .View "queue"}}<p class="queue-legend muted"><small><span aria-hidden="true">◆</span> Pinned and <span aria-hidden="true">✎</span> hand-placed books stay where you put them. Every other book follows your ranking. The note under a title says why it is where it is; it never moves anything.</small></p>{{end}}
 <div class="queue-list">
   {{range .Items}}
-  <article class="book-row" id="book-{{.ID}}">
+  <article class="book-row{{if .HandPlaced}} hand-placed{{end}}" id="book-{{.ID}}">
     <div class="position">{{if .QueuePos}}<span class="sr-only">Queue position </span>{{end}}{{pos .QueuePos}}</div>
     <a href="/books/{{.ID}}" class="book-cover cover-{{cover .ID}}" aria-label="{{.Title}}">
       <span class="cover-line"></span>
@@ -150,6 +151,7 @@
       </div>
       <h2><a href="/books/{{.ID}}">{{.Title}}</a></h2>
       <p class="author">{{.Author}}{{if .Pages}}<span> · {{pages .Pages}} pages</span>{{end}}</p>
+      {{if .Reason}}<p class="queue-reason">{{if .HandPlaced}}<span aria-hidden="true">{{if .Pinned}}◆{{else}}✎{{end}}</span> {{end}}{{.Reason}}</p>{{end}}
       <p class="book-meta">{{pips .Interest}}{{if .Estimate}}<span> · <a class="estimate-link" href="/books/{{.ID}}/estimate">estimated {{star (deref .Estimate)}}</a></span>{{end}}{{if .Tags}}<span> · {{.Tags}}</span>{{end}}</p>
     </div>
     <div class="book-actions">
