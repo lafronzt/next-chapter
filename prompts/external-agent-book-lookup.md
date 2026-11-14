@@ -124,8 +124,13 @@ Reader data:
 
 ---
 
-## Getting descriptions into the app
+## Getting results into the app
 
-The app has no description field today, so these prompts return the description for you to read, not to store. Keeping descriptions in the library needs a `books.description` column and an explicit migration with backup and rollback steps (see `AGENTS.md`), plus support in import, export, restore, and merge. That is a separate change; say the word and I can plan it.
+The app can look up the same details itself, with no AI, when you turn on **Book lookup** in Preferences (see the README). Use these prompts when you want more than a database lookup: web search, reviews, or a second source for a hard-to-find book.
 
-If you add it later, a sensible rule is that a description is filled only when the book's description is empty, and never overwrites one the reader wrote.
+The agent returns JSON and never writes to your library. To use a result:
+
+- **Description, pages, year, series, tags:** open the book, choose **Edit details**, and paste them in. A description you type is stored as yours and is never replaced by a later lookup. Or add the fields to your CSV before importing.
+- **Estimate research (Prompt 2):** the agent's answer is advice for you; nothing from it is saved. The built-in **Estimate** page uses the stored description when the book has one.
+
+Descriptions from an agent are untrusted text like any other: the app strips markup and cuts them at 2,000 characters.

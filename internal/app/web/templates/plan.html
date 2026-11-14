@@ -33,6 +33,21 @@
 {{if or .Plan.Rated .Plan.RatingsKept}}<div class="notice" role="status">{{if .Plan.Rated}}{{.Plan.Rated}} new {{if eq .Plan.Rated 1}}book starts{{else}}books start{{end}} with your Goodreads rating as want-to-read.{{end}}{{if .Plan.RatingsKept}} {{.Plan.RatingsKept}} rated {{if eq .Plan.RatingsKept 1}}book is{{else}}books are{{end}} already here and {{if eq .Plan.RatingsKept 1}}keeps its{{else}}keep their{{end}} current want-to-read.{{end}}</div>{{end}}
 {{if .Plan.Logged}}<div class="notice" role="status">{{.Plan.Logged}} finished {{if eq .Plan.Logged 1}}reading is{{else}}readings are{{end}} added to your <a href="/reading">reading history</a>. History never changes reading status, want-to-read, or queue order.</div>{{end}}
 {{if .Plan.RatingsIgnored}}<div class="notice" role="status">{{.Plan.RatingsIgnored}} {{if eq .Plan.RatingsIgnored 1}}rating was{{else}}ratings were{{end}} not a number from 0 to 5 and {{if eq .Plan.RatingsIgnored 1}}was{{else}}were{{end}} ignored; {{if eq .Plan.RatingsIgnored 1}}that book starts{{else}}those books start{{end}} at want-to-read 3.</div>{{end}}
+<section class="panel stack" id="lookup" aria-labelledby="lookup-title">
+  <h2 id="lookup-title">Fill in details</h2>
+  {{if .Plan.LookupAttempted}}<p role="status">Looked up {{.Plan.LookupAttempted}} {{if eq .Plan.LookupAttempted 1}}book{{else}}books{{end}}; {{.Plan.LookupFound}} had details. They fill only empty fields and are saved when you import. Running it again changes nothing already filled.</p>{{end}}
+  {{if .LookupOn}}
+  {{if .LookupBatch}}
+  <form class="stack" method="post" action="/plans/{{.PlanID}}/lookup">
+    {{template "fields" .}}
+    <p class="muted"><small>What gets sent: the title, author, and ISBN of {{.LookupBatch}} {{if eq .LookupBatch 1}}book{{else}}books{{end}} to Open Library and Google Books, nothing else. Up to {{.LookupLimit}} at a time.</small></p>
+    <div><button class="button">Look up details for these {{.LookupBatch}} {{if eq .LookupBatch 1}}book{{else}}books{{end}}</button></div>
+  </form>
+  {{else}}<p class="muted">Every book here has been looked up.</p>{{end}}
+  {{else}}
+  <p class="muted">Book lookup is off, so nothing is sent anywhere. Turn it on in <a href="/settings?open=privacy#privacy">Preferences</a> to add descriptions, pages, and tags from a book database.</p>
+  {{end}}
+</section>
 <div class="panel preview-list">
   {{range $i, $r := .PreviewRecords}}{{if lt $i 20}}
   <div class="preview-row">

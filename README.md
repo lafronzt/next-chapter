@@ -7,7 +7,7 @@ Next Chapter is a **single-reader web app** with two ways to organize your list:
 - **Find its place:** suggest where one book belongs, preserving the relative order of every other book.
 - **Rethink my queue:** reconsider the entire queue using your want-to-read, library timing, preferred length, tags, and series order.
 
-Every suggestion has a preview and reasons. Pinned books keep their positions. You decide whether to apply a suggestion, and can undo it until another library change occurs. No AI service, API key, or subscription is required; [AI assistance](#ai-assistance-optional) is off unless you connect a hosted model with your own key or a model on your own hardware, and switch it on.
+Every suggestion has a preview and reasons. Pinned books keep their positions. You decide whether to apply a suggestion, and can undo it until another library change occurs. No AI service, API key, or subscription is required, and [book lookup](#book-details-lookup-optional) is off unless you switch it on; [AI assistance](#ai-assistance-optional) is off unless you connect a hosted model with your own key or a model on your own hardware, and switch it on.
 
 ![Next Chapter with example books](docs/preview.png)
 
@@ -27,6 +27,7 @@ Every suggestion has a preview and reasons. Pinned books keep their positions. Y
 - Goodreads CSV imports that keep your `to-read` shelf order and are safe to repeat: export again from Goodreads whenever you want to bring in new books.
 - **Estimated ratings**: “what might I give this?” for an unread book, from your own ratings, with an optional AI second opinion and a running check of how accurate past estimates were.
 - A **Reading history** of finished books, with finish dates, your ratings, books per year, and favorite shelves, from your Goodreads read shelf and readings you log yourself.
+- **Book details** (optional, off by default): a description, plus pages, year, series, and tags, filled in from Open Library or Google Books when you ask, one book or one import at a time. See [Book details lookup](#book-details-lookup-optional).
 - Libby timeline CSV imports and a standard CSV format for physical NYPL activity.
 - Separate library events for print, ebook, and audiobook; newest known event wins, regardless of import order.
 - Repeatable imports, matching by Goodreads ID, ISBN, then normalized title and author.
@@ -40,7 +41,7 @@ Every suggestion has a preview and reasons. Pinned books keep their positions. Y
 
 Goodreads turned off its public shelf feeds in 2026, so CSV import is the only Goodreads path. Export your library from Goodreads (My Books → Import and export → Export Library) and import the file as often as you like. Each export is matched against what you already have: by ISBN when the row has one, otherwise by normalized title and author, and by Goodreads Book ID as a last resort for a book whose title or author you edited. Books you deleted stay deleted, and merged books update their target. New books are appended, oldest first, and marked **Needs placement**; imports never silently reorder your queue.
 
-Importing makes no network requests: the file you upload is the only input, and nothing is sent to Goodreads.
+Importing makes no network requests: the file you upload is the only input, and nothing is sent to Goodreads. The one optional exception is [book lookup](#book-details-lookup-optional), which is off by default and runs only when you press its button.
 
 Libby supports exporting timeline activity but does not provide a direct Goodreads integration. Export column names and activity labels can vary. The parser accepts common variants and rejects unsupported rows with an actionable error; normalize those rows to the provided sample CSV before importing. There is no authenticated Libby connection in v0.2.
 
@@ -283,6 +284,27 @@ kubectl exec deploy/ollama -- ollama pull llama3.1:8b
 
 Then set `AI_PROVIDER=ollama`, `AI_BASE_URL=http://ollama:11434`, `AI_MODEL`, and a longer `AI_TIMEOUT_SECONDS` for the app. Restrict who can reach the Ollama Service with a NetworkPolicy if your cluster is shared.
 
+## Book details lookup (optional)
+
+A Goodreads or library import gives a title, an author, and little else. **Book lookup** can fill in a description, page count, first-publication year, series, and tags from a global book database. It is plain HTTPS and JSON that this app sends itself. No AI is involved and no model decides what is true.
+
+- **Off by default.** Turn it on in Preferences → Privacy (“Book lookup”). Until then nothing is sent anywhere, and the Details block and import preview say so.
+- **Only when you ask.** There is no lookup on a timer, page load, or import. You press **Look up details** on one book, or **Look up details for these N books** on an import preview (up to 25 at a time; press again for the rest).
+- **What is sent, and to whom:** the book's **title, author, and ISBN** (when it has one) to [Open Library](https://openlibrary.org/developers/api) and [Google Books](https://developers.google.com/books/docs/v1/using), and to ISBNdb if the operator set a key. Never your ratings, reviews, tags, reading history, or any other book. The requests carry a `NextChapter/<version>` User-Agent and no cookies. Those services see your server's IP address and can log the request.
+- **You choose what to keep.** A single-book lookup shows each field next to what the book has now. **Only empty fields are offered and pre-selected; a value you typed or imported is never replaced**, and a description is stored only when the book has none. An import preview adds details only to empty fields of the records it will import, and nothing is saved until you press Import. Running it again changes nothing already filled. A lookup never moves a book in your queue. Pages, tags, and series it fills are the same fields suggestions read, so a later suggestion can read them; pressing the button never reorders anything.
+- **Untrusted text.** Database text can contain anything. It is stored as plain text with markup removed, cut at 2,000 characters, shown escaped, and sent to an AI only inside `<library_data>`. With [AI assistance](#ai-assistance-optional) on, a stored description (up to 1,000 characters) is part of the candidate in an estimate and shows in the exact-prompt preview; adding or changing one makes a saved AI estimate for that book stale. It does not change the reader-history fingerprint.
+- **Limits.** Databases can be wrong, out of date, or missing a book. Open Library's series data is sparse, so series usually stays empty. If two books match a title and author, nothing is filled; add an ISBN. Redirects are not followed, replies over 1 MB are refused, and each request times out after 8 seconds.
+- **Optional keys (never required):**
+
+  | Variable | Meaning |
+  | --- | --- |
+  | `GOOGLE_BOOKS_API_KEY` | Raises Google Books' request quota. Works without it. |
+  | `ISBNDB_API_KEY` | Adds [ISBNdb](https://isbndb.com/isbn-database) (paid) as a third source for books with an ISBN. |
+
+  WorldCat (OCLC) needs OAuth credentials and is not built into the app; use the external workflow below if you have access.
+- **Backups and rollback.** Descriptions are stored in new `books.description` and `books.description_source` columns (schema migration 10, below) and are part of the JSON export, restore, and merge (a merge keeps the surviving book's description, else the merged-away book's). Older exports without them still restore.
+- **Deeper research with your own AI agent (outside the app).** For web search and MCP tools, such as Claude Code or Claude Desktop, use [`prompts/external-agent-book-lookup.md`](prompts/external-agent-book-lookup.md). It is optional and separate: the app does not call it, and the agent never writes to your library.
+
 ## Imports and data ownership
 
 CSV files must be UTF-8, ≤2 MB, and ≤10,000 rows. A malformed row blocks the entire import, with row numbers shown. Import previews expire after an hour. A library change invalidates prior previews, preventing an old browser tab from overwriting newer work.
@@ -356,6 +378,8 @@ The app refuses to start if the database has a newer schema version than the run
 3. Start the previous image.
 
 Changes made after the upgrade are not in the `.bak`. Export JSON first if you need a record of them.
+
+Schema migration 10 adds the `books.description` and `books.description_source` columns (both text, default empty); no existing data changes. Roll back with `next-chapter.sqlite3.pre-v10.bak` as above, or keep later changes and run an older image after `ALTER TABLE books DROP COLUMN description; ALTER TABLE books DROP COLUMN description_source; UPDATE meta SET value='9' WHERE key='schema_version';`, which discards descriptions only. JSON exports from version 10 carry descriptions and need this build or newer to restore.
 
 Schema migration 8 adds the `books.moved_by_hand` column, which marks books you moved by hand; existing books start unmarked and nothing else changes. Roll back with `next-chapter.sqlite3.pre-v8.bak` as above, or keep later changes and run an older image after `ALTER TABLE books DROP COLUMN moved_by_hand; UPDATE meta SET value='7' WHERE key='schema_version';`, which only forgets the marks. JSON exports from version 8 carry the mark and need this build or newer to restore.
 

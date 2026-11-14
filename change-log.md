@@ -1,5 +1,11 @@
 # Change log
 
+## Prompt 32 (book details lookup)
+
+| Prompt | Change |
+|---|---|
+| 32 | `lookup.go` (Open Library, Google Books, optional ISBNdb behind a `BookSource` interface), `handlers_lookup.go`, migration 10 (`books.description`, `description_source`), a Book lookup switch in Preferences, a Details block on the book page, an opt-in lookup step on import previews, and the description in the estimate candidate. Tests in `lookup_test.go`. |
+
 ## Prompts 17–21 (UI pass)
 
 | Prompt | Change |

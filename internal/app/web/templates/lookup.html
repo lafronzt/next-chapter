@@ -1,0 +1,34 @@
+{{template "top" .}}
+<a class="back" href="/books/{{.Book.ID}}#details"><span aria-hidden="true">←</span> Back to {{.Book.Title}}</a>
+<header class="page-heading">
+  <div>
+    <h1>What the book databases know.</h1>
+    <p>Sent: this book’s {{.Sent}}. Found by {{if .Found.Sources}}{{range $i, $s := .Found.Sources}}{{if $i}}, {{end}}{{$s}}{{end}}{{else}}no database{{end}}. Databases can be wrong. Only empty fields can be filled; nothing is saved until you confirm, and the queue order never changes.</p>
+  </div>
+</header>
+{{if .Stale}}<div class="notice error" role="alert">Your library has changed since this lookup. Look the book up again.</div>{{end}}
+{{if .Rows}}
+<form class="stack" method="post" action="/lookups/{{.PlanID}}">
+  {{template "fields" .}}
+  <div class="panel lookup-rows">
+    {{range .Rows}}
+    <div class="lookup-row">
+      {{if .Fill}}<label class="checkbox"><input type="checkbox" name="take" value="{{.Key}}" checked> <strong>{{.Label}}</strong></label>{{else}}<strong>{{.Label}}</strong>{{end}}
+      <div class="lookup-values">
+        <div><span class="muted">Now</span><p class="description">{{if .Current}}{{.Current}}{{else}}Empty{{end}}</p></div>
+        <div><span class="muted">Found</span><p class="description">{{.Found}}</p></div>
+      </div>
+      {{if not .Fill}}<p class="muted"><small>Keeps your value.</small></p>{{end}}
+    </div>
+    {{end}}
+  </div>
+  <div class="button-row">
+    <a class="button" href="/books/{{.Book.ID}}#details">Cancel</a>
+    {{if .CanFill}}<button class="button primary" {{if .Stale}}disabled{{end}}>Save the checked details</button>{{end}}
+  </div>
+  {{if not .CanFill}}<p class="muted">Every field it found is already filled in, so there is nothing to add.</p>{{end}}
+</form>
+{{else}}
+<p class="notice" role="status">The databases had no details to add.</p>
+{{end}}
+{{template "bottom" .}}

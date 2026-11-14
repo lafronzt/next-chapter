@@ -28,7 +28,12 @@ type Book struct {
 	AvgRating      *float64 `json:"avg_rating"`
 	AddedAt        string   `json:"added_at"`
 	Source         string   `json:"source"`
-	Loans          []Loan   `json:"loans"`
+	// Description is plain text from the reader or a book database, at most
+	// maxDescription characters; DescriptionSource names the database, or is
+	// empty. It is untrusted data wherever it is shown or sent.
+	Description       string `json:"description"`
+	DescriptionSource string `json:"description_source"`
+	Loans             []Loan `json:"loans"`
 	// Estimate is the saved estimated rating, filled only where ranking or a
 	// list needs it. It is a cache and not part of the export.
 	Estimate *float64 `json:"-"`
@@ -66,6 +71,9 @@ type Record struct {
 	Rating float64 `json:"rating,omitempty"`
 	// RatingIgnored marks a rating that was present but not 0-5.
 	RatingIgnored bool `json:"-"`
+	// LookedUp marks a record whose details came from a book lookup, so an
+	// import fills the empty series, tags, and description of a matching book.
+	LookedUp bool `json:"-"`
 	// FinishedAt is the Goodreads Date Read (YYYY-MM-DD), and ReviewChars and
 	// Review the reader's review. They become reading history for books on
 	// the read shelf.
@@ -91,6 +99,10 @@ type Preferences struct {
 	// UseEstimates lets saved estimated ratings nudge suggestions. Off by
 	// default; ranking reads the saved estimate and never calls a provider.
 	UseEstimates bool `json:"use_estimates,omitempty"`
+	// BookLookup lets the reader ask global book databases for details. Off by
+	// default; nothing is looked up unless the reader asks for one book or one
+	// import, and then only title, author, and ISBN are sent.
+	BookLookup bool `json:"book_lookup,omitempty"`
 }
 
 var defaultPreferences = Preferences{LibraryWeight: 1, Length: "any"}
@@ -152,6 +164,12 @@ type Plan struct {
 	RatingsIgnored int `json:"ratings_ignored,omitempty"`
 	// Logged previews how many finished readings an import adds to history.
 	Logged int `json:"logged,omitempty"`
+	// LookupAttempted and LookupFound count the books an import preview has
+	// looked up, and those with details.
+	LookupAttempted int `json:"lookup_attempted,omitempty"`
+	LookupFound     int `json:"lookup_found,omitempty"`
+	// Lookup is a looked-up book awaiting the reader's choice of fields.
+	Lookup *lookupPlan `json:"lookup,omitempty"`
 	// BookIDs and Status describe a bulk triage of unreviewed books.
 	BookIDs []int64 `json:"book_ids,omitempty"`
 	Status  string  `json:"status,omitempty"`

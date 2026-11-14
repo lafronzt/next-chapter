@@ -21,13 +21,14 @@
     {{$set := "abandoned"}}{{if eq .Book.Status "archived"}}{{$set = "archived"}}{{end}}
     {{range .ReadingStates}}{{if or (eq . "abandoned") (eq . "archived")}}{{if eq . $set}}<option value="{{.}}" {{if eq $.Book.Status .}}selected{{end}}>{{status .}}</option>{{end}}{{else}}<option value="{{.}}" {{if eq $.Book.Status .}}selected{{end}}>{{status .}}</option>{{end}}{{end}}
   </select></label>
-  <details class="span-2 more-details" {{if or .Book.Pages .Book.Tags .Book.Series .Book.SeriesNumber}}open{{end}}>
-    <summary>Details <span class="muted">pages, tags, series</span></summary>
+  <details class="span-2 more-details" {{if or .Book.Pages .Book.Tags .Book.Series .Book.SeriesNumber .Book.Description}}open{{end}}>
+    <summary>Details <span class="muted">pages, tags, series, description</span></summary>
     <div class="form-grid">
   <label>Pages <span class="muted">optional</span><input name="pages" type="number" min="1" max="99999" value="{{pages .Book.Pages}}"></label>
   <label>Tags <span class="muted">comma separated</span><input name="tags" maxlength="500" value="{{.Book.Tags}}" placeholder="hopeful, nature, fiction"></label>
   <label>Series <span class="muted">optional</span><input name="series" maxlength="200" value="{{.Book.Series}}"></label>
   <label>Number in series<input name="series_number" type="number" step="0.1" min="0" max="9999" value="{{seriesNumber .Book.SeriesNumber}}"></label>
+  <label class="span-2">Description <span class="muted">optional, plain text</span><textarea name="description" rows="5" maxlength="2000">{{.Book.Description}}</textarea></label>
     </div>
   </details>
   <div class="span-2 button-row">

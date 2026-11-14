@@ -16,6 +16,7 @@ var migrations = []migration{
 	{7, "estimated ratings", migrateRatingEstimates},
 	{8, "books moved by hand", migrateMovedByHand},
 	{9, "quarter-star ratings", migrateQuarterStars},
+	{10, "book descriptions", migrateDescriptions},
 }
 
 func migrateBaseline(tx *sql.Tx) error {
@@ -160,5 +161,20 @@ DROP TABLE reading_log;
 ALTER TABLE reading_log_new RENAME TO reading_log;
 CREATE INDEX reading_log_book ON reading_log(book_id, finished_at);
 CREATE INDEX reading_log_finished ON reading_log(finished_at, id);`)
+	return err
+}
+
+// Descriptions come from the reader or from an opt-in lookup in a global book
+// database (see lookup.go). description_source names the database, and is
+// empty for text the reader wrote or an import supplied. Both default to
+// empty, so existing books are unchanged.
+//
+// Backup: the migration framework writes <database>.pre-v10.bak before
+// applying this. Rollback: stop the app, put that file back as the database,
+// and run the previous release; this release's exports restore only into this
+// release or newer, so export from the older release after rolling back.
+func migrateDescriptions(tx *sql.Tx) error {
+	_, err := tx.Exec(`ALTER TABLE books ADD COLUMN description TEXT NOT NULL DEFAULT '';
+ALTER TABLE books ADD COLUMN description_source TEXT NOT NULL DEFAULT '';`)
 	return err
 }

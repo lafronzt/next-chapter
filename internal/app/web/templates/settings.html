@@ -50,6 +50,8 @@
     <input type="hidden" name="section" value="privacy">
     <label class="checkbox span-2"><input type="checkbox" name="keep_reviews" {{if .Prefs.KeepReviews}}checked{{end}}> Keep my Goodreads review text in this library</label>
     <p class="span-2 muted"><small>Default: off, so only each review’s length is stored. Reviews are personal and can be long. Turning this off deletes review text already kept here, after you confirm.</small></p>
+    <label class="checkbox span-2"><input type="checkbox" name="book_lookup" {{if .Prefs.BookLookup}}checked{{end}}> Book lookup: let me ask book databases for a description and missing details</label>
+    <p class="span-2 muted"><small>Default: off. When on, a book’s page and an import preview get a “Look up details” button. Nothing is looked up on its own. Each lookup sends only the title, author, and ISBN to Open Library and Google Books (and ISBNdb, if whoever runs this app set a key), never your ratings, reviews, tags, or reading history. Databases can be wrong or missing a book, so you see the result and choose what to keep; a value you already have is never replaced.</small></p>
     <div class="span-2">
       <button class="button primary">Save privacy</button>
     </div>

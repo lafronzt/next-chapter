@@ -38,6 +38,7 @@ They were first written against the Python/Flask version (commit `c54c785`) and 
 | 29 | [Reading history page](29-reading-history-page.md) | UI (roadmap) | New. Year sections, quarter-star distribution, filters |
 | 30 | [Notices, Undo, empty states](30-specific-notices-undo-and-empty-states.md) | UI (roadmap) | New. Specific notices, undo for moves, pins and status changes |
 | 31 | [Grouped Preferences](31-grouped-preferences.md) | UI (roadmap) | New. Ranking, Privacy, AI sections that save independently |
+| 32 | [Book details lookup and descriptions](32-book-details-lookup-and-descriptions.md) | Feature (roadmap) | Done. Opt-in Open Library / Google Books lookup, `books.description` (migration 10), the estimate uses the description. Companion: [external-agent-book-lookup.md](external-agent-book-lookup.md) |
 | 32 | [Book details lookup and descriptions](32-book-details-lookup-and-descriptions.md) | Feature (roadmap) | New. Open Library / Google Books lookup, `books.description` migration, description in the estimate. Needs 05 and 15. Companion: [external agent prompts](external-agent-book-lookup.md) |
 | 01 | [Insertion ranking performance](01-fix-insertion-performance.md) | Optimization | **Downgraded.** Go is O(n²), not cubic: 313 ms at 2,000 books. Worth doing, not urgent |
 

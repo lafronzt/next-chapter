@@ -173,8 +173,8 @@ func importRecords(q queryer, records []Record) (out importResult, err error) {
 			if r.Interest >= 1 && r.Interest <= 5 {
 				interest = r.Interest
 			}
-			result, err := q.Exec(`INSERT INTO books(title,author,identity,isbn,goodreads_id,pages,tags,interest,reading_status,position,series,series_number,published_year,avg_rating,added_at,source)
-    VALUES(?,?,?,?,?,?,?,?,?,(SELECT COALESCE(MAX(position),-1)+1 FROM books),?,?,?,?,?,?)`, r.Title, r.Author, identity(r.Title, r.Author), r.ISBN, r.GoodreadsID, r.Pages, r.Tags, interest, r.Status, r.Series, r.SeriesNumber, r.PublishedYear, r.AvgRating, canonicalTime(time.Now()), r.Source)
+			result, err := q.Exec(`INSERT INTO books(title,author,identity,isbn,goodreads_id,pages,tags,interest,reading_status,position,series,series_number,published_year,avg_rating,added_at,source,description,description_source)
+    VALUES(?,?,?,?,?,?,?,?,?,(SELECT COALESCE(MAX(position),-1)+1 FROM books),?,?,?,?,?,?,?,?)`, r.Title, r.Author, identity(r.Title, r.Author), r.ISBN, r.GoodreadsID, r.Pages, r.Tags, interest, r.Status, r.Series, r.SeriesNumber, r.PublishedYear, r.AvgRating, canonicalTime(time.Now()), r.Source, r.Description, r.DescriptionSource)
 			if err != nil {
 				return out, err
 			}
@@ -210,6 +210,31 @@ func importRecords(q queryer, records []Record) (out importResult, err error) {
 			}
 			if r.PublishedYear != nil {
 				changed, err := execChanged(q, "UPDATE books SET published_year=? WHERE id=? AND published_year IS NULL", *r.PublishedYear, id)
+				if err != nil {
+					return out, err
+				}
+				out.Changed = out.Changed || changed
+			}
+			// Series, tags, and descriptions fill only where empty, so a
+			// second run changes nothing and a typed value is never replaced.
+			for _, f := range []struct{ column, value string }{{"series", r.Series}, {"tags", r.Tags}} {
+				if f.value != "" && r.LookedUp {
+					changed, err := execChanged(q, "UPDATE books SET "+f.column+"=? WHERE id=? AND "+f.column+"=''", f.value, id)
+					if err != nil {
+						return out, err
+					}
+					out.Changed = out.Changed || changed
+				}
+			}
+			if r.LookedUp && r.SeriesNumber != nil && r.Series != "" {
+				changed, err := execChanged(q, "UPDATE books SET series_number=? WHERE id=? AND series_number IS NULL AND series=?", *r.SeriesNumber, id, r.Series)
+				if err != nil {
+					return out, err
+				}
+				out.Changed = out.Changed || changed
+			}
+			if r.Description != "" {
+				changed, err := execChanged(q, "UPDATE books SET description=?,description_source=? WHERE id=? AND description=''", r.Description, r.DescriptionSource, id)
 				if err != nil {
 					return out, err
 				}

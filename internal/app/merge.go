@@ -158,6 +158,7 @@ func mergeBooks(q queryer, sourceID, targetID int64, apply bool) (mergePreview, 
 		{"Series", target.Series == "" && source.Series != ""},
 		{"Number in series", target.SeriesNumber == nil && source.SeriesNumber != nil},
 		{"Tags", target.Tags == "" && source.Tags != ""},
+		{"Description", target.Description == "" && source.Description != ""},
 	} {
 		if f.fill {
 			p.Filled = append(p.Filled, f.label)
@@ -230,8 +231,9 @@ func mergeBooks(q queryer, sourceID, targetID int64, apply bool) (mergePreview, 
 		return p, err
 	}
 	_, err = q.Exec(`UPDATE books SET goodreads_id=CASE WHEN goodreads_id='' THEN ? ELSE goodreads_id END, isbn=CASE WHEN isbn='' THEN ? ELSE isbn END,
-    pages=COALESCE(pages,?), series=CASE WHEN series='' THEN ? ELSE series END, series_number=COALESCE(series_number,?), tags=CASE WHEN tags='' THEN ? ELSE tags END WHERE id=?`,
-		source.GoodreadsID, source.ISBN, source.Pages, source.Series, source.SeriesNumber, source.Tags, targetID)
+    pages=COALESCE(pages,?), series=CASE WHEN series='' THEN ? ELSE series END, series_number=COALESCE(series_number,?), tags=CASE WHEN tags='' THEN ? ELSE tags END,
+    description_source=CASE WHEN description='' THEN ? ELSE description_source END, description=CASE WHEN description='' THEN ? ELSE description END WHERE id=?`,
+		source.GoodreadsID, source.ISBN, source.Pages, source.Series, source.SeriesNumber, source.Tags, source.DescriptionSource, source.Description, targetID)
 	if err != nil {
 		return p, err
 	}
