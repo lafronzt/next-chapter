@@ -1044,6 +1044,11 @@ func TestNewBookLookupFillsTheFormAndSavesNothing(t *testing.T) {
 	if !strings.Contains(page, `formaction="/books/new/lookup"`) || !strings.Contains(page, `name="isbn"`) {
 		t.Fatal("no lookup button on the add form")
 	}
+	// Enter in a field submits the form's first submit button, which must add
+	// the book, not run the lookup again.
+	if i, j := strings.Index(page, `class="default-submit"`), strings.Index(page, `formaction="/books/new/lookup"`); i < 0 || i > j {
+		t.Fatal("the first submit button on the add form is not the plain add button")
+	}
 	// A pages value the reader typed is kept; the empty fields are filled.
 	rr := b.form("/books/new/lookup", newBookForm(url.Values{"pages": {"111"}}))
 	expect(t, rr, 200)

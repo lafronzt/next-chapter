@@ -2550,3 +2550,7 @@ input[type=checkbox],input[type=radio] {
   font-weight: 600;
   margin-top: 0.75rem;
 }
+
+/* First submit button in the add form, so Enter adds the book rather than
+   triggering the lookup button. Visually hidden, not display:none. */
+.default-submit { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); opacity: 0; padding: 0; border: 0; }
