@@ -36,7 +36,7 @@ const (
 	// maxRestoreSchema is the newest export this build can restore. A test
 	// fails when a migration is added, so the restore code is checked against
 	// the new schema before this is raised.
-	maxRestoreSchema = 10
+	maxRestoreSchema = 11
 	maxRestoreUpload = 10_000_000
 	maxRestoreEvents = 100_000
 	maxRestoreAlias  = 20_000
@@ -171,8 +171,15 @@ func validateExport(f *exportFile) []string {
 			add("%s: added_at must be a date and time.", label)
 		}
 		b.AddedAt = at
-		// Loans are rebuilt from events.
-		b.Loans = nil
+		// Loans are rebuilt from events. Only the reader's own hold-date
+		// estimates, which events do not carry, are kept to reapply.
+		kept := []Loan{}
+		for _, l := range b.Loans {
+			if l.Status == "hold" && l.ExpectedReady != "" && validFinishDate(l.ExpectedReady) {
+				kept = append(kept, l)
+			}
+		}
+		b.Loans = kept
 	}
 	fingerprints, eventIDs := map[string]bool{}, map[int64]bool{}
 	for i := range f.Events {
@@ -280,15 +287,15 @@ func restoreExport(q queryer, f exportFile) (restorePlan, error) {
 	}
 	books := slices.Clone(f.Books)
 	slices.SortStableFunc(books, func(a, b Book) int { return cmp.Or(cmp.Compare(a.Position, b.Position), cmp.Compare(a.ID, b.ID)) })
-	insertBook, err := q.Prepare(`INSERT INTO books(title,author,identity,isbn,goodreads_id,pages,tags,interest,reading_status,position,pinned,needs_placement,moved_by_hand,series,series_number,published_year,avg_rating,added_at,source,description,description_source)
-    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+	insertBook, err := q.Prepare(`INSERT INTO books(title,author,identity,isbn,goodreads_id,pages,progress_page,tags,interest,reading_status,position,pinned,needs_placement,moved_by_hand,series,series_number,published_year,avg_rating,added_at,source,description,description_source)
+    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
 	if err != nil {
 		return result, err
 	}
 	defer insertBook.Close()
 	newID := make(map[int64]int64, len(books))
 	for _, b := range books {
-		res, err := insertBook.Exec(b.Title, b.Author, b.Identity, b.ISBN, b.GoodreadsID, b.Pages, b.Tags, b.Interest, b.Status, b.Position, b.Pinned, b.NeedsPlacement, b.MovedByHand, b.Series, b.SeriesNumber, b.PublishedYear, b.AvgRating, b.AddedAt, b.Source, b.Description, b.DescriptionSource)
+		res, err := insertBook.Exec(b.Title, b.Author, b.Identity, b.ISBN, b.GoodreadsID, b.Pages, b.ProgressPage, b.Tags, b.Interest, b.Status, b.Position, b.Pinned, b.NeedsPlacement, b.MovedByHand, b.Series, b.SeriesNumber, b.PublishedYear, b.AvgRating, b.AddedAt, b.Source, b.Description, b.DescriptionSource)
 		if err != nil {
 			return result, err
 		}
@@ -317,6 +324,13 @@ func restoreExport(q queryer, f exportFile) (restorePlan, error) {
 			return result, err
 		}
 		result.Events++
+	}
+	for _, b := range books {
+		for _, l := range b.Loans {
+			if _, err = q.Exec("UPDATE loans SET expected_ready=? WHERE book_id=? AND source=? AND format=? AND status='hold'", l.ExpectedReady, newID[b.ID], l.Source, l.Format); err != nil {
+				return result, err
+			}
+		}
 	}
 	if err = q.QueryRow("SELECT count(*) FROM loans").Scan(&result.Loans); err != nil {
 		return result, err

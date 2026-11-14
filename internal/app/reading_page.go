@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // readingFilter narrows the reading history list: a finish year (or
@@ -210,5 +211,13 @@ func (a *App) readingHistory(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
-	return a.render(w, r, "reading.html", page{"Title": pageTitle("Reading history", pages), "Readings": readings, "Years": groupByYear(readings, totals, pages.Page), "Stats": stats, "Dist": dist, "Filter": filter, "Pager": pages, "Accuracy": accuracy, "Total": total}, 200)
+	prefs, err := readMeta(a.store.DB, "preferences", defaultPreferences)
+	if err != nil {
+		return err
+	}
+	goal, err := loadReadingGoal(a.store.DB, prefs, time.Now())
+	if err != nil {
+		return err
+	}
+	return a.render(w, r, "reading.html", page{"Title": pageTitle("Reading history", pages), "Readings": readings, "Years": groupByYear(readings, totals, pages.Page), "Stats": stats, "Dist": dist, "Filter": filter, "Pager": pages, "Accuracy": accuracy, "Total": total, "Goal": goal}, 200)
 }

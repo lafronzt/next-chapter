@@ -93,6 +93,9 @@ func checkPreferences(p Preferences) string {
 	if len([]rune(p.Mood)) > 100 {
 		return "Keep the mood under 100 characters."
 	}
+	if p.ReadingGoal < 0 || p.ReadingGoal > maxReadingGoal {
+		return "Choose a yearly reading goal from 1 to 1000 books, or none."
+	}
 	return ""
 }
 

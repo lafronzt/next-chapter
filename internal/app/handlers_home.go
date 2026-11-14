@@ -34,6 +34,7 @@ type homeData struct {
 	Next    *Book
 	Reading []Book
 	Due     []dueSoon
+	Holds   []holdSoon
 }
 
 // loadHome reads the home screen with three queries and no per-row ones.
@@ -50,6 +51,9 @@ func loadHome(q queryer, today time.Time) (homeData, error) {
 		h.Next = &next[0]
 	}
 	if h.Reading, err = queryBooks(q, "WHERE b.reading_status='reading' ORDER BY b.position,b.id"); err != nil {
+		return h, err
+	}
+	if h.Holds, err = loadHolds(q, today); err != nil {
 		return h, err
 	}
 	limit := today.AddDate(0, 0, dueSoonDays).Format(time.DateOnly)

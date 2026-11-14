@@ -81,9 +81,10 @@ func TestImportMatchesBooksStoredWithTheFullTitle(t *testing.T) {
 	if len(all) != 1 {
 		t.Fatalf("%d books", len(all))
 	}
-	// The match is the same book; its series is filled and its title and want-to-read stay.
+	// The match is the same book; its series is filled, the series leaves its
+	// title, and its want-to-read stays.
 	got := all[0]
-	if got.ID != existing.ID || got.Title != existing.Title || got.Interest != 4 || got.Series != "Game Changers" || got.SeriesNumber == nil || *got.SeriesNumber != 2 {
+	if got.ID != existing.ID || got.Title != "Heated Rivalry" || got.Interest != 4 || got.Series != "Game Changers" || got.SeriesNumber == nil || *got.SeriesNumber != 2 {
 		t.Fatalf("%+v", got)
 	}
 	// A series the reader set is not replaced.
@@ -94,7 +95,7 @@ func TestImportMatchesBooksStoredWithTheFullTitle(t *testing.T) {
 		t.Fatal(err)
 	}
 	importOnce(t, a, titledRows(t, `,"Heated Rivalry (Game Changers, #2)",Rachel Reid,to-read`))
-	if again := bookByTitle(t, a, "Heated Rivalry (Game Changers, #2)"); again.Series != "My Series" || *again.SeriesNumber != 7 {
+	if again := bookByTitle(t, a, "Heated Rivalry"); again.Series != "My Series" || *again.SeriesNumber != 7 {
 		t.Fatalf("%+v", again)
 	}
 }
@@ -113,5 +114,34 @@ func TestSeriesFromTitleSurvivesThePreviewStorage(t *testing.T) {
 	got := back.Records[0]
 	if got.Title != "Heated Rivalry" || got.Series != "Game Changers" || *got.SeriesNumber != 2 || got.OriginalTitle != rec.OriginalTitle || got.OriginalTitle == "" {
 		t.Fatalf("%+v", got)
+	}
+}
+
+func TestImportKeepsTitlesTheReaderEditedOrThatWouldCollide(t *testing.T) {
+	t.Parallel()
+	a := testApp(t, false)
+	addRecords(t, a, []Record{
+		{Book: Book{Title: "Edited (Series A, #1)", Author: "Writer", Status: "to-read", Source: "manual", Interest: 3}},
+		{Book: Book{Title: "Taken (Series B, #1)", Author: "Writer", Status: "to-read", Source: "manual", Interest: 3}},
+		{Book: Book{Title: "Taken", Author: "Writer", Status: "to-read", Source: "manual", Interest: 3}},
+	})
+	// The reader retitled the first book by hand, which changes its identity.
+	edited := bookByTitle(t, a, "Edited (Series A, #1)")
+	if err := a.store.Write(func(tx *sql.Tx) error {
+		_, err := tx.Exec("UPDATE books SET title='My Own Title', identity=? WHERE id=?", identity("My Own Title", "Writer"), edited.ID)
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	importOnce(t, a, titledRows(t, `,"Taken (Series B, #1)",Writer,to-read`))
+	if got := bookByTitle(t, a, "My Own Title"); got.ID != edited.ID {
+		t.Fatalf("%+v", got)
+	}
+	// The import matches the existing "Taken", so the other copy keeps its
+	// full title and no two books share an identity.
+	_ = bookByTitle(t, a, "Taken (Series B, #1)")
+	all, _ := loadBooks(a.store.DB)
+	if len(all) != 3 {
+		t.Fatalf("%d books", len(all))
 	}
 }

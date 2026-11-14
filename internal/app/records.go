@@ -142,6 +142,10 @@ func setStatus(q queryer, old Book, status string) error {
 		return err
 	}
 	_, err = q.Exec("UPDATE books SET reading_status=?,pinned=?,needs_placement=?,position=? WHERE id=?", status, pinned, needs, position, old.ID)
+	if err == nil && status == "read" {
+		// A finished book has no page to resume at.
+		_, err = q.Exec("UPDATE books SET progress_page=NULL WHERE id=?", old.ID)
+	}
 	return err
 }
 
@@ -220,6 +224,17 @@ func importRecords(q queryer, records []Record) (out importResult, err error) {
 			}
 			if r.PublishedYear != nil {
 				changed, err := execChanged(q, "UPDATE books SET published_year=? WHERE id=? AND published_year IS NULL", *r.PublishedYear, id)
+				if err != nil {
+					return out, err
+				}
+				out.Changed = out.Changed || changed
+			}
+			// A book stored under the full "Title (Series, #2)" takes the clean
+			// title. Only a title the reader has not edited is renamed (editing
+			// changes the identity), and never onto another book's identity.
+			if r.OriginalTitle != "" {
+				clean := identity(r.Title, r.Author)
+				changed, err := execChanged(q, "UPDATE books SET title=?,identity=? WHERE id=? AND identity=? AND NOT EXISTS (SELECT 1 FROM books WHERE identity=? AND id!=?)", r.Title, clean, id, identity(r.OriginalTitle, r.Author), clean, id)
 				if err != nil {
 					return out, err
 				}
@@ -328,6 +343,7 @@ func execChanged(q queryer, statement string, args ...any) (bool, error) {
 // observation wins, and at the same time only a changed due date for the same
 // status updates it, so the first of several conflicting same-time events stays.
 func upsertLoan(q queryer, bookID int64, source string, e Event) (bool, error) {
-	return execChanged(q, `INSERT INTO loans VALUES(?,?,?,?,?,?) ON CONFLICT(book_id,source,format) DO UPDATE SET status=excluded.status,due_date=excluded.due_date,observed_at=excluded.observed_at
+	return execChanged(q, `INSERT INTO loans(book_id,source,format,status,due_date,observed_at) VALUES(?,?,?,?,?,?) ON CONFLICT(book_id,source,format) DO UPDATE SET status=excluded.status,due_date=excluded.due_date,observed_at=excluded.observed_at,
+    expected_ready=CASE WHEN excluded.status='hold' AND loans.status='hold' THEN loans.expected_ready ELSE '' END
     WHERE excluded.observed_at>loans.observed_at OR (excluded.observed_at=loans.observed_at AND excluded.status=loans.status AND excluded.due_date!=loans.due_date)`, bookID, source, e.Format, e.Status, e.DueDate, e.At)
 }

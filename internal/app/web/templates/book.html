@@ -78,7 +78,7 @@
   <p>Log a checkout, hold, or return. This never marks the book as finished.</p>
 </section>
 {{range .Book.Loans}}
-<p class="notice" role="status">{{upper .Source}} · {{.Format}} · {{.Status}}{{if .DueDate}} · Deadline {{.DueDate}}{{end}}</p>
+<p class="notice" role="status">{{upper .Source}} · {{.Format}} · {{.Status}}{{if .DueDate}} · Deadline {{.DueDate}}{{end}}{{if .ExpectedReady}} · Hold expected {{.ExpectedReady}}{{end}}</p>
 {{end}}
 <form class="panel form-grid" action="/books/{{.Book.ID}}/loan" method="post">
   {{template "fields" .}}
@@ -96,6 +96,7 @@
     {{range .LibraryStates}}<option>{{.}}</option>{{end}}
   </select></label>
   <label>Due date / pickup deadline<input type="date" name="due_date"></label>
+  <label>Hold expected ready<input type="date" name="expected_ready"><small>Optional, for the activity “hold” only. Your own estimate of when it will be ready; it lifts the book a little as the date nears.</small></label>
   <div class="span-2">
     <button class="button">Record library event</button>
   </div>

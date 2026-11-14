@@ -916,9 +916,11 @@ label.checkbox {
   font-weight:400;
 }
 
-input[type=checkbox] {
+input[type=checkbox],input[type=radio] {
   width:16px;
   height:16px;
+  padding:0;
+  flex:none;
   accent-color:var(--green);
 }
 
@@ -2001,6 +2003,30 @@ input[type=checkbox] {
   color:var(--muted);
 }
 
+.progress-meter {
+  display:block;
+  width:100%;
+  max-width:320px;
+  margin:6px 0 2px;
+}
+
+.progress-form {
+  display:flex;
+  flex-wrap:wrap;
+  gap:var(--space-2);
+  align-items:center;
+  margin:6px 0 0;
+}
+
+.progress-form input[type=number] {
+  width:7em;
+}
+
+.reading-goal meter {
+  width:100%;
+  max-width:420px;
+}
+
 @media(max-width:760px) {
   .next-up {
     flex-direction:column;
@@ -2406,10 +2432,11 @@ input[type=checkbox] {
   min-width:0;
   padding:12px 0;
   border:0;
-  border-top:1px solid var(--line);
+  /* A shadow, not a border: a fieldset border runs through its legend. */
+  box-shadow:inset 0 1px 0 var(--line);
 }
 .lookup-row:first-child {
-  border-top:0;
+  box-shadow:none;
 }
 .lookup-values {
   display:grid;

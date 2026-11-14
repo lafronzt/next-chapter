@@ -6,6 +6,23 @@
   </div>
   <a class="button" href="/imports"><span>Import from Goodreads <span aria-hidden="true">↓</span></span></a>
 </header>
+<section class="panel reading-goal" aria-labelledby="goal-title">
+  <h2 id="goal-title">{{.Goal.Year}} reading goal</h2>
+  {{if .Goal.Goal}}
+  <p><strong>{{.Goal.Done}} of {{.Goal.Goal}}</strong> {{if eq .Goal.Goal 1}}book{{else}}books{{end}} finished · {{.Goal.Status}}</p>
+  <meter min="0" max="{{.Goal.Goal}}" value="{{.Goal.Done}}" aria-label="{{.Goal.Done}} of {{.Goal.Goal}} books finished in {{.Goal.Year}}"></meter>
+  {{with .Goal.Needed}}<p class="muted">{{.}}</p>{{end}}
+  {{else}}
+  <p class="muted">Set a target for how many books you would like to finish this year. It only measures; it never changes your queue.</p>
+  {{end}}
+  <form class="progress-form" method="post" action="/reading/goal">
+    {{template "fields" .}}
+    <label>Books this year <input type="number" name="goal" min="0" max="1000" inputmode="numeric" value="{{if .Goal.Goal}}{{.Goal.Goal}}{{end}}"></label>
+    <button class="button small"><span>{{if .Goal.Goal}}Update goal{{else}}Set goal{{end}}</span></button>
+    {{if .Goal.Goal}}<button class="button small" name="goal" value="0"><span>Remove goal</span></button>{{end}}
+  </form>
+  <p class="muted"><small>Counts readings with a finish date in {{.Goal.Year}}; a re-read counts again.</small></p>
+</section>
 {{if .Stats.Readings}}
 <p class="reading-summary">{{.Stats.Books}} {{if eq .Stats.Books 1}}book{{else}}books{{end}}{{if .Stats.PerYear}} across {{len .Stats.PerYear}} {{if eq (len .Stats.PerYear) 1}}year{{else}}years{{end}}{{end}}{{if .Stats.Rated}}, averaging {{printf "%.1f" .Stats.AverageRating}}★{{end}}{{if gt .Stats.Readings .Stats.Books}} · {{.Stats.Readings}} readings{{end}}.</p>
 <section class="stats" aria-label="Reading history overview">

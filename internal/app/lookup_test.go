@@ -99,6 +99,25 @@ func standardFake(t *testing.T) *fakeDatabases {
 	return f
 }
 
+func TestGoogleBooksKeyPutsGoogleFirst(t *testing.T) {
+	t.Parallel()
+	f := standardFake(t)
+	d, err := f.finder(LookupConfig{GoogleBooksKey: "k"}).Find(context.Background(), LookupQuery{Title: "Wind Song", Author: "Ada Lee", ISBN: "978-0-00-000000-2"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if d.Description != "Google blurb" || d.DescriptionSource != "Google Books" {
+		t.Fatalf("description %q from %q", d.Description, d.DescriptionSource)
+	}
+	if !slices.Equal(d.Sources, []string{"Google Books", "Open Library"}) {
+		t.Fatalf("sources %v", d.Sources)
+	}
+	// Open Library still fills what Google lacks.
+	if d.Series != "Wind Cycle" {
+		t.Fatalf("series %q", d.Series)
+	}
+}
+
 func TestLookupMergesSources(t *testing.T) {
 	t.Parallel()
 	f := standardFake(t)
@@ -867,7 +886,7 @@ func TestMigrateDescriptionsFromVersionNine(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = migrateFile(path, migrations); err != nil {
+	if err = migrateFile(path, migrations[:10]); err != nil {
 		t.Fatal(err)
 	}
 	if v, _ := versionOf(t, path); v != 10 {

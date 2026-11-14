@@ -53,9 +53,13 @@ func queueReason(b Book, p Preferences, today time.Time, series map[string]serie
 // borrowed book due within a week.
 func loanReason(b Book, today time.Time) string {
 	today = time.Date(today.Year(), today.Month(), today.Day(), 0, 0, 0, 0, time.UTC)
-	best, bestDays := "", 1<<30
+	best, bestDays, hold := "", 1<<30, ""
 	for _, l := range b.Loans {
 		switch l.Status {
+		case "hold":
+			if days, ok := daysUntil(l.ExpectedReady, today); ok && days <= holdSoonDays && hold == "" {
+				hold = "Library " + strings.ToLower(holdText(days)[:1]) + holdText(days)[1:]
+			}
 		case "ready":
 			if best == "" {
 				best = "Library copy ready for pickup"
@@ -79,6 +83,9 @@ func loanReason(b Book, today time.Time) string {
 				best = fmt.Sprintf("Library loan due in %d %s", days, plural(days, "day", "days"))
 			}
 		}
+	}
+	if best == "" {
+		return hold
 	}
 	return best
 }
