@@ -2402,7 +2402,10 @@ input[type=checkbox] {
 .lookup-row {
   display:grid;
   gap:8px;
+  margin:0;
+  min-width:0;
   padding:12px 0;
+  border:0;
   border-top:1px solid var(--line);
 }
 .lookup-row:first-child {
@@ -2418,4 +2421,19 @@ input[type=checkbox] {
     grid-template-columns:1fr;
     gap:8px;
   }
+}
+.lookup-row legend {
+  font-weight:600;
+  padding:0;
+}
+.lookup-choices {
+  display:flex;
+  flex-wrap:wrap;
+  gap:6px 20px;
+}
+.lookup-choices .checkbox {
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  white-space:nowrap;
 }

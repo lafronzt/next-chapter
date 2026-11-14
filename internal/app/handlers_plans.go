@@ -164,6 +164,9 @@ func applyPlan(tx *sql.Tx, id string, useAI bool) (string, error) {
 		}
 		switch kind {
 		case "import":
+			for i := range p.Records {
+				p.Records[i].LookupMode = p.LookupMode
+			}
 			result, err := importRecords(tx, p.Records)
 			if err != nil {
 				return err

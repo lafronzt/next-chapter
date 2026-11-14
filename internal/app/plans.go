@@ -21,26 +21,28 @@ type storedPlan struct {
 
 // planRecord keeps only the Record fields that importing and the preview use.
 type planRecord struct {
-	Title        string     `json:"t"`
-	Author       string     `json:"a"`
-	ISBN         string     `json:"i,omitempty"`
-	GoodreadsID  string     `json:"g,omitempty"`
-	Pages        *int       `json:"p,omitempty"`
-	Tags         string     `json:"tg,omitempty"`
-	Status       string     `json:"s"`
-	Series       string     `json:"sr,omitempty"`
-	SeriesNumber *float64   `json:"sn,omitempty"`
-	Source       string     `json:"src"`
-	Rating       float64    `json:"r,omitempty"`
-	Finished     string     `json:"fd,omitempty"`
-	ReviewChars  int        `json:"rc,omitempty"`
-	Review       string     `json:"rv,omitempty"`
-	Published    *int       `json:"py,omitempty"`
-	Average      *float64   `json:"ar,omitempty"`
-	Description  string     `json:"d,omitempty"`
-	DescSource   string     `json:"ds,omitempty"`
-	LookedUp     bool       `json:"lk,omitempty"`
-	Event        *planEvent `json:"e,omitempty"`
+	Title         string       `json:"t"`
+	Author        string       `json:"a"`
+	ISBN          string       `json:"i,omitempty"`
+	GoodreadsID   string       `json:"g,omitempty"`
+	Pages         *int         `json:"p,omitempty"`
+	Tags          string       `json:"tg,omitempty"`
+	Status        string       `json:"s"`
+	Series        string       `json:"sr,omitempty"`
+	SeriesNumber  *float64     `json:"sn,omitempty"`
+	Source        string       `json:"src"`
+	Rating        float64      `json:"r,omitempty"`
+	Finished      string       `json:"fd,omitempty"`
+	ReviewChars   int          `json:"rc,omitempty"`
+	Review        string       `json:"rv,omitempty"`
+	Published     *int         `json:"py,omitempty"`
+	Average       *float64     `json:"ar,omitempty"`
+	Description   string       `json:"d,omitempty"`
+	DescSource    string       `json:"ds,omitempty"`
+	LookedUp      bool         `json:"lk,omitempty"`
+	OriginalTitle string       `json:"ot,omitempty"`
+	Found         *BookDetails `json:"lf,omitempty"`
+	Event         *planEvent   `json:"e,omitempty"`
 }
 type planEvent struct {
 	Format   string `json:"f"`
@@ -52,7 +54,7 @@ type planEvent struct {
 
 func compactRecord(r Record) planRecord {
 	c := planRecord{Title: r.Title, Author: r.Author, ISBN: r.ISBN, GoodreadsID: r.GoodreadsID, Pages: r.Pages, Tags: r.Tags, Status: r.Status, Series: r.Series, SeriesNumber: r.SeriesNumber, Source: r.Source, Rating: r.Rating,
-		Finished: r.FinishedAt, ReviewChars: r.ReviewChars, Review: r.Review, Published: r.PublishedYear, Average: r.AvgRating, Description: r.Description, DescSource: r.DescriptionSource, LookedUp: r.LookedUp}
+		Finished: r.FinishedAt, ReviewChars: r.ReviewChars, Review: r.Review, Published: r.PublishedYear, Average: r.AvgRating, Description: r.Description, DescSource: r.DescriptionSource, LookedUp: r.LookedUp, Found: r.Found, OriginalTitle: r.OriginalTitle}
 	if e := r.Event; e != nil {
 		c.Event = &planEvent{e.Format, e.Status, e.Activity, e.At, e.DueDate}
 	}
@@ -62,7 +64,7 @@ func compactRecord(r Record) planRecord {
 // record restores a Record as ParseCSV produced it.
 func (c planRecord) record() Record {
 	r := Record{Book: Book{Title: c.Title, Author: c.Author, ISBN: c.ISBN, GoodreadsID: c.GoodreadsID, Pages: c.Pages, Tags: c.Tags, Status: c.Status, Series: c.Series, SeriesNumber: c.SeriesNumber, Source: c.Source, Interest: 3, NeedsPlacement: true, PublishedYear: c.Published, AvgRating: c.Average, Description: c.Description, DescriptionSource: c.DescSource},
-		Rating: c.Rating, FinishedAt: c.Finished, ReviewChars: c.ReviewChars, Review: c.Review, LookedUp: c.LookedUp}
+		Rating: c.Rating, FinishedAt: c.Finished, ReviewChars: c.ReviewChars, Review: c.Review, LookedUp: c.LookedUp, Found: c.Found, OriginalTitle: c.OriginalTitle}
 	if c.Rating > 0 && c.Rating <= 5 {
 		r.Interest = interestFor(c.Rating)
 	}

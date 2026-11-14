@@ -37,13 +37,25 @@
   <h2 id="lookup-title">Fill in details</h2>
   {{if .Plan.LookupAttempted}}<p role="status">Looked up {{.Plan.LookupAttempted}} {{if eq .Plan.LookupAttempted 1}}book{{else}}books{{end}}; {{.Plan.LookupFound}} had details. They fill only empty fields and are saved when you import. Running it again changes nothing already filled.</p>{{end}}
   {{if .LookupOn}}
-  {{if .LookupBatch}}
   <form class="stack" method="post" action="/plans/{{.PlanID}}/lookup">
     {{template "fields" .}}
+    <fieldset class="lookup-row">
+      <legend>When a book already has a value</legend>
+      <div class="lookup-choices">
+        <label class="checkbox"><input type="radio" name="mode" value="keep" {{if or (not .Plan.LookupMode) (eq .Plan.LookupMode "keep")}}checked{{end}}> Keep mine</label>
+        <label class="checkbox"><input type="radio" name="mode" value="theirs" {{if eq .Plan.LookupMode "theirs"}}checked{{end}}> Use theirs</label>
+        <label class="checkbox"><input type="radio" name="mode" value="merge" {{if eq .Plan.LookupMode "merge"}}checked{{end}}> Merge both</label>
+      </div>
+      <p class="muted"><small>Empty fields are always filled. “Mine” is what is in your library or your file; merging joins tags and adds their description after yours. Nothing is saved until you import.</small></p>
+    </fieldset>
+    {{if .LookupBatch}}
     <p class="muted"><small>What gets sent: the title, author, and ISBN of {{.LookupBatch}} {{if eq .LookupBatch 1}}book{{else}}books{{end}} to Open Library and Google Books, nothing else. Up to {{.LookupLimit}} at a time.</small></p>
     <div><button class="button">Look up details for these {{.LookupBatch}} {{if eq .LookupBatch 1}}book{{else}}books{{end}}</button></div>
+    {{else}}
+    <p class="muted">Every book here has been looked up.</p>
+    <div><button class="button">Save this choice</button></div>
+    {{end}}
   </form>
-  {{else}}<p class="muted">Every book here has been looked up.</p>{{end}}
   {{else}}
   <p class="muted">Book lookup is off, so nothing is sent anywhere. Turn it on in <a href="/settings?open=privacy#privacy">Preferences</a> to add descriptions, pages, and tags from a book database.</p>
   {{end}}

@@ -74,6 +74,14 @@ type Record struct {
 	// LookedUp marks a record whose details came from a book lookup, so an
 	// import fills the empty series, tags, and description of a matching book.
 	LookedUp bool `json:"-"`
+	// OriginalTitle is the title as the file had it when it carried a series,
+	// as in "Title (Series, #2)", so a book imported that way earlier still matches.
+	OriginalTitle string `json:"-"`
+	// Found is what that lookup returned (nil when nothing was found), and
+	// LookupMode how an import resolves it against values already there. The
+	// mode is set from the plan when it is applied.
+	Found      *BookDetails `json:"-"`
+	LookupMode string       `json:"-"`
 	// FinishedAt is the Goodreads Date Read (YYYY-MM-DD), and ReviewChars and
 	// Review the reader's review. They become reading history for books on
 	// the read shelf.
@@ -168,6 +176,9 @@ type Plan struct {
 	// looked up, and those with details.
 	LookupAttempted int `json:"lookup_attempted,omitempty"`
 	LookupFound     int `json:"lookup_found,omitempty"`
+	// LookupMode is the reader's choice for values a book already has: keep,
+	// theirs, or merge. Empty means keep.
+	LookupMode string `json:"lookup_mode,omitempty"`
 	// Lookup is a looked-up book awaiting the reader's choice of fields.
 	Lookup *lookupPlan `json:"lookup,omitempty"`
 	// BookIDs and Status describe a bulk triage of unreviewed books.
