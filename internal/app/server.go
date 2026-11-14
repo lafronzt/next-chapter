@@ -33,10 +33,7 @@ type App struct {
 	config      Config
 	templates   *template.Template
 	passwordKey []byte
-	syncMu      sync.Mutex
-	fetch       func(context.Context, Connection) ([]Record, error)
 	now         func() time.Time
-	pollTick    time.Duration // how often Poll checks whether a sync is due
 	logger      *slog.Logger
 	// ai is nil unless the operator configured a provider. aiMu allows one
 	// AI request at a time.
@@ -110,7 +107,7 @@ func New(c Config) (*App, error) {
 		store.Close()
 		return nil, err
 	}
-	a := &App{store: store, config: c, templates: templates, passwordKey: key, fetch: FetchGoodreads, now: time.Now, pollTick: time.Minute, logger: slog.New(slog.NewTextHandler(os.Stderr, nil))}
+	a := &App{store: store, config: c, templates: templates, passwordKey: key, now: time.Now, logger: slog.New(slog.NewTextHandler(os.Stderr, nil))}
 	if client := newAIClient(c.AI, nil); client != nil {
 		a.ai = client
 	}
@@ -159,7 +156,7 @@ func (a *App) Handler() http.Handler {
 		"GET /books/{id}/delete": a.deleteBook, "POST /books/{id}/delete": a.deleteBook, "GET /books/{id}/merge": a.mergeBook, "POST /books/{id}/merge": a.mergeBook,
 		"POST /suggest": a.suggest, "GET /plans/{id}": a.plan, "POST /plans/{id}": a.plan, "POST /plans/{id}/ai": a.planAI, "POST /undo": a.undo,
 		"GET /imports": a.importPage, "POST /imports": a.importPage, "POST /imports/restore": a.restoreUpload, "GET /examples/{name}": a.example,
-		"GET /settings": a.settings, "POST /settings": a.settings, "POST /sync": a.syncNow, "POST /sessions/revoke": a.revokeSessions,
+		"GET /settings": a.settings, "POST /settings": a.settings, "POST /sessions/revoke": a.revokeSessions,
 		"POST /books/{id}/triage": a.triageBook, "POST /triage": a.triageAll,
 		"GET /history": a.history, "GET /reading": a.readingHistory, "POST /books/{id}/readings": a.addReading, "POST /readings/{rid}": a.editReading, "GET /export.json": a.export, "GET /backup.sqlite3": a.backup, "POST /demo": a.demo,
 		"POST /ai/settings": a.aiSettings, "POST /ai/test": a.aiTest, "GET /ai/jobs/{id}": a.aiJobPage,

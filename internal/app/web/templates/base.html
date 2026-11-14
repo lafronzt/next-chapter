@@ -21,7 +21,7 @@
     <a href="/history" {{if eq .Nav "history"}}class="active" aria-current="{{if .NavPage}}page{{else}}true{{end}}"{{end}}><span aria-hidden="true">◷</span> Library history</a>
     <span class="nav-label second">MAKE IT YOURS</span>
     <a href="/imports" {{if eq .Nav "imports"}}class="active" aria-current="{{if .NavPage}}page{{else}}true{{end}}"{{end}}><span aria-hidden="true">↓</span> Import books</a>
-    <a href="/settings" {{if eq .Nav "settings"}}class="active" aria-current="{{if .NavPage}}page{{else}}true{{end}}"{{end}}><span aria-hidden="true">⚙</span> Preferences & sync</a>
+    <a href="/settings" {{if eq .Nav "settings"}}class="active" aria-current="{{if .NavPage}}page{{else}}true{{end}}"{{end}}><span aria-hidden="true">⚙</span> Preferences</a>
   </nav>
   <div class="sidebar-bottom">
     <span class="status-dot"></span> {{if .Demo}}Demo library{{else}}Your private library{{end -}}

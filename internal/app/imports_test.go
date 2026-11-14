@@ -11,7 +11,7 @@ import (
 	"unicode/utf8"
 )
 
-func TestCSVAndRSS(t *testing.T) {
+func TestCSV(t *testing.T) {
 	t.Parallel()
 	for _, source := range []string{"goodreads", "libby", "nypl"} {
 		t.Run(source, func(t *testing.T) {
@@ -33,14 +33,6 @@ func TestCSVAndRSS(t *testing.T) {
 		if _, _, err := ParseCSV([]byte(data), "goodreads"); err == nil {
 			t.Fatal("accepted invalid CSV")
 		}
-	}
-	rss := `<rss><channel><item><book_title>A &amp; B</book_title><author_name>Person</author_name><book_id>42</book_id><book><num_pages>250</num_pages></book></item></channel></rss>`
-	rows, err := ParseRSS([]byte(rss))
-	if err != nil || len(rows) != 1 || rows[0].Title != "A & B" || rows[0].Pages == nil {
-		t.Fatalf("%v %v", rows, err)
-	}
-	if _, err = ParseRSS([]byte(`<!DOCTYPE rss><rss/>`)); err == nil {
-		t.Fatal("accepted DTD")
 	}
 }
 
@@ -185,32 +177,6 @@ func TestParseCSVFields(t *testing.T) {
 	}
 }
 
-func TestParseRSSShapes(t *testing.T) {
-	t.Parallel()
-	item := func(inner string) string { return "<rss><channel><item>" + inner + "</item></channel></rss>" }
-	rows, err := ParseRSS([]byte(item("<title>Fallback</title><author_name> W </author_name><num_pages>12</num_pages><isbn>0306406152</isbn>")))
-	if err != nil || len(rows) != 1 || rows[0].Title != "Fallback" || rows[0].Author != "W" || *rows[0].Pages != 12 || rows[0].ISBN != "0306406152" || rows[0].Status != "to-read" || rows[0].Source != "goodreads" {
-		t.Fatalf("%+v %v", rows, err)
-	}
-	rows, err = ParseRSS([]byte(item("<book_title>No author</book_title>")))
-	if err != nil || len(rows) != 0 {
-		t.Fatalf("%+v %v", rows, err)
-	}
-	rows, err = ParseRSS([]byte(item("<book_title>" + strings.Repeat("t", 600) + "</book_title><author_name>W</author_name>")))
-	if err != nil || len([]rune(rows[0].Title)) != 500 {
-		t.Fatalf("title not truncated: %v", err)
-	}
-	many := "<rss><channel>" + strings.Repeat("<item><book_title>T</book_title><author_name>W</author_name></item>", maxRows+5) + "</channel></rss>"
-	if rows, err = ParseRSS([]byte(many)); err != nil || len(rows) != maxRows {
-		t.Fatalf("%d rows %v", len(rows), err)
-	}
-	for _, bad := range []string{"<rss><channel>", "<feed/>", `<!ENTITY x "y"><rss/>`, "<rss>" + strings.Repeat(" ", maxUpload) + "</rss>"} {
-		if _, err = ParseRSS([]byte(bad)); err == nil {
-			t.Errorf("accepted %.40q", bad)
-		}
-	}
-}
-
 // fuzzSeeds adds the bundled examples and some awkward shapes to a corpus.
 func fuzzSeeds(f *testing.F) []string {
 	f.Helper()
@@ -285,32 +251,6 @@ func FuzzParseCSV(f *testing.F) {
 	})
 }
 
-func FuzzParseRSS(f *testing.F) {
-	f.Add([]byte(testRSS))
-	f.Add([]byte(`<rss><channel><item><book_title>A &amp; B</book_title><author_name>P</author_name><book><num_pages>250</num_pages></book></item></channel></rss>`))
-	f.Add([]byte(`<rss><channel><item><title> </title><author_name>P</author_name></item><item/></channel></rss>`))
-	f.Add([]byte(`<?xml version="1.0"?><rss><channel><item><book_title><![CDATA[<b>T</b>]]></book_title><author_name>A</author_name><isbn>12</isbn><num_pages>x</num_pages></item></channel></rss>`))
-	f.Fuzz(func(t *testing.T, data []byte) {
-		rows, err := ParseRSS(data)
-		if err != nil {
-			return
-		}
-		for _, r := range rows {
-			// Feed text is not validated as UTF-8 by encoding/xml, so only the
-			// structural promises are checked here.
-			if strings.TrimSpace(r.Title) == "" || strings.TrimSpace(r.Author) == "" || len([]rune(r.Title)) > 500 || len([]rune(r.Author)) > 300 {
-				t.Fatalf("title/author out of bounds: %q / %q", r.Title, r.Author)
-			}
-			if r.Status != "to-read" || r.Source != "goodreads" || r.Interest < 1 || r.Interest > 5 || r.Event != nil {
-				t.Fatalf("%+v", r)
-			}
-			if r.Pages != nil && (*r.Pages < 1 || *r.Pages > 99999) {
-				t.Fatalf("pages %d", *r.Pages)
-			}
-		}
-	})
-}
-
 func FuzzParseTime(f *testing.F) {
 	for _, seed := range []string{"", "1791633600", "1791633600000", "2026-10-10T08:00:00-04:00", "2026-10-10 12:00:00", "10/10/2026", "Sat, 10 Oct 2026 12:00:00 GMT", "0001-01-01T00:00:00+01:00", "9999-12-31T23:59:59-01:00", "2026-10-10T12:00:00.000000000+00:00"} {
 		f.Add(seed)
@@ -355,22 +295,6 @@ func TestGoodreadsRatingSeedsInterest(t *testing.T) {
 	rows, _, _ = ParseCSV([]byte("Title,Author,My Rating,Activity,Date\nA,B,5,Borrowed,2026-10-01\n"), "libby")
 	if rows[0].Interest != 3 || rows[0].Rating != 0 {
 		t.Fatalf("%+v", rows[0])
-	}
-}
-
-func TestRSSRatingSeedsInterest(t *testing.T) {
-	t.Parallel()
-	item := func(title, rating string) string {
-		return "<item><book_title>" + title + "</book_title><author_name>W</author_name><user_rating>" + rating + "</user_rating><average_rating>4.5</average_rating></item>"
-	}
-	rows, err := ParseRSS([]byte("<rss><channel>" + item("Four", "4") + item("Zero", "0") + item("Nine", "9") + "<item><book_title>None</book_title><author_name>W</author_name><average_rating>5</average_rating></item></channel></rss>"))
-	if err != nil || len(rows) != 4 {
-		t.Fatal(rows, err)
-	}
-	for i, want := range []int{4, 3, 3, 3} {
-		if rows[i].Interest != want {
-			t.Errorf("%s: interest %d, want %d", rows[i].Title, rows[i].Interest, want)
-		}
 	}
 }
 
@@ -472,5 +396,76 @@ func TestShelfPosition(t *testing.T) {
 		if got := shelfPosition(cell, "to-read"); got != want {
 			t.Errorf("%q: %d, want %d", cell, got, want)
 		}
+	}
+}
+
+func TestGoodreadsReimportMatchesByISBNThenTitle(t *testing.T) {
+	t.Parallel()
+	a := testApp(t, true)
+	first := "Book Id,Title,Author,ISBN13,Exclusive Shelf\n" +
+		"1,With ISBN,Writer,\"=\"\"9780306406157\"\"\",to-read\n" +
+		"2,No ISBN,Writer,,to-read\n"
+	// A newer export: Goodreads picked a new Book Id for one, retitled
+	// nothing, and the first book's title changed but its ISBN did not.
+	second := "Book Id,Title,Author,ISBN13,Exclusive Shelf\n" +
+		"90,With ISBN (Series #1),Writer,\"=\"\"9780306406157\"\"\",to-read\n" +
+		"91,No ISBN,Writer,,to-read\n" +
+		"92,Fresh,Writer,,to-read\n"
+	for _, data := range []string{first, second} {
+		rows, problems, err := ParseCSV([]byte(data), "goodreads")
+		if err != nil || len(problems) != 0 {
+			t.Fatal(problems, err)
+		}
+		addRecords(t, a, rows)
+	}
+	books, err := loadBooks(a.store.DB)
+	if err != nil || len(books) != 3 {
+		t.Fatalf("%d books, want 3: %+v %v", len(books), books, err)
+	}
+}
+
+func TestGoodreadsReimportAdvancesQueuedBooks(t *testing.T) {
+	t.Parallel()
+	a := testApp(t, true)
+	header := "Book Id,Title,Author,Date Read,Exclusive Shelf,Bookshelves with positions\n"
+	rows, _, err := ParseCSV([]byte(header+
+		"1,Done Soon,W,,to-read,to-read (#1)\n"+
+		"2,Started,W,,to-read,to-read (#2)\n"+
+		"3,Stays,W,,to-read,to-read (#3)\n"+
+		"4,Archived Here,W,,to-read,to-read (#4)\n"+
+		"5,Finished Here,W,2025/01/01,read,\n"), "goodreads")
+	if err != nil {
+		t.Fatal(err)
+	}
+	addRecords(t, a, rows)
+	for _, title := range []string{"Archived Here"} {
+		if _, err := a.store.DB.Exec("UPDATE books SET reading_status='archived' WHERE title=?", title); err != nil {
+			t.Fatal(err)
+		}
+	}
+	rows, _, err = ParseCSV([]byte(header+
+		"1,Done Soon,W,2026/11/20,read,\n"+
+		"2,Started,W,,currently-reading,\n"+
+		"3,Stays,W,,to-read,to-read (#1)\n"+
+		"4,Archived Here,W,,to-read,to-read (#2)\n"+
+		"5,Finished Here,W,2025/01/01,to-read,to-read (#3)\n"), "goodreads")
+	if err != nil {
+		t.Fatal(err)
+	}
+	result := importResultFor(t, a, rows)
+	if result.Advanced["read"] != 1 || result.Advanced["reading"] != 1 || result.advancedTotal() != 2 {
+		t.Fatalf("%+v", result)
+	}
+	for title, want := range map[string]string{"Done Soon": "read", "Started": "reading", "Stays": "to-read", "Archived Here": "archived", "Finished Here": "read"} {
+		if got := bookNamed(t, a, title).Status; got != want {
+			t.Errorf("%s: %s, want %s", title, got, want)
+		}
+	}
+	if n := len(readingsOf(t, a, "Done Soon")); n != 1 {
+		t.Errorf("Done Soon has %d readings", n)
+	}
+	// Importing it again changes nothing.
+	if again := importResultFor(t, a, rows); again.Changed {
+		t.Fatalf("%+v", again)
 	}
 }

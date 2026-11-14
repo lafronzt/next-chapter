@@ -1,11 +1,9 @@
 package app
 
 import (
-	"bytes"
 	"crypto/sha256"
 	"encoding/csv"
 	"encoding/hex"
-	"encoding/xml"
 	"fmt"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/unicode/norm"
@@ -332,70 +330,6 @@ func parseRecord(row map[string]string, source string) (Record, error) {
 		r.Event = &Event{Status: status, Activity: truncate(activity, 100), At: at, Format: format, DueDate: due}
 	}
 	return r, nil
-}
-func ParseRSS(data []byte) ([]Record, error) {
-	upper := bytes.ToUpper(data)
-	if len(data) > maxUpload || bytes.Contains(upper, []byte("<!DOCTYPE")) || bytes.Contains(upper, []byte("<!ENTITY")) {
-		return nil, fmt.Errorf("unsupported or oversized Goodreads feed")
-	}
-	var feed struct {
-		XMLName xml.Name `xml:"rss"`
-		Items   []struct {
-			Title       string `xml:"title"`
-			BookTitle   string `xml:"book_title"`
-			Author      string `xml:"author_name"`
-			ID          string `xml:"book_id"`
-			ISBN        string `xml:"isbn"`
-			Pages       string `xml:"num_pages"`
-			NestedPages string `xml:"book>num_pages"`
-			UserRating  string `xml:"user_rating"`
-			ReadAt      string `xml:"user_read_at"`
-			Review      string `xml:"user_review"`
-			Average     string `xml:"average_rating"`
-			Published   string `xml:"book_published"`
-		} `xml:"channel>item"`
-	}
-	if err := xml.Unmarshal(data, &feed); err != nil {
-		//lint:ignore ST1005 Goodreads is a proper noun; this is shown to the reader
-		return nil, fmt.Errorf("Goodreads returned an unreadable RSS feed; try CSV import")
-	}
-	records := []Record{}
-	for i, item := range feed.Items {
-		if i >= maxRows {
-			break
-		}
-		title := strings.TrimSpace(item.BookTitle)
-		if title == "" {
-			title = strings.TrimSpace(item.Title)
-		}
-		author := strings.TrimSpace(item.Author)
-		if title == "" || author == "" {
-			continue
-		}
-		r := Record{Book: Book{Title: truncate(title, 500), Author: truncate(author, 300), GoodreadsID: strings.TrimSpace(item.ID), ISBN: cleanISBN(item.ISBN), Source: "goodreads", Status: "to-read", Interest: 3, NeedsPlacement: true}}
-		pages := item.Pages
-		if pages == "" {
-			pages = item.NestedPages
-		}
-		if n, e := strconv.Atoi(pages); e == nil && n > 0 && n < 100000 {
-			r.Pages = &n
-		}
-		if r.Rating, _ = parseRating(item.UserRating); r.Rating > 0 {
-			r.Interest = r.Rating
-		}
-		// A feed cannot be fixed by the reader, so a bad date is skipped and
-		// counted rather than failing the sync.
-		if finished, e := parseDate(item.ReadAt); e != nil {
-			r.DateIgnored = true
-		} else {
-			r.FinishedAt = finished
-		}
-		r.setReview(item.Review)
-		r.PublishedYear = parseYear(item.Published)
-		r.AvgRating = parseAverage(item.Average)
-		records = append(records, r)
-	}
-	return records, nil
 }
 func fingerprint(r Record) string {
 	e := r.Event

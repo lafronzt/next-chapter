@@ -121,6 +121,9 @@ type Plan struct {
 	Source      string       `json:"source,omitempty"`
 	// Upgrades previews how many unreviewed books an import moves, by status.
 	Upgrades map[string]int `json:"upgrades,omitempty"`
+	// Advances previews books already in the library that move forward to
+	// Reading or Read because Goodreads says so, by new status.
+	Advances map[string]int `json:"advances,omitempty"`
 	// Skipped previews how many import rows match deleted books.
 	Skipped int `json:"skipped,omitempty"`
 	// Rated counts new books that will start with their Goodreads rating as

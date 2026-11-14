@@ -21,10 +21,12 @@ type exportFile struct {
 	SchemaVersion int          `json:"schema_version"`
 	ExportedAt    string       `json:"exported_at"`
 	Preferences   *Preferences `json:"preferences,omitempty"`
-	Sync          *Connection  `json:"sync,omitempty"`
-	Books         []Book       `json:"books"`
-	Events        []Event      `json:"events"`
-	Aliases       []alias      `json:"aliases"`
+	// Sync is the retired Goodreads feed connection. Older exports carry it;
+	// it is accepted and ignored.
+	Sync    json.RawMessage `json:"sync,omitempty"`
+	Books   []Book          `json:"books"`
+	Events  []Event         `json:"events"`
+	Aliases []alias         `json:"aliases"`
 	// ReadingLog is the reading history, from schema version 6.
 	ReadingLog []readingEntry `json:"reading_log"`
 }
@@ -54,8 +56,6 @@ type restorePlan struct {
 	Readings       int        `json:"readings"`
 	AliasesKept    int        `json:"aliases_kept"`
 	HasPreferences bool       `json:"has_preferences"`
-	HasSync        bool       `json:"has_sync"`
-	SyncWasOn      bool       `json:"sync_was_on"`
 }
 
 // decodeExport reads an export strictly. Problems with individual records are
@@ -253,19 +253,6 @@ func validateExport(f *exportFile) []string {
 			add("Preferences: %s", message)
 		}
 	}
-	if c := f.Sync; c != nil {
-		if c.Shelf == "" {
-			c.Shelf = "to-read"
-		}
-		// Before version 6 there was no read shelf; start following "read",
-		// as the migration does for existing connections.
-		if f.SchemaVersion < 6 && c.ReadShelf == "" {
-			c.ReadShelf = "read"
-		}
-		if err := validateConnection(Connection{UserID: c.UserID, Shelf: c.Shelf, ReadShelf: c.ReadShelf}); err != nil {
-			add("Goodreads settings: %s.", err)
-		}
-	}
 	return problems
 }
 
@@ -280,10 +267,9 @@ var errNotEmpty = conflict("Restoring needs an empty library, and this one has b
 
 // restoreExport writes a validated export into an empty library. Books get new
 // IDs in their original order, events are remapped and replayed in their
-// original order so loans follow the same newest-wins rule as imports, and a
-// Goodreads connection is restored with polling off.
+// original order so loans follow the same newest-wins rule as imports,.
 func restoreExport(q queryer, f exportFile) (restorePlan, error) {
-	result := restorePlan{File: f, HasPreferences: f.Preferences != nil, HasSync: f.Sync != nil}
+	result := restorePlan{File: f, HasPreferences: f.Preferences != nil}
 	empty, err := libraryEmpty(q)
 	if err != nil {
 		return result, err
@@ -378,13 +364,6 @@ func restoreExport(q queryer, f exportFile) (restorePlan, error) {
 			return result, err
 		}
 	}
-	if f.Sync != nil {
-		conn := *f.Sync
-		result.SyncWasOn, conn.Enabled = conn.Enabled, false
-		if err = setMeta(q, "sync", conn); err != nil {
-			return result, err
-		}
-	}
 	return result, nil
 }
 
@@ -416,11 +395,7 @@ func exportLibrary(tx *sql.Tx) (exportFile, error) {
 	if err != nil {
 		return f, err
 	}
-	conn, err := readMeta(tx, "sync", defaultConnection)
-	if err != nil {
-		return f, err
-	}
-	f.Preferences, f.Sync = &prefs, &conn
+	f.Preferences = &prefs
 	if f.SchemaVersion, _, err = schemaVersion(tx); err != nil {
 		return f, err
 	}

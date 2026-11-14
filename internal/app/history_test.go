@@ -1,7 +1,6 @@
 package app
 
 import (
-	"context"
 	"database/sql"
 	"fmt"
 	"net/url"
@@ -9,7 +8,6 @@ import (
 	"reflect"
 	"strings"
 	"testing"
-	"time"
 )
 
 // finished is a Goodreads read-shelf record.
@@ -80,25 +78,6 @@ func TestParseGoodreadsHistory(t *testing.T) {
 	}
 }
 
-func TestParseRSSHistory(t *testing.T) {
-	t.Parallel()
-	item := func(title, readAt string) string {
-		return "<item><book_title>" + title + "</book_title><author_name>W</author_name><user_rating>4</user_rating><user_read_at>" + readAt +
-			"</user_read_at><user_review>Loved it.</user_review><average_rating>3.95</average_rating><book_published>1999</book_published></item>"
-	}
-	rows, err := ParseRSS([]byte("<rss><channel>" + item("Evening", "Sat, 09 Mar 2024 20:00:00 -0800") + item("Blank", "") + item("Garbled", "someday") + "</channel></rss>"))
-	if err != nil || len(rows) != 3 {
-		t.Fatal(rows, err)
-	}
-	// The date is the reader's calendar date, not the UTC one.
-	if r := rows[0]; r.FinishedAt != "2024-03-09" || r.Rating != 4 || r.ReviewChars != 9 || *r.PublishedYear != 1999 || *r.AvgRating != 3.95 || r.DateIgnored {
-		t.Fatalf("%+v", r)
-	}
-	if rows[1].FinishedAt != "" || rows[1].DateIgnored || rows[2].FinishedAt != "" || !rows[2].DateIgnored {
-		t.Fatalf("%+v %+v", rows[1], rows[2])
-	}
-}
-
 func TestReadingLogImportRules(t *testing.T) {
 	t.Parallel()
 	a := testApp(t, true)
@@ -107,14 +86,15 @@ func TestReadingLogImportRules(t *testing.T) {
 		t.Fatal(err)
 	}
 	queued := bookNamed(t, a, "Queued")
-	// A read-shelf record for a queued book logs a reading and changes
-	// nothing about the book.
+	// A read-shelf record for a queued book logs a reading and moves the
+	// book to Read, and changes nothing else about it.
 	r := finished("Queued", "2024-03-09", 5)
 	r.ReviewChars, r.Review = 9, "Loved it."
 	if result := importResultFor(t, a, []Record{r}); result.Logged != 1 || result.Added != 0 || !result.Changed {
 		t.Fatalf("%+v", result)
 	}
-	if after := bookNamed(t, a, "Queued"); !reflect.DeepEqual(queued, after) {
+	after := bookNamed(t, a, "Queued")
+	if after.Status != "read" || after.NeedsPlacement || after.Interest != queued.Interest || after.Title != queued.Title {
 		t.Fatalf("history changed the book:\n%+v\n%+v", queued, after)
 	}
 	rs := readingsOf(t, a, "Queued")
@@ -156,8 +136,9 @@ func TestReadingLogImportRules(t *testing.T) {
 	if n := len(readingsOf(t, a, "Wanted")); n != 0 {
 		t.Fatal(n)
 	}
-	// Status, interest, pins, and positions are untouched throughout.
-	if after := bookNamed(t, a, "Queued"); after.Status != "to-read" || after.Interest != 2 || !after.Pinned || after.Position != queued.Position {
+	// Finishing it on Goodreads took it out of the queue and cleared its pin;
+	// its interest and library loan are untouched throughout.
+	if after := bookNamed(t, a, "Queued"); after.Status != "read" || after.Interest != 2 || after.Pinned || len(after.Loans) != 1 {
 		t.Fatalf("%+v", after)
 	}
 	if b := bookNamed(t, a, "Undated"); b.Status != "read" || b.Interest != 3 {
@@ -207,47 +188,31 @@ func TestReviewTextNeedsOptIn(t *testing.T) {
 	}
 }
 
-func TestManualReadingsWinOverSync(t *testing.T) {
+func TestManualReadingsWinOverImport(t *testing.T) {
 	t.Parallel()
 	a := testApp(t, true)
-	if err := setMeta(a.store.DB, "sync", Connection{UserID: "42", Shelf: "to-read", ReadShelf: "read"}); err != nil {
-		t.Fatal(err)
+	feed := []Record{finished("Finished", "2024-03-09", 4)}
+	result := importResultFor(t, a, feed)
+	if bookNamed(t, a, "Finished").Status != "read" || bookNamed(t, a, "Finished").Interest != 4 || result.Logged != 1 {
+		t.Fatalf("%+v %+v", result, bookNamed(t, a, "Finished"))
 	}
-	feed := map[string][]Record{"to-read": records("Queued"), "read": {finished("Finished", "2024-03-09", 4)}}
-	shelves := []string{}
-	a.fetch = func(_ context.Context, c Connection) ([]Record, error) {
-		shelves = append(shelves, c.Shelf)
-		out := []Record{}
-		for _, r := range feed[c.Shelf] {
-			r.Status = "to-read" // what ParseRSS returns; sync marks read-shelf entries
-			out = append(out, r)
-		}
-		return out, nil
-	}
-	now := time.Date(2026, 10, 10, 12, 0, 0, 0, time.UTC)
-	if _, err := a.syncOnce(context.Background(), now); err != nil {
-		t.Fatal(err)
-	}
-	if strings.Join(shelves, ",") != "to-read,read" || bookNamed(t, a, "Finished").Status != "read" || bookNamed(t, a, "Finished").Interest != 4 {
-		t.Fatalf("%v %+v", shelves, bookNamed(t, a, "Finished"))
-	}
-	last, err := readMeta(a.store.DB, "last_read_sync", SyncResult{})
-	if err != nil || !last.OK || !strings.Contains(last.Message, "logged 1 finished readings") {
-		t.Fatalf("%+v %v", last, err)
-	}
-	// A re-poll with the same feeds changes nothing, not even the revision.
+	// Importing the same export again changes nothing, not even the revision.
 	rev := currentRevision(t, a)
-	if _, err := a.syncOnce(context.Background(), now.Add(time.Hour)); err != nil || currentRevision(t, a) != rev {
-		t.Fatalf("re-poll bumped the revision: %v", err)
+	if err := a.store.Write(func(tx *sql.Tx) error {
+		result, err := importRecords(tx, feed)
+		if result.Changed {
+			t.Fatalf("%+v", result)
+		}
+		return err
+	}); err != nil || currentRevision(t, a) != rev {
+		t.Fatalf("re-import bumped the revision: %v", err)
 	}
 	// The reader edits the rating and date in the app.
 	reading := readingsOf(t, a, "Finished")[0]
 	b := &browser{t: t, handler: a.Handler()}
 	expect(t, b.form(fmt.Sprintf("/readings/%d", reading.ID), url.Values{"action": {"save"}, "rating": {"2"}, "finished_at": {"2024-03-10"}}), 303)
 	// Goodreads still says 4 on March 9. The edit survives, with no duplicate.
-	if _, err := a.syncOnce(context.Background(), now.Add(2*time.Hour)); err != nil {
-		t.Fatal(err)
-	}
+	addRecords(t, a, feed)
 	rs := readingsOf(t, a, "Finished")
 	if len(rs) != 1 || *rs[0].Rating != 2 || *rs[0].FinishedAt != "2024-03-10" || rs[0].Source != "manual" || rs[0].AddedByHand() {
 		t.Fatalf("%+v", rs)
@@ -255,7 +220,7 @@ func TestManualReadingsWinOverSync(t *testing.T) {
 	// A Goodreads reading cannot be deleted; one logged by hand can.
 	rr := b.form(fmt.Sprintf("/readings/%d", reading.ID), url.Values{"action": {"delete"}})
 	expect(t, rr, 400)
-	if !strings.Contains(rr.Body.String(), "next sync would add them again") {
+	if !strings.Contains(rr.Body.String(), "next import would add them again") {
 		t.Fatal(rr.Body)
 	}
 	id := bookNamed(t, a, "Finished").ID
@@ -278,44 +243,6 @@ func TestManualReadingsWinOverSync(t *testing.T) {
 	expect(t, b.request("POST", fmt.Sprintf("/books/%d/readings", id), url.Values{"revision": {"0"}}), 409)
 	if b := bookNamed(t, a, "Finished"); b.Status != "read" {
 		t.Fatalf("%+v", b)
-	}
-}
-
-func TestReadShelfSettings(t *testing.T) {
-	t.Parallel()
-	a := testApp(t, true)
-	b := &browser{t: t, handler: a.Handler()}
-	rr := b.request("GET", "/settings", nil)
-	if !strings.Contains(rr.Body.String(), `name="read_shelf" value="read"`) {
-		t.Fatal("read shelf default not shown")
-	}
-	base := url.Values{"library_weight": {"1"}, "length": {"any"}, "shelf": {"to-read"}, "user_id": {"42"}}
-	bad := url.Values{}
-	for k, v := range base {
-		bad[k] = v
-	}
-	bad.Set("read_shelf", "my read shelf")
-	expect(t, b.form("/settings", bad), 400)
-	base.Set("read_shelf", "")
-	expect(t, b.form("/settings", base), 303)
-	calls := 0
-	a.fetch = func(context.Context, Connection) ([]Record, error) { calls++; return nil, nil }
-	if _, err := a.syncOnce(context.Background(), time.Now()); err != nil || calls != 1 {
-		t.Fatalf("blank read shelf still fetched: %d %v", calls, err)
-	}
-	// Equal shelves are fetched once, as reading history.
-	base.Set("shelf", "read")
-	base.Set("read_shelf", "read")
-	expect(t, b.form("/settings", base), 303)
-	calls = 0
-	a.fetch = func(context.Context, Connection) ([]Record, error) {
-		calls++
-		r := shelf("Done", "to-read")
-		r.FinishedAt = "2024-05-01"
-		return []Record{r}, nil
-	}
-	if _, err := a.syncOnce(context.Background(), time.Now()); err != nil || calls != 1 || len(readingsOf(t, a, "Done")) != 1 {
-		t.Fatalf("%d %v", calls, err)
 	}
 }
 
@@ -438,9 +365,9 @@ INSERT INTO books(title,author,identity,reading_status,position,added_at,source)
 		t.Fatal(err)
 	}
 	defer s.Close()
-	conn, err := readMeta(s.DB, "sync", Connection{})
-	if err != nil || conn != (Connection{UserID: "42", Shelf: "favorites", Enabled: true, ReadShelf: "read"}) {
-		t.Fatalf("%+v %v", conn, err)
+	var readShelf string
+	if err = s.DB.QueryRow(`SELECT json_extract(value, '$.read_shelf') FROM meta WHERE key='sync'`).Scan(&readShelf); err != nil || readShelf != "read" {
+		t.Fatalf("%q %v", readShelf, err)
 	}
 	books, err := loadBooks(s.DB)
 	if err != nil || len(books) != 1 || books[0].PublishedYear != nil || books[0].AvgRating != nil {
@@ -450,14 +377,14 @@ INSERT INTO books(title,author,identity,reading_status,position,added_at,source)
 		t.Fatalf("backups %v", b)
 	}
 	// A cleared read shelf stays cleared on later starts.
-	if err = setMeta(s.DB, "sync", Connection{UserID: "42", Shelf: "favorites"}); err != nil {
+	if _, err = s.DB.Exec(`UPDATE meta SET value='{"user_id":"42","shelf":"favorites","read_shelf":""}' WHERE key='sync'`); err != nil {
 		t.Fatal(err)
 	}
 	if err = migrateFile(path, migrations); err != nil {
 		t.Fatal(err)
 	}
-	if conn, _ = readMeta(s.DB, "sync", Connection{}); conn.ReadShelf != "" {
-		t.Fatalf("%+v", conn)
+	if err = s.DB.QueryRow(`SELECT json_extract(value, '$.read_shelf') FROM meta WHERE key='sync'`).Scan(&readShelf); err != nil || readShelf != "" {
+		t.Fatalf("%q %v", readShelf, err)
 	}
 }
 
@@ -499,18 +426,18 @@ func TestRestoreReadingHistory(t *testing.T) {
 	if rs = readingsOf(t, restore(optedOut), "Finished"); rs[0].Review != nil || rs[0].ReviewChars != 9 {
 		t.Fatalf("%+v", rs[0])
 	}
-	// A version 5 export has no history and no read shelf; it gets the default.
+	// A version 5 export has no history and carries the retired feed settings.
 	old := editExport(t, original, func(m map[string]any) {
 		m["schema_version"] = 5
 		delete(m, "reading_log")
-		delete(m["sync"].(map[string]any), "read_shelf")
+		m["sync"] = map[string]any{"user_id": "42", "shelf": "to-read", "enabled": true}
 		for _, b := range m["books"].([]any) {
 			delete(b.(map[string]any), "published_year")
 			delete(b.(map[string]any), "avg_rating")
 		}
 	})
-	if conn, _ := readMeta(restore(old).store.DB, "sync", Connection{}); conn.ReadShelf != "read" {
-		t.Fatalf("%+v", conn)
+	if rs := readingsOf(t, restore(old), "Finished"); len(rs) != 0 {
+		t.Fatalf("%+v", rs)
 	}
 	for name, change := range map[string]func(map[string]any){
 		"bad rating": func(m map[string]any) { m["reading_log"].([]any)[0].(map[string]any)["rating"] = 6 },

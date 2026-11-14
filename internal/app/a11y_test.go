@@ -182,7 +182,7 @@ func TestPagesHaveDistinctTitles(t *testing.T) {
 		"/history":          "Library history – Next Chapter",
 		"/reading":          "Reading history – Next Chapter",
 		"/imports":          "Import books – Next Chapter",
-		"/settings":         "Preferences &amp; sync – Next Chapter",
+		"/settings":         "Preferences – Next Chapter",
 		"/books/new":        "Add a book – Next Chapter",
 		"/books/5":          "Piranesi – Next Chapter",
 		"/books/5/delete":   "Delete Piranesi – Next Chapter",

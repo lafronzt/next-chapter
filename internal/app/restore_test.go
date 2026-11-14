@@ -107,7 +107,7 @@ func richLibrary(t *testing.T) *App {
 		if err := setMeta(tx, "preferences", Preferences{LibraryWeight: 0.5, Length: "short", Mood: "hopeful"}); err != nil {
 			return err
 		}
-		return setMeta(tx, "sync", Connection{UserID: "42", Shelf: "favorites", Enabled: true})
+		return nil
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -148,25 +148,18 @@ func TestRestoreRoundTrip(t *testing.T) {
 	}
 	rr = b.request("GET", planURL, nil)
 	expect(t, rr, 200)
-	for _, text := range []string{"3 books in your queue and 4 other books, with 4 library events and 3 current loans", "2 merge and deletion aliases", "polling off (it was on when exported)", "Queue C", "Restore library"} {
+	for _, text := range []string{"3 books in your queue and 4 other books, with 4 library events and 3 current loans", "2 merge and deletion aliases", "Queue C", "Restore library"} {
 		if !strings.Contains(rr.Body.String(), text) {
 			t.Fatalf("preview missing %q:\n%s", text, rr.Body)
 		}
 	}
 	rr = b.request("POST", planURL, nil)
 	expect(t, rr, 303)
-	if rr.Header().Get("Location") != "/?notice=restored-sync" {
+	if rr.Header().Get("Location") != "/?notice=restored" {
 		t.Fatal(rr.Header())
-	}
-	if !strings.Contains(b.request("GET", "/?notice=restored-sync", nil).Body.String(), "Goodreads polling is off") {
-		t.Fatal("notice missing")
 	}
 	restored := exportOf(t, target)
 	want, got := normalizedExport(t, original), normalizedExport(t, restored)
-	if !want.Sync.Enabled || got.Sync.Enabled {
-		t.Fatalf("polling: exported %v, restored %v", want.Sync.Enabled, got.Sync.Enabled)
-	}
-	want.Sync.Enabled = false
 	if !reflect.DeepEqual(want, got) {
 		w, _ := json.MarshalIndent(want, "", " ")
 		g, _ := json.MarshalIndent(got, "", " ")
@@ -312,7 +305,6 @@ func TestRestoreRejectsInvalidFiles(t *testing.T) {
 			}
 		}), 400, "not in the file"},
 		{"bad preferences", edit(func(m map[string]any) { m["preferences"].(map[string]any)["length"] = "medium" }), 400, "length preference"},
-		{"bad Goodreads settings", edit(func(m map[string]any) { m["sync"].(map[string]any)["user_id"] = "me" }), 400, "numeric Goodreads user ID"},
 		{"oversized", append(append([]byte{}, original...), bytes.Repeat([]byte(" "), maxRestoreUpload)...), 413, "at most 10 MB"},
 	}
 	target := testApp(t, true)
@@ -362,9 +354,6 @@ func TestRestoreVersionOneExport(t *testing.T) {
 	}
 	if rows := countRows(t, target); rows["books"] != 7 || rows["book_aliases"] != 0 {
 		t.Fatal(rows)
-	}
-	if conn, _ := readMeta(target.store.DB, "sync", Connection{}); conn != (Connection{}) {
-		t.Fatalf("%+v", conn)
 	}
 }
 

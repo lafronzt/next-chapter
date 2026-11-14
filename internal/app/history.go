@@ -59,7 +59,7 @@ func nullable[T comparable](v T) *T {
 //
 // A reading with the same fingerprint is this record's own reading: its rating
 // and review follow Goodreads while its source is still goodreads, and once
-// the reader edits it in the app it becomes manual and sync leaves it alone. A
+// the reader edits it in the app it becomes manual and an import leaves it alone. A
 // reading of the same book on the same date that came from elsewhere (a
 // merged book's record, or the reader) is already recorded and is left alone
 // too; updating it would let two records fight over one reading. A dated reading fills in an undated

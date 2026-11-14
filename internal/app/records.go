@@ -6,12 +6,13 @@ import (
 	"time"
 )
 
-// lookupBook matches a record to a local book: Goodreads ID, then ISBN, then
-// normalized title+author, each only when exactly one row matches. With aliases,
+// lookupBook matches a record to a local book: ISBN when the record has one,
+// then normalized title+author, then Goodreads ID as a last resort for a book
+// whose title or author was edited, each only when exactly one row matches. With aliases,
 // the same keys are then tried against merged-away and deleted books; a merge
 // alias returns its target and a deletion tombstone reports tombstoned.
 func lookupBook(q queryer, r Record, aliases bool) (id int64, tombstoned bool, err error) {
-	keys := [][2]string{{"goodreads_id", r.GoodreadsID}, {"isbn", r.ISBN}, {"identity", identity(r.Title, r.Author)}}
+	keys := [][2]string{{"isbn", r.ISBN}, {"identity", identity(r.Title, r.Author)}, {"goodreads_id", r.GoodreadsID}}
 	for _, pair := range keys {
 		if pair[1] == "" {
 			continue
@@ -62,6 +63,9 @@ type importResult struct {
 	Skipped int
 	// Upgraded counts books that left unreviewed, keyed by their new status.
 	Upgraded map[string]int
+	// Advanced counts books already in the library that a Goodreads shelf
+	// moved forward (to-read to reading or read), keyed by their new status.
+	Advanced map[string]int
 	// Rated counts added books whose interest came from a rating; RatingsKept
 	// counts rated records for existing books, which keep their interest.
 	Rated, RatingsKept int
@@ -70,12 +74,28 @@ type importResult struct {
 	Changed bool
 }
 
-func (r importResult) upgradedTotal() int {
+func (r importResult) upgradedTotal() int { return sum(r.Upgraded) }
+func (r importResult) advancedTotal() int { return sum(r.Advanced) }
+func sum(counts map[string]int) int {
 	total := 0
-	for _, n := range r.Upgraded {
+	for _, n := range counts {
 		total += n
 	}
 	return total
+}
+
+// advances reports whether a Goodreads shelf moves a book forward in its
+// reading life. Shelves only ever move a book toward reading or read: a
+// to-read row never pulls a finished or archived book back into the queue,
+// and the reader's own choices (archiving, finishing by hand) stand.
+func advances(from, to string) bool {
+	switch to {
+	case "reading":
+		return from == "to-read"
+	case "read":
+		return from == "to-read" || from == "reading"
+	}
+	return false
 }
 
 // upgradesUnreviewed reports whether a record may move a matching unreviewed
@@ -123,7 +143,7 @@ func previewImport(q queryer, records []Record) (importResult, error) {
 	return result, err
 }
 func importRecords(q queryer, records []Record) (out importResult, err error) {
-	out.Upgraded = map[string]int{}
+	out.Upgraded, out.Advanced = map[string]int{}, map[string]int{}
 	prefs, err := readMeta(q, "preferences", defaultPreferences)
 	if err != nil {
 		return out, err
@@ -198,11 +218,18 @@ func importRecords(q queryer, records []Record) (out importResult, err error) {
 				if err = q.QueryRow("SELECT id,reading_status,pinned,needs_placement,position FROM books WHERE id=?", id).Scan(&old.ID, &old.Status, &old.Pinned, &old.NeedsPlacement, &old.Position); err != nil {
 					return out, err
 				}
-				if old.Status == "unreviewed" {
+				switch {
+				case old.Status == "unreviewed":
 					if err = setStatus(q, old, r.Status); err != nil {
 						return out, err
 					}
 					out.Upgraded[r.Status]++
+					out.Changed = true
+				case advances(old.Status, r.Status):
+					if err = setStatus(q, old, r.Status); err != nil {
+						return out, err
+					}
+					out.Advanced[r.Status]++
 					out.Changed = true
 				}
 			}

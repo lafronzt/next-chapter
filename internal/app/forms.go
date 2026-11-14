@@ -93,14 +93,6 @@ func checkPreferences(p Preferences) string {
 	return ""
 }
 
-// connectionFields reads the Goodreads feed connection from the settings form.
-func connectionFields(r *http.Request) (Connection, error) {
-	conn := Connection{UserID: strings.TrimSpace(r.FormValue("user_id")), Shelf: strings.TrimSpace(r.FormValue("shelf")), Enabled: r.FormValue("enabled") != "", ReadShelf: strings.TrimSpace(r.FormValue("read_shelf"))}
-	if err := validateConnection(conn); err != nil {
-		return Connection{}, bad(err.Error())
-	}
-	return conn, nil
-}
 func requestID(r *http.Request) (int64, error) {
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil || id < 1 {

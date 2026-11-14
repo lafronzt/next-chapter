@@ -11,18 +11,11 @@ func (a *App) settings(w http.ResponseWriter, r *http.Request) error {
 		if err != nil {
 			return err
 		}
-		conn, err := connectionFields(r)
-		if err != nil {
-			return err
-		}
 		err = a.store.Write(func(tx *sql.Tx) error {
 			if err := current(tx, r); err != nil {
 				return err
 			}
 			if err := setMeta(tx, "preferences", prefs); err != nil {
-				return err
-			}
-			if err := setMeta(tx, "sync", conn); err != nil {
 				return err
 			}
 			// Opting out of keeping reviews deletes the text already kept.
@@ -42,22 +35,6 @@ func (a *App) settings(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
-	conn, err := readMeta(a.store.DB, "sync", defaultConnection)
-	if err != nil {
-		return err
-	}
-	last, err := readMeta(a.store.DB, "last_sync", SyncResult{})
-	if err != nil {
-		return err
-	}
-	lastRead, err := readMeta(a.store.DB, "last_read_sync", SyncResult{})
-	if err != nil {
-		return err
-	}
-	poll, err := readMeta(a.store.DB, "poll_state", PollState{})
-	if err != nil {
-		return err
-	}
 	version, _, err := schemaVersion(a.store.DB)
 	if err != nil {
 		return err
@@ -66,5 +43,5 @@ func (a *App) settings(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
-	return a.render(w, r, "settings.html", page{"Title": "Preferences & sync", "Prefs": prefs, "Connection": conn, "LastSync": last, "LastReadSync": lastRead, "Poll": poll, "SchemaVersion": version, "AI": ai}, 200)
+	return a.render(w, r, "settings.html", page{"Title": "Preferences", "Prefs": prefs, "SchemaVersion": version, "AI": ai}, 200)
 }

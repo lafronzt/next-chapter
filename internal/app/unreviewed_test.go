@@ -2,7 +2,6 @@ package app
 
 import (
 	"bytes"
-	"context"
 	"database/sql"
 	"fmt"
 	"io"
@@ -98,48 +97,48 @@ func TestGoodreadsImportUpgradesUnreviewed(t *testing.T) {
 	if eventCount(t, a) != events {
 		t.Fatal("library events changed")
 	}
-	// A different shelf later changes no status. "read" now logs a finished
-	// reading, which is reading history, not status; repeating it is a no-op.
+	// A later export moves forward only: Wanted is now finished and leaves
+	// the queue, while Finished, Started and Dropped never go backwards.
 	later := []Record{shelf("Wanted", "read"), shelf("Finished", "to-read"), shelf("Started", "reading"), shelf("Dropped", "archived")}
 	again := importResultFor(t, a, later)
-	if again.upgradedTotal() != 0 || again.Events != 0 || again.Logged != 1 {
+	if again.upgradedTotal() != 0 || again.advancedTotal() != 1 || again.Advanced["read"] != 1 || again.Events != 0 || again.Logged != 1 {
 		t.Fatalf("%+v", again)
 	}
 	if again = importResultFor(t, a, later); again.Changed || again.Logged != 0 {
 		t.Fatalf("%+v", again)
 	}
-	if b := bookNamed(t, a, "Wanted"); b.Status != "to-read" || b.Position != wanted.Position {
-		t.Fatalf("second import moved the book: %+v", b)
+	if b := bookNamed(t, a, "Wanted"); b.Status != "read" {
+		t.Fatalf("second import left the finished book queued: %+v", b)
+	}
+	for title, status := range map[string]string{"Finished": "read", "Started": "reading", "Dropped": "archived"} {
+		if b := bookNamed(t, a, title); b.Status != status {
+			t.Fatalf("%s went backwards: %+v", title, b)
+		}
 	}
 }
 
-func TestGoodreadsNeverOverridesReaderStatus(t *testing.T) {
+func TestGoodreadsShelvesOnlyAdvanceStatus(t *testing.T) {
 	t.Parallel()
-	a := testApp(t, true)
-	statuses := []string{"to-read", "reading", "read", "abandoned", "archived"}
-	for _, status := range statuses {
-		r := records("Book " + status)[0]
-		r.Status = status
-		addRecords(t, a, []Record{r})
+	// From each local status, what a Goodreads shelf does: only to-read can
+	// move forward, to reading or read, and nothing ever moves back.
+	cases := map[string]map[string]string{
+		"to-read":   {"to-read": "to-read", "reading": "reading", "read": "read", "archived": "to-read"},
+		"reading":   {"to-read": "reading", "reading": "reading", "read": "read", "archived": "reading"},
+		"read":      {"to-read": "read", "reading": "read", "read": "read", "archived": "read"},
+		"archived":  {"to-read": "archived", "reading": "archived", "read": "archived", "archived": "archived"},
+		"abandoned": {"to-read": "abandoned", "reading": "abandoned", "read": "abandoned", "archived": "abandoned"},
 	}
-	if _, err := a.store.DB.Exec("UPDATE books SET pinned=1,needs_placement=0"); err != nil {
-		t.Fatal(err)
-	}
-	before := mustBooks(t, a)
-	incoming := []Record{}
-	for i, status := range statuses {
-		incoming = append(incoming, shelf("Book "+status, statuses[(i+1)%len(statuses)]))
-		incoming = append(incoming, shelf("Book "+status, "to-read"))
-	}
-	// Only "read" adds anything: one finished reading, never a status.
-	if result := importResultFor(t, a, incoming); result.upgradedTotal() != 0 || result.Logged != 1 || result.Added != 0 {
-		t.Fatalf("%+v", result)
-	}
-	if result := importResultFor(t, a, incoming); result.Changed {
-		t.Fatalf("repeat: %+v", result)
-	}
-	if after := mustBooks(t, a); !reflect.DeepEqual(before, after) {
-		t.Fatalf("books changed:\n%+v\n%+v", before, after)
+	for from, shelves := range cases {
+		for incoming, want := range shelves {
+			a := testApp(t, true)
+			r := records("Book")[0]
+			r.Status = from
+			addRecords(t, a, []Record{r})
+			importResultFor(t, a, []Record{shelf("Book", incoming)})
+			if got := bookNamed(t, a, "Book").Status; got != want {
+				t.Errorf("%s book on Goodreads %s: %s, want %s", from, incoming, got, want)
+			}
+		}
 	}
 }
 
@@ -209,7 +208,7 @@ func TestUpgradeSurfacedInPreviewNoticeAndSync(t *testing.T) {
 	}
 	rr = b.request("POST", planURL, nil)
 	expect(t, rr, 303)
-	if loc := rr.Header().Get("Location"); loc != "/?notice=imported&moved=2" {
+	if loc := rr.Header().Get("Location"); loc != "/?notice=imported&moved=2&advanced=0" {
 		t.Fatal(loc)
 	}
 	rr = b.request("GET", rr.Header().Get("Location"), nil)
@@ -224,22 +223,11 @@ func TestUpgradeSurfacedInPreviewNoticeAndSync(t *testing.T) {
 		t.Fatal("repeat preview promised a move")
 	}
 	rr = b.request("POST", planURL, nil)
-	if loc := rr.Header().Get("Location"); loc != "/?notice=imported&moved=0" {
+	if loc := rr.Header().Get("Location"); loc != "/?notice=imported&moved=0&advanced=0" {
 		t.Fatal(loc)
 	}
 	if now, _ := revision(a.store.DB); fmt.Sprint(now) != rev {
 		t.Fatalf("revision %s -> %d", rev, now)
-	}
-	// RSS records come from Goodreads too.
-	a.fetch = func(context.Context, Connection) ([]Record, error) { return []Record{shelf("Synced", "to-read")}, nil }
-	expect(t, b.request("GET", "/settings", nil), 200)
-	expect(t, b.request("POST", "/sync", nil), 303)
-	if s := bookNamed(t, a, "Synced"); s.Status != "to-read" || !s.NeedsPlacement {
-		t.Fatal(s)
-	}
-	last, err := readMeta(a.store.DB, "last_sync", SyncResult{})
-	if err != nil || !strings.Contains(last.Message, "moved 1 library-only books out of To review") {
-		t.Fatalf("%+v %v", last, err)
 	}
 }
 

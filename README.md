@@ -17,7 +17,7 @@ Every suggestion has a preview and reasons. Pinned books keep their positions. Y
 - Separate views for Up next, Reading, Finished, To review, Set aside (abandoned), Archived, and All books. Lists show 50 books per page (`per_page` up to 200); queue numbers always count from the top of the whole queue, and a page past the end shows the last page.
 - Delete a book, or merge a duplicate into the entry you keep, each after a confirmation preview. Re-imports never bring them back.
 - Explainable placement and full-queue reordering, with preview, stale-preview protection, and undo. With AI assistance on, a suggestion can also show an AI-suggested order beside the usual one. Every AI request shows what it shares (and, if you want, the exact prompt) before it is sent, and runs in the background while you keep using the app.
-- Goodreads CSV imports that keep your `to-read` shelf order, and optional hourly public-shelf RSS checks for **new additions**.
+- Goodreads CSV imports that keep your `to-read` shelf order and are safe to repeat: export again from Goodreads whenever you want to bring in new books.
 - **Estimated ratings**: “what might I give this?” for an unread book, from your own ratings, with an optional AI second opinion and a running check of how accurate past estimates were.
 - A **Reading history** of finished books, with finish dates, your ratings, books per year, and favorite shelves, from your Goodreads read shelf and readings you log yourself.
 - Libby timeline CSV imports and a standard CSV format for physical NYPL activity.
@@ -31,9 +31,9 @@ Every suggestion has a preview and reasons. Pinned books keep their positions. Y
 
 **This app owns the ordered queue. It does not write order, reading status, ratings, reviews, or reading history back to Goodreads.** Goodreads stopped issuing public API keys; this project does not depend on that API or request a Goodreads password.
 
-The optional RSS adapter reads a public shelf. Feeds can be delayed, truncated, unavailable, or changed by Goodreads. Import your full Goodreads CSV first, then enable RSS for new additions. Missing entries in a feed never cause deletions. Feed removals and shelf/status changes are not synchronized, except that a feed entry for a book still waiting in To review moves it to your queue, like a CSV import does. New entries are appended, oldest first, and marked **Needs placement**; suggestions never silently move books. RSS is experimental and requires a real public user ID to validate against your account.
+Goodreads turned off its public shelf feeds in 2026, so CSV import is the only Goodreads path. Export your library from Goodreads (My Books → Import and export → Export Library) and import the file as often as you like. Each export is matched against what you already have: by ISBN when the row has one, otherwise by normalized title and author, and by Goodreads Book ID as a last resort for a book whose title or author you edited. Books you deleted stay deleted, and merged books update their target. New books are appended, oldest first, and marked **Needs placement**; imports never silently reorder your queue.
 
-Feed requests go only to `https://www.goodreads.com`. Redirects are followed for at most three hops, and only to that exact host over HTTPS. After a failed scheduled check, the checker waits 1 hour, then 2, 4, and so on, up to 24 hours; a successful check resets the wait. Preferences shows the last result, the number of consecutive failures, the last error time, and the next scheduled check. Settings problems and "a check is already running" each get their own message, separate from feed outages. Server logs give each failure a class such as `timeout`, `status-503`, `redirect`, or `parse`, without the feed URL or user ID.
+Importing makes no network requests: the file you upload is the only input, and nothing is sent to Goodreads.
 
 Libby supports exporting timeline activity but does not provide a direct Goodreads integration. Export column names and activity labels can vary. The parser accepts common variants and rejects unsupported rows with an actionable error; normalize those rows to the provided sample CSV before importing. There is no authenticated Libby connection in v0.2.
 
@@ -66,7 +66,7 @@ Compose binds to loopback by default. For access from other devices, place the a
 
 Sign out on one browser with **Sign out**. **Sign out everywhere** in Preferences ends every session on every device. Changing `APP_PASSWORD` or `APP_SECRET_KEY` also ends every session. When a server error occurs, the page shows a short reference that matches a `request_id=` line in the container log.
 
-The image runs as UID/GID `10001:10001`, with a read-only root filesystem, writable `/tmp`, and persistent `/data`. One Go process serves requests and runs the optional polling goroutine. Use one container/replica per database; SQLite storage should be on a local/block filesystem rather than a shared network filesystem.
+The image runs as UID/GID `10001:10001`, with a read-only root filesystem, writable `/tmp`, and persistent `/data`. One Go process serves requests. Use one container/replica per database; SQLite storage should be on a local/block filesystem rather than a shared network filesystem.
 
 ### Build or run without Compose
 
@@ -97,7 +97,7 @@ Download a database backup, stop the old container, and start v0.2 with the same
 
 ## Kubernetes
 
-Use a cluster with a default StorageClass and a local/block-backed persistent volume. The deployment intentionally uses **one replica** and **Recreate** updates to avoid overlapping SQLite writers/pollers; upgrades have brief downtime.
+Use a cluster with a default StorageClass and a local/block-backed persistent volume. The deployment intentionally uses **one replica** and **Recreate** updates to avoid overlapping SQLite writers; upgrades have brief downtime.
 
 1. Build and push your image, or publish a release tag with the included GitHub workflow.
 2. Replace the image in `deploy/kubernetes/app.yaml` with your registry image and version.
@@ -148,7 +148,7 @@ Each queued book starts with `interest × 10` points (10–50). Additional point
 
 Only the strongest library signal is used per book; multiple formats do not stack. Library points are multiplied by the selected timing weight (0, 0.5, 1, or 2). All dates used for ranking use UTC. Holds with no pickup date get no timing boost because a request does not imply availability.
 
-Full-queue suggestions sort by score while respecting pins and earlier queued books in the same series. Equal scores preserve existing order. Series metadata is supplied by the reader; Goodreads export/RSS does not reliably provide it. Insertion finds the earliest lower-scoring book, then the closest feasible slot that preserves the other books' order, pin slots, and the candidate's series dependencies. Impossible constraints produce a clear error instead of silently moving pins. Manual moves are intentional overrides of ranking; pin crossings must be unpinned first. **Move to #** takes a queue number counted from the top of the whole queue (on every page): the book lands there, the books between its old and new place shift by one, and everything else keeps its order. A number outside 1 to the queue length, or a move that would cross or displace a pinned book, is refused with a message and changes nothing.
+Full-queue suggestions sort by score while respecting pins and earlier queued books in the same series. Equal scores preserve existing order. Series metadata is supplied by the reader; the Goodreads export does not reliably provide it. Insertion finds the earliest lower-scoring book, then the closest feasible slot that preserves the other books' order, pin slots, and the candidate's series dependencies. Impossible constraints produce a clear error instead of silently moving pins. Manual moves are intentional overrides of ranking; pin crossings must be unpinned first. **Move to #** takes a queue number counted from the top of the whole queue (on every page): the book lands there, the books between its old and new place shift by one, and everything else keeps its order. A number outside 1 to the queue length, or a move that would cross or displace a pinned book, is refused with a message and changes nothing.
 
 A book you move with the arrows or **Move to #** is marked **Moved by hand**. The mark is a signal, not a constraint: the usual ranking still sorts by score and lists "You moved this by hand" among the book's reasons, and an AI suggestion is told the book is where you put it and to keep it near there unless your note says otherwise. Applying a suggested order clears the marks (placing one book clears only that book's), and undo restores them.
 
@@ -282,13 +282,14 @@ CSV files must be UTF-8, ≤2 MB, and ≤10,000 rows. A malformed row blocks the
 
 - `Title` and `Author` are required for every record.
 - Goodreads fields: `Book Id`, `ISBN13` or `ISBN`, `Number of Pages`, `Exclusive Shelf`, `Bookshelves`, `My Rating`, `Date Read`, `My Review`, `Average Rating`, and `Original Publication Year` (or `Year Published`). The bundled sample has every column of a Goodreads export. An unreadable `Date Read` is a row error, like any other bad date; `Date Read` may be blank.
-- **Ratings seed interest for new books only.** A `My Rating` of 1–5 (or the RSS feed's `user_rating`) becomes the starting interest of a book the import adds. `0` or blank means unrated and starts at 3. Any other value, such as `7` or `abc`, is ignored rather than failing the import; the book starts at 3 and the preview says how many ratings were ignored. A book already in your library keeps the interest you set, whatever its Goodreads rating. `Average Rating` is never used: it is other readers' opinion, not yours. Rated books on the `read` shelf are stored as usual; interest only matters if they return to the queue. The preview shows how many new books take their rating and how many existing books keep theirs.
+- **Ratings seed interest for new books only.** A `My Rating` of 1–5 becomes the starting interest of a book the import adds. `0` or blank means unrated and starts at 3. Any other value, such as `7` or `abc`, is ignored rather than failing the import; the book starts at 3 and the preview says how many ratings were ignored. A book already in your library keeps the interest you set, whatever its Goodreads rating. `Average Rating` is never used: it is other readers' opinion, not yours. Rated books on the `read` shelf are stored as usual; interest only matters if they return to the queue. The preview shows how many new books take their rating and how many existing books keep theirs.
 - Library fields: `Timestamp` (or `Date`), `Activity` (or `Status`), optional `Format`, `ISBN`, and `Due Date`.
 - Prefer ISO 8601 timestamps with time zones and `YYYY-MM-DD` due dates. Date-only and timezone-free inputs are treated as UTC. If several different events share the same timestamp and format, the first one imported remains the current status; supply more precise timestamps or log the current status manually to resolve ambiguity.
 - Supported activities include Borrowed, Loan, Checked out, Renewed, Hold, Placed on hold, Requested, Ready, Ready for pickup, Returned, Cancelled/Canceled, and Available.
 - Use consistent format names (`print`, `ebook`, `audiobook`, or `digital`) across imports. Format names distinguish parallel loans.
-- New books join the end of the queue in your Goodreads shelf order. A Goodreads export lists the newest additions first, so a Goodreads CSV is applied by the `to-read` position in `Bookshelves with positions` (the order you set on Goodreads), then by `Date Added`, oldest first, for books without one. The RSS feed is fetched newest first and applied oldest first. Library CSVs use file row order. Existing books keep local reading status, interest, tags, and queue order on subsequent imports; missing identifier/page metadata can be filled in.
-- One exception: a book that arrived through a library import and is still **unreviewed** takes its status from the first Goodreads shelf that mentions it (CSV or RSS). `to-read` appends it to the end of your queue marked **Needs placement**; `read`, `currently-reading`, and other shelves become finished, reading, or archived. The import preview says how many books will move. Books you have already sorted are never changed by an import, and library activity never changes reading status. Import order therefore no longer matters.
+- New books join the end of the queue in your Goodreads shelf order. A Goodreads export lists the newest additions first, so a Goodreads CSV is applied by the `to-read` position in `Bookshelves with positions` (the order you set on Goodreads), then by `Date Added`, oldest first, for books without one. Library CSVs use file row order. Existing books keep local interest, tags, and queue order on subsequent imports; missing identifier/page metadata can be filled in. Their reading status only moves forward (next point).
+- One exception: a book that arrived through a library import and is still **unreviewed** takes its status from the first Goodreads shelf that mentions it. `to-read` appends it to the end of your queue marked **Needs placement**; `read`, `currently-reading`, and other shelves become finished, reading, or archived. The import preview says how many books will move. Library activity never changes reading status. Import order therefore no longer matters.
+- **A re-import moves finished and started books forward.** When a newer Goodreads export shows a book still in your queue as `currently-reading` or `read`, the import moves it to Reading or Read (it logs the finished reading too), takes it out of the queue, and clears its pin. Other queued books keep their order. The preview says how many books will move before anything changes. Status never moves backwards: a `to-read` row does not pull a book you finished, started, or archived back into the queue, and an archived book stays archived.
 - Matching by normalized title + author is conservative about spelling and subtitles. Different titles without a shared identifier may require manual cleanup. Edition-level history is represented through source/format; books are grouped into one reading-list entry when their identifiers/title match.
 
 ### Reading history
@@ -298,7 +299,7 @@ Books on your Goodreads `read` shelf become **Reading history**: one entry per f
 - History is its own record. It never changes a book's reading status, interest, pin, or queue position, and library loans never count as reading.
 - Re-importing or re-checking the same data changes nothing. A new `Date Read` for a book you finished before is recorded as a re-read. If Goodreads later fills in a date that was blank, the reading takes that date. A changed Goodreads rating updates the reading.
 - **Your edits win.** After you change a reading's date or rating in the app, Goodreads checks leave it alone. You can delete readings you logged yourself. A reading from Goodreads can be edited but not deleted, because the next import or check would add it again (deleting the book removes its readings).
-- The hourly Goodreads check also reads a second shelf, **Read shelf** in Preferences (default `read`; leave it blank to skip). It uses the same feed rules and limits as the main shelf, and Preferences shows when it was last checked and how many readings it logged. A finished book that is not in your library yet is added as Finished. RSS feeds hold only the most recent entries, so **import your Goodreads CSV once for the full history**; the feed keeps it current. Unreadable feed dates are skipped and counted rather than failing the check.
+- A finished book that is not in your library yet is added as Finished, and each import logs the readings Goodreads reports (the export keeps only your latest `Date Read` per book).
 - **Reviews stay out by default.** Only the length of your Goodreads review (`My Review`) is stored. To keep the text in this library, turn on **Keep my Goodreads review text** in Preferences; turning it off again deletes the stored text. Without it, review text is not kept even in a pending import preview.
 - Not available from Goodreads, and so not here: reading progress and start dates, dates of earlier re-reads (Goodreads keeps only the latest `Date Read`; `Read Count` is not a list of dates), private notes, and anything on a private profile. This app does not scrape Goodreads, ask for your Goodreads password or cookies, or use unofficial APIs.
 
@@ -330,7 +331,7 @@ The JSON export can also be loaded back, for example to move to a new instance w
 
 - Restore only works on an **empty library** (no books). Merging an export into an existing library is not supported.
 - Restored: books with their status, interest, pins, **Needs placement**, queue positions and order, series, tags, pages, identifiers, added date, and source; reading history (review text only if the restored preferences keep reviews); library events with their fingerprints, so re-importing the same CSV adds no duplicates; current loans, rebuilt from the events with the same newest-wins rule as imports; merge and deletion aliases; ranking preferences; and Goodreads settings.
-- Goodreads polling is always restored **off**. The preview and the confirmation say so; turn it on in Preferences when ready.
+- Exports from older versions carry retired Goodreads feed settings; they are accepted and ignored.
 - Not restored: previews, undo, sign-in state, and the session key. Books and events get new ID numbers.
 - Validation is strict and uses the same limits as the forms and CSV imports. Unknown fields, malformed JSON, out-of-range values, duplicate titles or Goodreads IDs, and exports from a newer schema version than this build supports are refused, and nothing is written. The export's `schema_version` is the database schema version it came from; this build restores versions 1 to 8. An export from before version 6 has no reading history, and its Goodreads connection starts following the `read` shelf.
 - The file is limited to 10 MB, 10,000 books, and 100,000 events. A 10,000-book export is typically about 6 MB; a library too large for JSON restore can still use the database backup.
@@ -365,7 +366,7 @@ Go 1.27 or later; no frontend build step or C compiler is required:
 go test -race ./...
 go vet ./...
 go build -trimpath -o ./bin/next-chapter ./cmd/next-chapter
-LOCAL_DEMO=1 START_POLLER=0 ./bin/next-chapter
+LOCAL_DEMO=1 ./bin/next-chapter
 ```
 
 CI also requires `gofmt`, `staticcheck`, `govulncheck`, a tidy `go.mod`, and a container smoke test; [CONTRIBUTING.md](CONTRIBUTING.md#required-checks) lists the exact commands.
@@ -376,26 +377,25 @@ To try AI assistance locally without an API key, run Ollama, pull a model, and s
 
 ```sh
 ollama pull llama3.1:8b
-AI_PROVIDER=ollama AI_MODEL=llama3.1:8b AI_TIMEOUT_SECONDS=300 LOCAL_DEMO=1 START_POLLER=0 ./bin/next-chapter
+AI_PROVIDER=ollama AI_MODEL=llama3.1:8b AI_TIMEOUT_SECONDS=300 LOCAL_DEMO=1 ./bin/next-chapter
 ```
 
 Then switch AI on in Preferences. Tests never contact a real provider; they use `httptest` servers.
 
-For production, set `APP_PASSWORD` and `APP_SECRET_KEY` and omit `LOCAL_DEMO`. `DATABASE_PATH` defaults to `data/next-chapter.sqlite3`; `LISTEN_ADDR` defaults to `:8000`. `START_POLLER=0` disables the background checker. `TRUSTED_PROXY_HOPS` (default `0`) is described under Docker Compose. The executable includes `version` and `healthcheck` commands.
+For production, set `APP_PASSWORD` and `APP_SECRET_KEY` and omit `LOCAL_DEMO`. `DATABASE_PATH` defaults to `data/next-chapter.sqlite3`; `LISTEN_ADDR` defaults to `:8000`. `TRUSTED_PROXY_HOPS` (default `0`) is described under Docker Compose. The executable includes `version` and `healthcheck` commands.
 
-The application uses Go’s HTTP server, escaped HTML templates, plain CSS, and a pure-Go SQLite driver. Templates, assets, and CSV examples are embedded in the executable. No font, analytics, or cover-image service receives reading data. The app makes outbound requests only for opt-in Goodreads RSS and, if the operator configures a provider and the reader switches it on, for [AI assistance](#ai-assistance-optional) that the reader requests and confirms one request at a time. With Ollama or another self-hosted model, those requests can stay on your own machine or network.
+The application uses Go’s HTTP server, escaped HTML templates, plain CSS, and a pure-Go SQLite driver. Templates, assets, and CSV examples are embedded in the executable. No font, analytics, or cover-image service receives reading data. The app makes outbound requests only if the operator configures a provider and the reader switches it on, for [AI assistance](#ai-assistance-optional) that the reader requests and confirms one request at a time. With Ollama or another self-hosted model, those requests can stay on your own machine or network.
 
 ## Project layout
 
 - `cmd/next-chapter/`: executable, health check, graceful shutdown.
 - `internal/app/model.go`, `propose.go`: data types and deterministic ranking with its constraints.
-- `internal/app/imports.go`: CSV/RSS parsing and validation, and putting Goodreads rows in shelf order.
+- `internal/app/imports.go`: CSV parsing and validation, and putting Goodreads rows in shelf order.
 - `internal/app/migrations.go`, `migrate.go`: ordered schema migrations and the runner that applies them after a pre-migration backup.
 - `internal/app/store.go`, `books.go`, `listing.go`: transactions, book and event queries, paged lists.
 - `internal/app/records.go`: matching imported records and event reconciliation.
 - `internal/app/plans.go`: compact storage for previews.
 - `internal/app/merge.go`: deleting and merging books, aliases that stop re-imports from recreating them.
-- `internal/app/feed.go`, `sync.go`: fixed-host RSS fetching, optional hourly polling with backoff.
 - `internal/app/estimate.go`, `handlers_estimate.go`: estimated ratings, the deterministic baseline, the optional AI estimate, and accuracy tracking.
 - `internal/app/rerank.go`: AI-suggested queue orders and placements, validated and merged through the ranking constraints.
 - `internal/app/ai.go`, `handlers_ai.go`: the optional AI provider layer (Anthropic, OpenAI, Ollama, and OpenAI-compatible servers over `net/http`), its monthly limit, strict answer parsing, the exact-prompt preview, and the Preferences switch.
@@ -403,7 +403,7 @@ The application uses Go’s HTTP server, escaped HTML templates, plain CSS, and 
 - `internal/app/server.go`: configuration and the routing table; `middleware.go`, `session.go`, `render.go`, `forms.go` hold the request pipeline, and `handlers_*.go` the handlers by area.
 - `internal/app/version.go`: the release version, set at build time with `-ldflags "-X github.com/lafronzt/next-chapter/internal/app.Version=…"`.
 - `internal/app/web/`: embedded templates, assets, and import examples.
-- `internal/app/*_test.go`: ranking, import integrity, migrations, delete/merge, feed and poller, authentication, and web-flow tests.
+- `internal/app/*_test.go`: ranking, import integrity, migrations, delete/merge, authentication, and web-flow tests.
 - `deploy/kubernetes/`: single-replica persistent deployment, and an optional Ollama server for local AI models.
 
 ## Next steps

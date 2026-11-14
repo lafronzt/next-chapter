@@ -96,7 +96,7 @@ func (a *App) plan(w http.ResponseWriter, r *http.Request) error {
 				preview = append(preview, Record{Book: b})
 			}
 		}
-		data := page{"Title": planTitles[kind], "Kind": kind, "PlanID": id, "Plan": p, "PreviewRecords": preview, "Stale": rev != state(r).Revision, "UpgradeSummary": upgradeSummary(p.Upgrades), "Skipped": p.Skipped}
+		data := page{"Title": planTitles[kind], "Kind": kind, "PlanID": id, "Plan": p, "PreviewRecords": preview, "Stale": rev != state(r).Revision, "UpgradeSummary": upgradeSummary(p.Upgrades), "AdvanceSummary": advanceSummary(p.Advances), "Skipped": p.Skipped}
 		if kind == "triage" {
 			byID, err := getBooks(a.store.DB, p.BookIDs)
 			if err != nil {
@@ -141,7 +141,7 @@ func (a *App) plan(w http.ResponseWriter, r *http.Request) error {
 					return err
 				}
 			}
-			location = fmt.Sprintf("/?notice=imported&moved=%d", result.upgradedTotal())
+			location = fmt.Sprintf("/?notice=imported&moved=%d&advanced=%d", result.upgradedTotal(), result.advancedTotal())
 			if result.Skipped > 0 {
 				location += fmt.Sprintf("&skipped=%d", result.Skipped)
 			}
@@ -167,7 +167,7 @@ func (a *App) plan(w http.ResponseWriter, r *http.Request) error {
 			if p.Restore == nil {
 				return fmt.Errorf("restore plan %s has no data", id)
 			}
-			result, err := restoreExport(tx, p.Restore.File)
+			_, err := restoreExport(tx, p.Restore.File)
 			if err != nil {
 				return err
 			}
@@ -175,9 +175,6 @@ func (a *App) plan(w http.ResponseWriter, r *http.Request) error {
 				return err
 			}
 			location = "/?notice=restored"
-			if result.SyncWasOn {
-				location = "/?notice=restored-sync"
-			}
 		case "reorder", "insert":
 			queue, err := queueOrder(tx)
 			if err != nil {
@@ -281,6 +278,21 @@ func upgradeSummary(upgrades map[string]int) string {
 		return ""
 	}
 	return fmt.Sprintf("%d library-only books will move out of To review to match Goodreads: %s.", total, strings.Join(parts, ", "))
+}
+
+// advanceSummary names the books a Goodreads shelf moves forward, or "".
+func advanceSummary(advances map[string]int) string {
+	parts := []string{}
+	if n := advances["read"]; n > 0 {
+		parts = append(parts, fmt.Sprintf("%d finished and leave your queue", n))
+	}
+	if n := advances["reading"]; n > 0 {
+		parts = append(parts, fmt.Sprintf("%d started and leave your queue", n))
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+	return "Goodreads says " + strings.Join(parts, ", ") + ". The rest of your queue keeps its order."
 }
 
 // planAIData adds the AI parts of a queue suggestion's preview: which order

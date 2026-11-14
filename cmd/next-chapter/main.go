@@ -80,12 +80,6 @@ func run() error {
 	defer a.Close()
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	pollingDone := make(chan struct{})
-	if env("START_POLLER", "1") == "1" {
-		go func() { defer close(pollingDone); a.Poll(ctx) }()
-	} else {
-		close(pollingDone)
-	}
 	server := &http.Server{Addr: addr, Handler: a.Handler(), ReadHeaderTimeout: 10 * time.Second, ReadTimeout: 30 * time.Second, WriteTimeout: 60 * time.Second, IdleTimeout: 60 * time.Second}
 	shutdownDone := make(chan struct{})
 	go func() {
@@ -109,7 +103,6 @@ func run() error {
 	err = server.ListenAndServe()
 	stop()
 	<-shutdownDone
-	<-pollingDone
 	if errors.Is(err, http.ErrServerClosed) {
 		return nil
 	}

@@ -2,7 +2,6 @@ package app
 
 import (
 	"bytes"
-	"context"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -155,12 +154,12 @@ func TestPanicAndServerErrorShowRequestID(t *testing.T) {
 	a.logger = slog.New(slog.NewTextHandler(&logs, nil))
 	b := &browser{t: t, handler: a.Handler()}
 	expect(t, b.request("GET", "/", nil), 200)
-	a.fetch = func(context.Context, Connection) ([]Record, error) { panic("feed exploded") }
-	req := httptest.NewRequest("POST", "/sync?token=secret-query", strings.NewReader(url.Values{"csrf": {b.csrf}, "revision": {b.rev}, "note": {"secret-form"}}.Encode()))
+	handler := a.middleware(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { panic("handler exploded") }))
+	req := httptest.NewRequest("POST", "/boom?token=secret-query", strings.NewReader(url.Values{"csrf": {b.csrf}, "revision": {b.rev}, "note": {"secret-form"}}.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.AddCookie(b.cookie)
 	rr := httptest.NewRecorder()
-	a.Handler().ServeHTTP(rr, req)
+	handler.ServeHTTP(rr, req)
 	if rr.Code != 500 {
 		t.Fatalf("status %d", rr.Code)
 	}
@@ -169,7 +168,7 @@ func TestPanicAndServerErrorShowRequestID(t *testing.T) {
 		t.Fatalf("no request ID on page: %s", rr.Body)
 	}
 	line := logs.String()
-	for _, want := range []string{"request_id=" + m[1], "method=POST", "path=/sync", "feed exploded", "stack="} {
+	for _, want := range []string{"request_id=" + m[1], "method=POST", "path=/boom", "handler exploded", "stack="} {
 		if !strings.Contains(line, want) {
 			t.Fatalf("log missing %q: %s", want, line)
 		}

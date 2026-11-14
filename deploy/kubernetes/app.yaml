@@ -21,7 +21,7 @@ metadata:
   name: next-chapter
 spec:
   replicas: 1
-  # SQLite + one poller: do not overlap replicas or scale horizontally.
+  # SQLite: do not overlap replicas or scale horizontally.
   strategy:
     type: Recreate
   selector:

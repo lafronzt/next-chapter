@@ -2,7 +2,6 @@ package app
 
 import (
 	"bytes"
-	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -94,17 +93,11 @@ func TestImportPreviewAndSettings(t *testing.T) {
 	}
 	expect(t, b.request("POST", target, nil), 303)
 	expect(t, b.request("GET", "/settings", nil), 200)
-	expect(t, b.request("POST", "/settings", url.Values{"library_weight": {"2"}, "length": {"short"}, "mood": {"hopeful"}, "shelf": {"to-read"}, "user_id": {"42"}, "enabled": {"on"}}), 303)
+	expect(t, b.request("POST", "/settings", url.Values{"library_weight": {"2"}, "length": {"short"}, "mood": {"hopeful"}}), 303)
 	rr = b.request("GET", "/settings", nil)
 	expect(t, rr, 200)
 	if !strings.Contains(rr.Body.String(), `value="2" selected`) {
 		t.Fatal("preference not rendered")
-	}
-	a.fetch = func(context.Context, Connection) ([]Record, error) { return records("RSS book"), nil }
-	expect(t, b.request("POST", "/sync", nil), 303)
-	books, _ = loadBooks(a.store.DB)
-	if len(books) != 2 {
-		t.Fatal(books)
 	}
 	rr = b.request("GET", "/export.json", nil)
 	var data map[string]any
@@ -170,7 +163,7 @@ func TestExportJSON(t *testing.T) {
 	if err := json.Unmarshal(rr.Body.Bytes(), &export); err != nil {
 		t.Fatal(err)
 	}
-	if got := slices.Sorted(maps.Keys(export)); !slices.Equal(got, []string{"aliases", "books", "events", "exported_at", "preferences", "reading_log", "schema_version", "sync"}) {
+	if got := slices.Sorted(maps.Keys(export)); !slices.Equal(got, []string{"aliases", "books", "events", "exported_at", "preferences", "reading_log", "schema_version"}) {
 		t.Fatalf("top-level keys %v", got)
 	}
 	var meta struct {
@@ -596,18 +589,12 @@ func TestSettingsValidation(t *testing.T) {
 		"library timing preference": with("library_weight", "3"),
 		"timing preference":         with("library_weight", "lots"),
 		"length preference":         with("length", "medium"),
-		"before enabling polling":   with("enabled", "on"),
-		"numeric Goodreads user ID": with("user_id", "me"),
-		"letters, digits, hyphens":  with("user_id", "42", "shelf", "to read"),
 	} {
 		rr := b.form("/settings", values)
 		expect(t, rr, 400)
 		if !strings.Contains(rr.Body.String(), message) {
 			t.Fatalf("%v: %s", values, rr.Body)
 		}
-	}
-	if conn, err := readMeta(a.store.DB, "sync", Connection{}); err != nil || conn != (Connection{}) {
-		t.Fatalf("invalid settings saved: %+v %v", conn, err)
 	}
 	expect(t, b.form("/settings", with("mood", strings.Repeat("m", 150))), 303)
 	if prefs, _ := readMeta(a.store.DB, "preferences", defaultPreferences); len(prefs.Mood) != 100 {

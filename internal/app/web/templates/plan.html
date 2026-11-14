@@ -9,8 +9,9 @@
 </header>
 {{if .Stale}}<div class="notice error" role="alert">Your library has changed since this preview. Generate a fresh preview before applying it.</div>{{end}}
 {{if eq .Kind "import"}}
-<div class="notice" role="status">{{len .Plan.Records}} rows from {{.Plan.Source}}. Repeated library events are ignored; existing books keep their reading status and queue order, except books still waiting in To review, which follow their Goodreads shelf. Library-only books are saved as unreviewed.</div>
+<div class="notice" role="status">{{len .Plan.Records}} rows from {{.Plan.Source}}. Repeated library events are ignored; existing books keep their queue order and reading status, except that books still waiting in To review follow their Goodreads shelf, and queued books you have since started or finished on Goodreads move to Reading or Read. Library-only books are saved as unreviewed.</div>
 {{if .UpgradeSummary}}<div class="notice" role="status">{{.UpgradeSummary}}</div>{{end}}
+{{if .AdvanceSummary}}<div class="notice" role="status">{{.AdvanceSummary}}</div>{{end}}
 {{if .Skipped}}<div class="notice" role="status">{{.Skipped}} rows match books you deleted and will be skipped. Add a book by hand to bring it back.</div>{{end}}
 {{if or .Plan.Rated .Plan.RatingsKept}}<div class="notice" role="status">{{if .Plan.Rated}}{{.Plan.Rated}} new {{if eq .Plan.Rated 1}}book starts{{else}}books start{{end}} with your Goodreads rating as interest.{{end}}{{if .Plan.RatingsKept}} {{.Plan.RatingsKept}} rated {{if eq .Plan.RatingsKept 1}}book is{{else}}books are{{end}} already here and {{if eq .Plan.RatingsKept 1}}keeps its{{else}}keep their{{end}} current interest.{{end}}</div>{{end}}
 {{if .Plan.Logged}}<div class="notice" role="status">{{.Plan.Logged}} finished {{if eq .Plan.Logged 1}}reading is{{else}}readings are{{end}} added to your <a href="/reading">reading history</a>. History never changes reading status, interest, or queue order.</div>{{end}}
@@ -31,7 +32,6 @@
 {{with .Plan.Restore}}
 <div class="notice" role="status">{{.Queue}} books in your queue and {{.Other}} other books, with {{.Events}} library events and {{.Loans}} current loans. Queue order, pins, and Needs placement are kept; books get new ID numbers.{{if .Aliases}} {{.Aliases}} merge and deletion aliases come along.{{end}}{{if .HasPreferences}} Your ranking preferences are restored.{{end}}</div>
 {{if .AliasesKept}}<div class="notice" role="status">{{.AliasesKept}} aliases in the file match deletions already recorded here; the local ones are kept.</div>{{end}}
-{{if .HasSync}}<div class="notice" role="status">Goodreads settings are restored with polling off{{if .SyncWasOn}} (it was on when exported){{end}}. Turn it on in Preferences when you are ready.</div>{{end}}
 {{end}}
 <div class="panel preview-list">
   {{range .PreviewRecords}}

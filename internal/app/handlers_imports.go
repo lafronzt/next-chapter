@@ -2,9 +2,7 @@ package app
 
 import (
 	"database/sql"
-	"errors"
 	"io"
-	"log"
 	"net/http"
 	"strings"
 )
@@ -61,7 +59,7 @@ func (a *App) importPage(w http.ResponseWriter, r *http.Request) error {
 				records[i].Review = ""
 			}
 		}
-		id, err = savePlan(tx, "import", Plan{Records: records, Source: source, Upgrades: preview.Upgraded, Rated: preview.Rated, RatingsKept: preview.RatingsKept, RatingsIgnored: ignored, Logged: preview.Logged})
+		id, err = savePlan(tx, "import", Plan{Records: records, Source: source, Upgrades: preview.Upgraded, Advances: preview.Advanced, Rated: preview.Rated, RatingsKept: preview.RatingsKept, RatingsIgnored: ignored, Logged: preview.Logged})
 		return err
 	})
 	if err != nil {
@@ -122,22 +120,4 @@ func (a *App) example(w http.ResponseWriter, r *http.Request) error {
 	w.Header().Set("Content-Disposition", `attachment; filename="`+name+`.csv"`)
 	_, err = w.Write(data)
 	return err
-}
-
-func (a *App) syncNow(w http.ResponseWriter, r *http.Request) error {
-	// A panic here is recovered by Handler, which logs it with the request ID.
-	if _, err := a.syncOnce(r.Context(), a.now()); err != nil {
-		var s *syncError
-		if !errors.As(err, &s) {
-			return err
-		}
-		status := 400
-		if errors.Is(err, errSyncBusy) {
-			status = 409
-		} else if errors.Is(err, errFeedUnavailable) {
-			log.Printf("Goodreads check failed (class=%s)", s.class)
-		}
-		return httpError{Status: status, Message: syncMessage(err, true)}
-	}
-	return redirect(w, r, "/settings?notice=synced")
 }

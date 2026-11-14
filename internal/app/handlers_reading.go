@@ -46,7 +46,7 @@ func readingFields(r *http.Request) (finished *string, rating *int, err error) {
 	return finished, rating, nil
 }
 
-// addReading logs a reading by hand. Manual readings are never changed by sync.
+// addReading logs a reading by hand. Manual readings are never changed by an import.
 func (a *App) addReading(w http.ResponseWriter, r *http.Request) error {
 	id, err := requestID(r)
 	if err != nil {
@@ -75,8 +75,8 @@ func (a *App) addReading(w http.ResponseWriter, r *http.Request) error {
 }
 
 // editReading saves the reader's own date and rating for a reading, which
-// makes it manual so later syncs leave it alone, or deletes one added by hand.
-// A Goodreads reading cannot be deleted: the next sync would bring it back.
+// makes it manual so later imports leave it alone, or deletes one added by hand.
+// A Goodreads reading cannot be deleted: the next import would bring it back.
 func (a *App) editReading(w http.ResponseWriter, r *http.Request) error {
 	rid, err := strconv.ParseInt(r.PathValue("rid"), 10, 64)
 	if err != nil || rid < 1 {
@@ -105,7 +105,7 @@ func (a *App) editReading(w http.ResponseWriter, r *http.Request) error {
 		}
 		if action == "delete" {
 			if !(readingEntry{Fingerprint: fp}).AddedByHand() {
-				return bad("Readings from Goodreads cannot be deleted here, because the next sync would add them again. Edit the date or rating instead.")
+				return bad("Readings from Goodreads cannot be deleted here, because the next import would add them again. Edit the date or rating instead.")
 			}
 			_, err := tx.Exec("DELETE FROM reading_log WHERE id=?", rid)
 			if err != nil {
@@ -113,7 +113,7 @@ func (a *App) editReading(w http.ResponseWriter, r *http.Request) error {
 			}
 			return bump(tx)
 		}
-		// The fingerprint stays, so sync still recognizes an edited Goodreads
+		// The fingerprint stays, so an import still recognizes an edited Goodreads
 		// reading as the same one.
 		changed, err := execChanged(tx, "UPDATE reading_log SET finished_at=?,rating=?,source='manual' WHERE id=? AND (finished_at IS NOT ? OR rating IS NOT ? OR source!='manual')", finished, rating, rid, finished, rating)
 		if err != nil || !changed {
