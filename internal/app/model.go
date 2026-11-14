@@ -74,6 +74,9 @@ type Record struct {
 	// LookedUp marks a record whose details came from a book lookup, so an
 	// import fills the empty series, tags, and description of a matching book.
 	LookedUp bool `json:"-"`
+	// OriginalTitle is the title as the file had it when it carried a series,
+	// as in "Title (Series, #2)", so a book imported that way earlier still matches.
+	OriginalTitle string `json:"-"`
 	// Found is what that lookup returned (nil when nothing was found), and
 	// LookupMode how an import resolves it against values already there. The
 	// mode is set from the plan when it is applied.

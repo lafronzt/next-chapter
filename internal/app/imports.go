@@ -265,6 +265,29 @@ func shelfPosition(cell, shelf string) int {
 	}
 	return 0
 }
+
+// seriesInTitle matches the "(Series Name, #2)" Goodreads and other catalogs
+// append to a title: the series in parentheses, then the book's number after a
+// "#". Only a trailing group that ends in a number counts, so a subtitle such
+// as "(A Novel)" stays in the title.
+var seriesInTitle = regexp.MustCompile(`^(.*\S)\s+\(\s*([^()]*?[^()\s])\s*,?\s*#\s*(\d{1,4}(?:\.\d{1,2})?)\s*\)\s*$`)
+
+// splitSeriesTitle splits "Heated Rivalry (Game Changers, #2)" into the title,
+// the series, and the number in it. It reports false, and changes nothing, for
+// a title with no such group, an empty title or series, or a range such as
+// "#1-3" (a box set belongs to no single number).
+func splitSeriesTitle(title string) (string, string, *float64, bool) {
+	m := seriesInTitle.FindStringSubmatch(strings.TrimSpace(title))
+	if m == nil {
+		return title, "", nil, false
+	}
+	n, err := strconv.ParseFloat(m[3], 64)
+	if err != nil || len([]rune(m[2])) > 200 {
+		return title, "", nil, false
+	}
+	return strings.TrimSpace(m[1]), strings.TrimSpace(m[2]), &n, true
+}
+
 func parseRecord(row map[string]string, source string) (Record, error) {
 	title, author := field(row, "title"), field(row, "author", "authors", "author name", "creator")
 	if title == "" || author == "" || len([]rune(title)) > 500 || len([]rune(author)) > 300 {
@@ -275,6 +298,11 @@ func parseRecord(row map[string]string, source string) (Record, error) {
 		b.Pages = &n
 	}
 	r := Record{Book: b}
+	// The catalog's "(Series, #N)" becomes the series and its number. The
+	// original title is kept only to match books imported before this existed.
+	if t, series, number, ok := splitSeriesTitle(title); ok {
+		r.OriginalTitle, r.Title, r.Series, r.SeriesNumber = title, t, series, number
+	}
 	if source == "goodreads" {
 		r.GoodreadsID = field(row, "book id")
 		r.Tags = truncate(field(row, "bookshelves"), 500)
