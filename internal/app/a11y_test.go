@@ -308,3 +308,30 @@ func TestNavLandmarksAreDistinctAndCoverEveryDestination(t *testing.T) {
 		}
 	}
 }
+
+func TestQueueRowSheetKeepsActionsAndExplainsDisabledOnes(t *testing.T) {
+	t.Parallel()
+	_, b, _ := a11yLibrary(t)
+	body := b.request("GET", "/", nil).Body.String()
+	for _, want := range []string{
+		`<summary aria-label="More actions: Piranesi">`,
+		`aria-label="Move Piranesi up"`,
+		`aria-label="Predict my rating: Piranesi"`,
+		`aria-label="Edit book: Piranesi"`,
+		// Disabled reasons are visible text in the sheet, not only titles.
+		`Can’t move up: Pinned`,
+		`Can’t move down: Already last in your queue.`,
+		`Pinned books stay in place. Unpin it to move it.</p>`,
+		`<small>Pinned books keep their place.</small>`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("missing %s", want)
+		}
+	}
+	// The sheet's forms still post to the same handlers.
+	for _, action := range []string{`action="/suggest"`, `action="/books/1/action"`, `action="/books/2/estimate"`} {
+		if !strings.Contains(body, action) {
+			t.Errorf("missing form %s", action)
+		}
+	}
+}
