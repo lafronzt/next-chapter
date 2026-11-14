@@ -111,7 +111,9 @@ func (a *App) bookStatus(w http.ResponseWriter, r *http.Request) error {
 			err = setStatus(tx, b, "reading")
 		case action == "stop" && b.Status == "reading":
 			err = setStatus(tx, b, "abandoned")
-		case action == "start" || action == "stop":
+		case action == "requeue" && (b.Status == "abandoned" || b.Status == "archived"):
+			err = setStatus(tx, b, "to-read")
+		case action == "start" || action == "stop" || action == "requeue":
 			return bad("That book is no longer in that state. Reload and try again.")
 		default:
 			return bad("Choose a valid action.")
@@ -124,9 +126,9 @@ func (a *App) bookStatus(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
-	notice := "started"
-	if action == "stop" {
-		notice = "stopped"
+	notice := map[string]string{"start": "started", "stop": "stopped", "requeue": "requeued"}[action]
+	if r.FormValue("back") == "book" {
+		return redirect(w, r, fmt.Sprintf("/books/%d?notice=%s", id, notice))
 	}
 	dest := listReturn(r)
 	sep := "?"

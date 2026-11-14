@@ -1,5 +1,5 @@
 {{template "top" .}}
-<a class="back" href="/"><span aria-hidden="true">←</span> Back to your queue</a>
+{{if .Editing}}<a class="back" href="/books/{{.Book.ID}}"><span aria-hidden="true">←</span> Back to {{.Book.Title}}</a>{{else}}<a class="back" href="/"><span aria-hidden="true">←</span> Back to your queue</a>{{end}}
 <header class="page-heading">
   <div>
     <div class="eyebrow">FOLLOW YOUR CURIOSITY</div>
@@ -33,7 +33,7 @@
   </details>
   <div class="span-2 button-row">
     <button class="button primary">{{if .Editing}}Save book{{else}}Add & suggest a position{{end}}</button>
-    <a class="button" href="/">Cancel</a>
+    <a class="button" href="{{if .Editing}}/books/{{.Book.ID}}{{else}}/{{end}}">Cancel</a>
   </div>
 </form>
 {{if .Editing}}
@@ -73,7 +73,7 @@
   {{template "rating-input" noRating}}
   <div class="span-2"><button class="button">Log reading</button></div>
 </form>
-<section class="section-heading">
+<section class="section-heading" id="library">
   <h2>At the library</h2>
   <p>Log a checkout, hold, or return. This never marks the book as finished.</p>
 </section>

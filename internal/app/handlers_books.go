@@ -63,42 +63,68 @@ func (a *App) newBook(w http.ResponseWriter, r *http.Request) error {
 // when there are more, and the export has them all.
 const bookEventLimit = 200
 
+// bookPageData loads what a book's pages show: the book, its readings,
+// loans, events, and estimate, in a fixed handful of queries.
+func (a *App) bookPageData(id int64) (page, error) {
+	b, err := getBook(a.store.DB, id)
+	if err != nil {
+		return nil, err
+	}
+	events, err := loadEvents(a.store.DB, id, bookEventLimit)
+	if err != nil {
+		return nil, err
+	}
+	total, err := countEvents(a.store.DB, eventFilter{BookID: id})
+	if err != nil {
+		return nil, err
+	}
+	readings, err := bookReadings(a.store.DB, id)
+	if err != nil {
+		return nil, err
+	}
+	estimate, err := readEstimate(a.store.DB, id)
+	if err != nil {
+		return nil, err
+	}
+	data := page{"Title": b.Title, "Book": b, "Editing": true, "Events": events, "EventTotal": total, "Readings": readings, "Estimate": estimate}
+	for _, e := range readings {
+		if e.Rating != nil {
+			data["Rated"] = true
+		}
+	}
+	if estimate != nil && data["Rated"] != nil {
+		if data["Accuracy"], err = loadAccuracy(a.store.DB, id); err != nil {
+			return nil, err
+		}
+	}
+	return data, nil
+}
+
+// viewBook is the read-only page for a book: what it is, where it stands,
+// the one obvious next step, and its readings, library activity, and estimate.
+func (a *App) viewBook(w http.ResponseWriter, r *http.Request) error {
+	id, err := requestID(r)
+	if err != nil {
+		return err
+	}
+	data, err := a.bookPageData(id)
+	if err != nil {
+		return err
+	}
+	return a.render(w, r, "book_view.html", data, 200)
+}
+
+// editBook shows and saves the edit form, with the forms for readings and
+// library events beneath it.
 func (a *App) editBook(w http.ResponseWriter, r *http.Request) error {
 	id, err := requestID(r)
 	if err != nil {
 		return err
 	}
 	if r.Method == http.MethodGet {
-		b, err := getBook(a.store.DB, id)
+		data, err := a.bookPageData(id)
 		if err != nil {
 			return err
-		}
-		events, err := loadEvents(a.store.DB, id, bookEventLimit)
-		if err != nil {
-			return err
-		}
-		total, err := countEvents(a.store.DB, eventFilter{BookID: id})
-		if err != nil {
-			return err
-		}
-		readings, err := bookReadings(a.store.DB, id)
-		if err != nil {
-			return err
-		}
-		estimate, err := readEstimate(a.store.DB, id)
-		if err != nil {
-			return err
-		}
-		data := page{"Title": b.Title, "Book": b, "Editing": true, "Events": events, "EventTotal": total, "Readings": readings, "Estimate": estimate}
-		for _, e := range readings {
-			if e.Rating != nil {
-				data["Rated"] = true
-			}
-		}
-		if estimate != nil && data["Rated"] != nil {
-			if data["Accuracy"], err = loadAccuracy(a.store.DB, id); err != nil {
-				return err
-			}
 		}
 		return a.render(w, r, "book.html", data, 200)
 	}

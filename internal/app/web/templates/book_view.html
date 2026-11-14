@@ -1,0 +1,85 @@
+{{template "top" .}}
+<a class="back" href="/"><span aria-hidden="true">←</span> Back to your queue</a>
+<section class="next-up book-summary" aria-labelledby="book-title">
+  <div class="book-cover cover-{{cover .Book.ID}}" aria-hidden="true">
+    <span class="cover-line"></span>
+    <span class="cover-title">{{.Book.Title}}</span>
+    <span class="cover-author">{{.Book.Author}}</span>
+  </div>
+  <div class="next-up-body">
+    <h1 id="book-title">{{.Book.Title}}</h1>
+    <p class="author">{{.Book.Author}}{{if .Book.Pages}}<span> · {{pages .Book.Pages}} pages</span>{{end}}{{with .Book.Series}}<span> · {{.}}{{with $.Book.SeriesNumber}} #{{seriesNumber .}}{{end}}</span>{{end}}</p>
+    <p class="book-meta">{{pips .Book.Interest}}{{if .Book.Tags}}<span> · {{.Book.Tags}}</span>{{end}}</p>
+    <p><span class="badge">{{status .Book.Status}}</span>{{if .Book.Pinned}} <span class="badge pin"><span aria-hidden="true">◆</span> Pinned</span>{{end}}</p>
+    <div class="button-row primary-action">
+      {{if eq .Book.Status "to-read"}}
+      <form method="post" action="/books/{{.Book.ID}}/status">
+        {{template "fields" .}}
+        <input type="hidden" name="back" value="book">
+        <button class="button primary" name="action" value="start" aria-label="Start reading {{.Book.Title}}">Start reading</button>
+      </form>
+      {{else if eq .Book.Status "reading"}}
+      <a class="button primary" href="/books/{{.Book.ID}}/finish" aria-label="Finished {{.Book.Title}}"><span>Finished</span></a>
+      {{else if eq .Book.Status "read"}}
+      <a class="button primary" href="/books/{{.Book.ID}}/edit#reading"><span>Add another reading</span></a>
+      {{else if eq .Book.Status "unreviewed"}}
+      <form class="triage" method="post" action="/books/{{.Book.ID}}/triage">
+        {{template "fields" .}}
+        <button class="button primary" name="action" value="want" aria-label="Want to read {{.Book.Title}}">Want to read</button>
+        <button class="button" name="action" value="read" aria-label="Already read {{.Book.Title}}">Already read</button>
+        <button class="button" name="action" value="skip" aria-label="Not interested in {{.Book.Title}}">Not interested</button>
+      </form>
+      {{else}}
+      <form method="post" action="/books/{{.Book.ID}}/status">
+        {{template "fields" .}}
+        <input type="hidden" name="back" value="book">
+        <button class="button primary" name="action" value="requeue" aria-label="Move {{.Book.Title}} back to my queue">Move back to my queue</button>
+      </form>
+      {{end}}
+      <a class="button" href="/books/{{.Book.ID}}/edit"><span>Edit details</span></a>
+    </div>
+  </div>
+</section>
+<section class="section-heading" id="reading">
+  <h2>Your readings</h2>
+</section>
+{{if .Readings}}
+<div class="panel">
+  {{range .Readings}}
+  <div class="event"><span>{{with .FinishedAt}}<time datetime="{{.}}">{{day .}}</time>{{else}}Date not recorded{{end}}</span><strong>{{if .Rating}}{{stars .Rating}}{{else}}Unrated{{end}}</strong><span>{{if .AddedByHand}}Logged by you{{else if eq .Source "manual"}}Goodreads, edited{{else}}Goodreads{{end}}</span></div>
+  {{with .Review}}<blockquote class="review">{{.}}</blockquote>{{end}}
+  {{end}}
+</div>
+{{else}}
+<p class="muted">No finished readings yet. They come from a Goodreads import, or you can <a href="/books/{{.Book.ID}}/edit#reading">log one</a>.</p>
+{{end}}
+<section class="section-heading" id="library">
+  <h2>Library</h2>
+</section>
+{{range .Book.Loans}}
+<p class="notice" role="status">{{upper .Source}} · {{.Format}} · {{.Status}}{{if .DueDate}} · Deadline {{.DueDate}}{{end}}</p>
+{{end}}
+{{if .Events}}
+<div class="panel">
+  {{range .Events}}
+  <div class="event"><span><time datetime="{{day .At}}">{{day .At}}</time></span><strong>{{.Activity}}</strong><span>{{upper .Source}} · {{.Format}}</span></div>
+  {{end}}
+</div>
+{{if gt .EventTotal (len .Events)}}<p class="muted">Showing the latest {{len .Events}} of {{.EventTotal}} events. Your export includes the complete history.</p>{{end}}
+{{else if not .Book.Loans}}
+<p class="muted">No library activity. A loan never marks a book as read.</p>
+{{end}}
+<p><a href="/books/{{.Book.ID}}/edit#library">Record a library event</a></p>
+<section class="section-heading" id="estimate">
+  <h2>What might you give it?</h2>
+  {{if .Rated}}
+  <p class="estimate-line">{{with .Accuracy}}{{if .Books}}Before you read it, the estimate was {{star (deref .BaselineValue)}}{{with .AIValue}} and the AI’s was {{star .}}{{end}}; you gave it {{.Actual}}★.{{end}}{{else}}You have rated this book, so it needs no estimate.{{end}}</p>
+  {{else}}
+  <p class="estimate-line">{{with .Estimate}}Saved estimate: {{star .Baseline}} from your ratings{{with .AI}}, {{star .}} from the AI{{end}}. <a href="/books/{{$.Book.ID}}/estimate">See how</a>.{{else}}An estimate from the ratings you gave other books. It never changes your library.{{end}}</p>
+  <form method="post" action="/books/{{.Book.ID}}/estimate">
+    {{template "csrf" .}}
+    <button class="button">{{if .Estimate}}Update my estimate{{else}}Predict my rating{{end}}</button>
+  </form>
+  {{end}}
+</section>
+{{template "bottom" .}}

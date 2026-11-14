@@ -135,7 +135,7 @@
   {{range .Items}}
   <article class="book-row" id="book-{{.ID}}">
     <div class="position">{{if .QueuePos}}<span class="sr-only">Queue position </span>{{end}}{{pos .QueuePos}}</div>
-    <a href="/books/{{.ID}}" class="book-cover cover-{{cover .ID}}" aria-label="Edit {{.Title}}">
+    <a href="/books/{{.ID}}" class="book-cover cover-{{cover .ID}}" aria-label="{{.Title}}">
       <span class="cover-line"></span>
       <span class="cover-title">{{.Title}}</span>
       <span class="cover-author">{{.Author}}</span>
@@ -189,7 +189,7 @@
             {{template "csrf" $}}
             <button class="sheet-button" aria-label="Predict my rating: {{.Title}}"><span>Predict my rating</span><small>An estimate from your other ratings. It never changes your library.</small></button>
           </form>{{end}}
-          <a class="sheet-button" href="/books/{{.ID}}" aria-label="Edit book: {{.Title}}"><span>Edit book</span></a>
+          <a class="sheet-button" href="/books/{{.ID}}/edit" aria-label="Edit book: {{.Title}}"><span>Edit book</span></a>
         </div>
       </details>
       {{else if and (eq .Status "unreviewed") (eq $.View "unreviewed")}}
@@ -200,9 +200,9 @@
         <button class="button small" name="action" value="read" aria-label="Already read {{.Title}}">Already read</button>
         <button class="button small" name="action" value="skip" aria-label="Not interested in {{.Title}}">Not interested</button>
       </form>
-      <a class="text-button" href="/books/{{.ID}}" aria-label="Edit book: {{.Title}}">Edit book</a>
+      <a class="text-button" href="/books/{{.ID}}/edit" aria-label="Edit book: {{.Title}}">Edit book</a>
       {{else}}
-      <a class="button small" href="/books/{{.ID}}" aria-label="Edit book: {{.Title}}"><span>Edit book <span aria-hidden="true">↗</span></span></a>
+      <a class="button small" href="/books/{{.ID}}/edit" aria-label="Edit book: {{.Title}}"><span>Edit book <span aria-hidden="true">↗</span></span></a>
       {{end}}
     </div>
   </article>

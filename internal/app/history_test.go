@@ -172,7 +172,7 @@ func TestReviewTextNeedsOptIn(t *testing.T) {
 	if rs := readingsOf(t, a, "Reviewed"); rs[0].Review != nil || rs[0].ReviewChars != 9 {
 		t.Fatalf("%+v", rs[0])
 	}
-	if !strings.Contains(b.request("GET", fmt.Sprintf("/books/%d", bookNamed(t, a, "Reviewed").ID), nil).Body.String(), "9-character review") {
+	if !strings.Contains(b.request("GET", fmt.Sprintf("/books/%d/edit", bookNamed(t, a, "Reviewed").ID), nil).Body.String(), "9-character review") {
 		t.Fatal("review length not shown")
 	}
 	// Without the opt-in, review text is not even kept in a stored preview.

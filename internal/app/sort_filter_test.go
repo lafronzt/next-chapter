@@ -129,7 +129,7 @@ func TestBookFormCollapsesDetailsUnlessFilled(t *testing.T) {
 		t.Fatal("details should start closed on a new book")
 	}
 	addRecords(t, a, []Record{{Book: Book{Title: "Tagged", Author: "A", Status: "to-read", Source: "manual", Interest: 3, Tags: "x"}}})
-	body := b.request("GET", fmt.Sprintf("/books/%d", bookNamed(t, a, "Tagged").ID), nil).Body.String()
+	body := b.request("GET", fmt.Sprintf("/books/%d/edit", bookNamed(t, a, "Tagged").ID), nil).Body.String()
 	if !strings.Contains(body, `<details class="span-2 more-details" open>`) {
 		t.Fatal("details should be open when a value exists")
 	}

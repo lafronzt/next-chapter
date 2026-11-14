@@ -325,7 +325,7 @@ func TestEditBookStatusTransitions(t *testing.T) {
 	edit := func(title string, values url.Values) Book {
 		t.Helper()
 		id := bookNamed(t, a, title).ID
-		expect(t, b.form(fmt.Sprintf("/books/%d", id), values), 303)
+		expect(t, b.form(fmt.Sprintf("/books/%d/edit", id), values), 303)
 		book, err := getBook(a.store.DB, id)
 		if err != nil {
 			t.Fatal(err)
@@ -355,7 +355,7 @@ func TestEditBookStatusTransitions(t *testing.T) {
 	}
 	// Another live book's title and author conflict; the database is untouched.
 	rev, _ := revision(a.store.DB)
-	rr := b.form(fmt.Sprintf("/books/%d", got.ID), bookForm("third", "to-read"))
+	rr := b.form(fmt.Sprintf("/books/%d/edit", got.ID), bookForm("third", "to-read"))
 	expect(t, rr, 409)
 	if after, _ := revision(a.store.DB); !strings.Contains(rr.Body.String(), "Another book already has this title and author") || bookNamed(t, a, "Second Edition").ID != got.ID || after != rev {
 		t.Fatal(rr.Body)
@@ -367,8 +367,8 @@ func TestEditBookStatusTransitions(t *testing.T) {
 	}
 	edit("Second Edition", bookForm("Third", "to-read"))
 	// Stale revision, unknown book, and malformed IDs.
-	expect(t, b.request("POST", fmt.Sprintf("/books/%d", got.ID), bookForm("x", "to-read", "revision", "0")), 409)
-	expect(t, b.form("/books/999", bookForm("Nope", "to-read")), 404)
+	expect(t, b.request("POST", fmt.Sprintf("/books/%d/edit", got.ID), bookForm("x", "to-read", "revision", "0")), 409)
+	expect(t, b.form("/books/999/edit", bookForm("Nope", "to-read")), 404)
 	expect(t, b.request("GET", "/books/999", nil), 404)
 	expect(t, b.request("GET", "/books/0", nil), 400)
 	expect(t, b.request("GET", "/books/abc", nil), 400)
@@ -394,7 +394,7 @@ func TestBookFormValidation(t *testing.T) {
 		"series name are too long":     bookForm("Book", "to-read", "series", strings.Repeat("s", 201)),
 	}
 	for message, values := range cases {
-		for _, path := range []string{"/books/new", "/books/1"} {
+		for _, path := range []string{"/books/new", "/books/1/edit"} {
 			rr := b.form(path, values)
 			expect(t, rr, 400)
 			if !strings.Contains(rr.Body.String(), message) {

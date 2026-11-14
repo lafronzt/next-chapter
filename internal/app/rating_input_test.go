@@ -67,7 +67,7 @@ func TestRatingInputIsAccessibleAndPreselected(t *testing.T) {
 	a := testApp(t, true)
 	addRecords(t, a, []Record{finished("Rated", "2025-01-02", 4.25)})
 	b := &browser{t: t, handler: a.Handler()}
-	body := b.request("GET", fmt.Sprintf("/books/%d", bookNamed(t, a, "Rated").ID), nil).Body.String()
+	body := b.request("GET", fmt.Sprintf("/books/%d/edit", bookNamed(t, a, "Rated").ID), nil).Body.String()
 	if n := strings.Count(body, `<fieldset class="rating-input">`); n != 2 {
 		t.Fatalf("%d rating controls, want the edit and add forms", n)
 	}
