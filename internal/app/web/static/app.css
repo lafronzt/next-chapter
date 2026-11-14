@@ -199,6 +199,10 @@ button:disabled {
   margin-right:7px;
 }
 
+.tabbar {
+  display:none;
+}
+
 main {
   margin-left:250px;
   padding:24px 54px 0;
@@ -1191,6 +1195,88 @@ input[type=checkbox] {
     border-right:0;
     border-bottom:1px solid var(--line);
   }
+  /* The bottom tab bar replaces the link list, topline, and footer copy.
+     display:none keeps one navigation landmark exposed at a time. */
+  .tabbar {
+    display:flex;
+    position:fixed;
+    inset:auto 0 0 0;
+    z-index:20;
+    background:var(--sidebar);
+    border-top:1px solid var(--line);
+    padding:0 0 env(safe-area-inset-bottom);
+  }
+  .tabbar>a,.tabbar summary {
+    flex:1;
+    min-height:48px;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    gap:1px;
+    font-size:11px;
+    line-height:1.2;
+    cursor:pointer;
+    list-style:none;
+    position:relative;
+  }
+  .tabbar summary::-webkit-details-marker {
+    display:none;
+  }
+  .tabbar .active,.tabbar [aria-current] {
+    color:var(--accent);
+    font-weight:650;
+  }
+  .tabbar .tab-add {
+    background:var(--green);
+    color:#fff;
+    border-radius:24px;
+    margin:4px 6px;
+    min-height:40px;
+    max-width:76px;
+  }
+  .tabbar .nav-count {
+    position:absolute;
+    top:2px;
+    right:12%;
+    background:var(--accent);
+    color:#fff;
+    border-radius:9px;
+    padding:0 5px;
+    font-size:10px;
+  }
+  .tab-more {
+    flex:1;
+    display:flex;
+  }
+  .tab-more summary {
+    width:100%;
+  }
+  .more-panel {
+    position:absolute;
+    inset:auto 8px calc(56px + env(safe-area-inset-bottom)) 8px;
+    background:var(--paper);
+    border:1px solid var(--line);
+    border-radius:12px;
+    padding:6px;
+    box-shadow:0 8px 24px rgba(0,0,0,.18);
+  }
+  .more-panel a,.more-panel .text-button {
+    display:flex;
+    align-items:center;
+    min-height:48px;
+    padding:0 14px;
+    width:100%;
+    font-size:15px;
+  }
+  .tabbar a:focus-visible,.tabbar summary:focus-visible {
+    outline:2px solid var(--accent);
+    outline-offset:-3px;
+  }
+  /* Do not cover form fields while the keyboard is up. */
+  body:has(input:focus,select:focus,textarea:focus) .tabbar {
+    display:none;
+  }
   .brand {
     font-size:22px;
   }
@@ -1369,6 +1455,12 @@ input[type=checkbox] {
   .event {
     gap:12px;
     flex-wrap:wrap;
+  }
+  .sidebar nav,.sidebar-bottom,.topline,main>footer {
+    display:none;
+  }
+  main {
+    padding-bottom:calc(76px + env(safe-area-inset-bottom));
   }
 }
 

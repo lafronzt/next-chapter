@@ -46,6 +46,22 @@
 {{define "bottom"}}
   <footer>Built for the joy of reading. <span>No algorithms you can’t understand.</span></footer>
 </main>
+<nav class="tabbar" aria-label="Main">
+  <a href="/" {{if eq .Tab "queue"}}class="active" aria-current="{{if .NavPage}}page{{else}}true{{end}}"{{end}}><span aria-hidden="true">≡</span> Queue</a>
+  <a href="/?view=unreviewed" {{if eq .Tab "unreviewed"}}class="active" aria-current="{{if .NavPage}}page{{else}}true{{end}}"{{end}}><span aria-hidden="true">✉</span> To review{{if .UnreviewedCount}}<strong class="nav-count">{{.UnreviewedCount}}<span class="sr-only"> waiting</span></strong>{{end}}</a>
+  <a class="tab-add" href="/books/new" {{if eq .Tab "add"}}aria-current="page"{{end}}><span aria-hidden="true">＋</span> Add<span class="sr-only"> a book</span></a>
+  <a href="/reading" {{if eq .Tab "reading"}}class="active" aria-current="{{if .NavPage}}page{{else}}true{{end}}"{{end}}><span aria-hidden="true">✓</span> Reading</a>
+  <details class="tab-more">
+    <summary {{if eq .Tab "more"}}class="active"{{end}}><span aria-hidden="true">⋯</span> More</summary>
+    <div class="more-panel">
+      <a href="/?view=all" {{if eq .Nav "all"}}aria-current="{{if .NavPage}}page{{else}}true{{end}}"{{end}}>All books</a>
+      <a href="/history" {{if eq .Nav "history"}}aria-current="{{if .NavPage}}page{{else}}true{{end}}"{{end}}>Library history</a>
+      <a href="/imports" {{if eq .Nav "imports"}}aria-current="{{if .NavPage}}page{{else}}true{{end}}"{{end}}>Import books</a>
+      <a href="/settings" {{if eq .Nav "settings"}}aria-current="{{if .NavPage}}page{{else}}true{{end}}"{{end}}>Preferences</a>
+      {{if .Authenticated}}<form method="post" action="/logout">{{template "csrf" .}}<button class="text-button">Sign out</button></form>{{end}}
+    </div>
+  </details>
+</nav>
 </body>
 </html>
 {{end}}

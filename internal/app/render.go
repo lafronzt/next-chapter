@@ -27,6 +27,7 @@ func (a *App) render(w http.ResponseWriter, r *http.Request, name string, data p
 	if _, ok := data["Nav"]; !ok {
 		data["Nav"], data["NavPage"] = navCurrent(r.URL.Path, data)
 	}
+	data["Tab"] = tabCurrent(r.URL.Path, data)
 	if a.config.Demo || s.Session.Authenticated {
 		var waiting int
 		if err := a.store.DB.QueryRow("SELECT count(*) FROM books WHERE reading_status='unreviewed'").Scan(&waiting); err != nil {
@@ -208,6 +209,23 @@ func navCurrent(path string, data page) (key string, exact bool) {
 		return "queue", false
 	}
 	return "", false
+}
+
+// tabCurrent names the phone tab bar's current tab: queue, unreviewed, add,
+// reading, or more (the pages behind the More panel). Empty for pages outside
+// every section.
+func tabCurrent(path string, data page) string {
+	if path == "/books/new" {
+		return "add"
+	}
+	key, _ := data["Nav"].(string)
+	switch key {
+	case "queue", "unreviewed", "reading":
+		return key
+	case "all", "history", "imports", "settings":
+		return "more"
+	}
+	return ""
 }
 
 // pageTitle names a list page, adding the page number after the first.
