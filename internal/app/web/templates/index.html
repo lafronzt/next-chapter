@@ -10,7 +10,7 @@
 {{with .Home}}
 {{with .Next}}
 <section class="next-up" aria-labelledby="next-up-title">
-  <a href="/books/{{.ID}}" class="book-cover cover-{{cover .ID}}" aria-hidden="true" tabindex="-1">
+  <a href="/books/{{.ID}}" class="book-cover {{cover .Title .Author}}" aria-hidden="true" tabindex="-1">
     <span class="cover-line"></span>
     <span class="cover-title">{{.Title}}</span>
     <span class="cover-author">{{.Author}}</span>
@@ -136,7 +136,7 @@
   {{range .Items}}
   <article class="book-row{{if .HandPlaced}} hand-placed{{end}}" id="book-{{.ID}}">
     <div class="position">{{if .QueuePos}}<span class="sr-only">Queue position </span>{{end}}{{pos .QueuePos}}</div>
-    <a href="/books/{{.ID}}" class="book-cover cover-{{cover .ID}}" aria-label="{{.Title}}">
+    <a href="/books/{{.ID}}" class="book-cover {{cover .Title .Author}}" aria-label="{{.Title}}">
       <span class="cover-line"></span>
       <span class="cover-title">{{.Title}}</span>
       <span class="cover-author">{{.Author}}</span>

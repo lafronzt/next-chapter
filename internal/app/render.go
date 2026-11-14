@@ -142,7 +142,7 @@ func templateFuncs() template.FuncMap {
 			}
 			return strconv.FormatFloat(*n, 'f', -1, 64)
 		},
-		"cover": func(id int64) int64 { return id % 5 },
+		"cover": coverClass,
 		"pos": func(n int) string {
 			if n == 0 {
 				return "—"

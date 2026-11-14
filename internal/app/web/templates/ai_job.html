@@ -3,7 +3,6 @@
 {{if .Job.Done}}
 <header class="page-heading">
   <div>
-    <div class="eyebrow">AI REQUEST</div>
     <h1>The AI request did not finish.</h1>
     <p role="alert">{{.Message}}</p>
   </div>
@@ -12,7 +11,6 @@
 {{else}}
 <header class="page-heading">
   <div>
-    <div class="eyebrow">AI REQUEST</div>
     <h1>Asking the AI…</h1>
     <p>For {{.Job.Label}}, from {{.AI.Provider}} ({{.AI.Model}}). Started {{.Waited}} ago.</p>
   </div>

@@ -1,7 +1,7 @@
 {{template "top" .}}
 <a class="back" href="/"><span aria-hidden="true">←</span> Back to your queue</a>
 <section class="next-up book-summary" aria-labelledby="book-title">
-  <div class="book-cover cover-{{cover .Book.ID}}" aria-hidden="true">
+  <div class="book-cover {{cover .Book.Title .Book.Author}}" aria-hidden="true">
     <span class="cover-line"></span>
     <span class="cover-title">{{.Book.Title}}</span>
     <span class="cover-author">{{.Book.Author}}</span>
