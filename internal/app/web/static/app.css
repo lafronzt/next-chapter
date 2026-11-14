@@ -2018,8 +2018,19 @@ input[type=checkbox],input[type=radio] {
   margin:6px 0 0;
 }
 
+.progress-form label {
+  flex-direction:row;
+  align-items:center;
+  gap:var(--space-2);
+}
+
 .progress-form input[type=number] {
-  width:7em;
+  width:6.5em;
+  padding:7px 10px;
+}
+
+.reading-goal {
+  margin-bottom:var(--space-6, 24px);
 }
 
 .reading-goal meter {
