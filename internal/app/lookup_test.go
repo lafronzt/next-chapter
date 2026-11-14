@@ -12,6 +12,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"sync"
@@ -406,7 +407,10 @@ func bookByTitle(t *testing.T, a *App, title string) Book {
 	return Book{}
 }
 
-func applyLookup(t *testing.T, b *browser, id int64, take ...string) {
+// applyLookup looks a book up and saves the page with the given per-field
+// choices (key to keep, theirs, merge, or skip); unlisted fields keep the
+// page's defaults.
+func applyLookup(t *testing.T, b *browser, id int64, modes map[string]string) {
 	t.Helper()
 	b.request("GET", "/", nil) // pick up the current revision
 	rr := b.request("POST", fmt.Sprintf("/books/%d/lookup", id), nil)
@@ -417,10 +421,14 @@ func applyLookup(t *testing.T, b *browser, id int64, take ...string) {
 	if !strings.Contains(page.Body.String(), "Sent: this book’s title, author, and ISBN") {
 		t.Fatalf("the page does not say what was sent: %s", page.Body)
 	}
-	expect(t, b.request("POST", loc, url.Values{"take": take}), 303)
+	form := url.Values{}
+	for key, mode := range modes {
+		form.Set("mode_"+key, mode)
+	}
+	expect(t, b.request("POST", loc, form), 303)
 }
 
-func TestLookupFillsOnlyEmptyFields(t *testing.T) {
+func TestLookupKeepsMineByDefaultAndFillsEmpty(t *testing.T) {
 	t.Parallel()
 	f := standardFake(t)
 	a, b := lookupApp(t, f, true)
@@ -429,7 +437,7 @@ func TestLookupFillsOnlyEmptyFields(t *testing.T) {
 	typed.Description, typed.Pages, typed.Tags = "My own words.", &typedPages, "keeper"
 	addRecords(t, a, []Record{typed})
 	id := bookByTitle(t, a, "Wind Song").ID
-	applyLookup(t, b, id, "description", "pages", "published_year", "series", "tags")
+	applyLookup(t, b, id, nil)
 	got := bookByTitle(t, a, "Wind Song")
 	if got.Description != "My own words." || got.DescriptionSource != "" {
 		t.Fatalf("typed description replaced: %q from %q", got.Description, got.DescriptionSource)
@@ -445,7 +453,7 @@ func TestLookupFillsOnlyEmptyFields(t *testing.T) {
 	second.Title, second.ISBN = "Wind Song Again", "9780000000019"
 	addRecords(t, a, []Record{second})
 	id2 := bookByTitle(t, a, "Wind Song Again").ID
-	applyLookup(t, b, id2, "description", "pages", "published_year", "series", "tags")
+	applyLookup(t, b, id2, nil)
 	got = bookByTitle(t, a, "Wind Song Again")
 	if got.Description != "A storm & a song.\n\nSecond paragraph." || got.DescriptionSource != "Open Library" || got.Pages == nil || *got.Pages != 320 || got.Tags != "sailing, sea stories" {
 		t.Fatalf("%+v", got)
@@ -454,32 +462,158 @@ func TestLookupFillsOnlyEmptyFields(t *testing.T) {
 	third := windSong()
 	third.Title, third.ISBN = "Third", "9780000000026"
 	addRecords(t, a, []Record{third})
-	applyLookup(t, b, bookByTitle(t, a, "Third").ID, "pages")
+	applyLookup(t, b, bookByTitle(t, a, "Third").ID, map[string]string{"description": "skip", "published_year": "skip", "series": "skip", "tags": "skip"})
 	if got = bookByTitle(t, a, "Third"); got.Description != "" || got.Pages == nil {
 		t.Fatalf("%+v", got)
 	}
 }
 
-func TestLookupPageOffersOnlyEmptyFields(t *testing.T) {
+func TestLookupLetsMeKeepUseTheirsOrMerge(t *testing.T) {
 	t.Parallel()
 	f := standardFake(t)
 	a, b := lookupApp(t, f, true)
-	r := windSong()
-	r.Description = "Mine."
-	addRecords(t, a, []Record{r})
+	pages, tagged := 111, windSong()
+	tagged.Description, tagged.Tags, tagged.Pages = "Mine.", "keeper, sailing", &pages
+	addRecords(t, a, []Record{tagged})
 	id := bookByTitle(t, a, "Wind Song").ID
+	b.request("GET", "/", nil)
 	rr := b.request("POST", fmt.Sprintf("/books/%d/lookup", id), nil)
-	body := b.request("GET", rr.Header().Get("Location"), nil).Body.String()
-	if strings.Contains(body, `value="description"`) || !strings.Contains(body, "Keeps your value") {
-		t.Fatalf("a filled description is offered for replacement: %s", body)
+	loc := rr.Header().Get("Location")
+	body := b.request("GET", loc, nil).Body.String()
+	for _, want := range []string{`name="mode_description" value="keep" checked`, `name="mode_description" value="theirs"`, `name="mode_description" value="merge"`, `name="mode_tags" value="merge"`, `name="mode_pages" value="theirs"`, `name="mode_published_year" value="theirs" checked`} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("missing %s in %s", want, body)
+		}
 	}
-	if !strings.Contains(body, `value="pages" checked`) {
-		t.Fatalf("an empty field is not pre-selected: %s", body)
+	if strings.Contains(body, `name="mode_pages" value="merge"`) {
+		t.Fatal("a number cannot be merged")
 	}
-	// Posting the description anyway still cannot replace it.
-	expect(t, b.request("POST", rr.Header().Get("Location"), url.Values{"take": {"description"}}), 303)
-	if got := bookByTitle(t, a, "Wind Song"); got.Description != "Mine." {
-		t.Fatalf("%q", got.Description)
+	save := func(modes map[string]string) {
+		t.Helper()
+		b.request("GET", "/", nil)
+		loc := b.request("POST", fmt.Sprintf("/books/%d/lookup", id), nil).Header().Get("Location")
+		form := url.Values{}
+		for k, v := range modes {
+			form.Set("mode_"+k, v)
+		}
+		expect(t, b.request("POST", loc, form), 303)
+	}
+	// Posting nothing keeps everything of mine and fills the empty fields.
+	save(nil)
+	got := bookByTitle(t, a, "Wind Song")
+	if got.Description != "Mine." || got.Tags != "keeper, sailing" || *got.Pages != 111 || got.PublishedYear == nil || got.DescriptionSource != "" {
+		t.Fatalf("keep changed my values: %+v", got)
+	}
+	// Merge adds theirs after mine, joins tags, and says where it came from.
+	save(map[string]string{"description": "merge", "tags": "merge"})
+	got = bookByTitle(t, a, "Wind Song")
+	if got.Description != "Mine.\n\nA storm & a song.\n\nSecond paragraph." || got.DescriptionSource != "You and Open Library" || got.Tags != "keeper, sailing, sea stories" {
+		t.Fatalf("merge: %q from %q, tags %q", got.Description, got.DescriptionSource, got.Tags)
+	}
+	// Saving the same merge again changes nothing.
+	save(map[string]string{"description": "merge", "tags": "merge"})
+	if again := bookByTitle(t, a, "Wind Song"); again.Description != got.Description || again.Tags != got.Tags {
+		t.Fatalf("a second merge changed the book: %+v", again)
+	}
+	// Use theirs replaces my values, only where I chose it.
+	save(map[string]string{"description": "theirs", "pages": "theirs", "tags": "keep"})
+	got = bookByTitle(t, a, "Wind Song")
+	if got.Description != "A storm & a song.\n\nSecond paragraph." || got.DescriptionSource != "Open Library" || *got.Pages != 320 || got.Tags != "keeper, sailing, sea stories" {
+		t.Fatalf("theirs: %+v", got)
+	}
+	// A value the page did not offer cannot be forced by a hand-made form.
+	save(map[string]string{"series": "theirs", "published_year": "merge"})
+	if got = bookByTitle(t, a, "Wind Song"); got.Series != "Wind Cycle" {
+		t.Fatalf("%+v", got)
+	}
+}
+
+func TestResolveDetails(t *testing.T) {
+	t.Parallel()
+	pages := 200
+	d := BookDetails{Description: "Theirs.", DescriptionSource: "Open Library", Pages: &pages, Tags: []string{"a", "b"}}
+	all := func(m string) func(string) string { return func(string) string { return m } }
+	cur := detailFields{Description: "Mine.", Pages: &pages, Tags: "B, c"}
+	for _, c := range []struct {
+		mode, desc, tags string
+	}{{modeKeep, "Mine.", "B, c"}, {modeTheirs, "Theirs.", "a, b"}, {modeMerge, "Mine.\n\nTheirs.", "B, c, a"}} {
+		got := resolveDetails(cur, d, all(c.mode))
+		if got.Description != c.desc || got.Tags != c.tags {
+			t.Errorf("%s: %q / %q", c.mode, got.Description, got.Tags)
+		}
+		if again := resolveDetails(got, d, all(c.mode)); !reflect.DeepEqual(again, got) {
+			t.Errorf("%s is not idempotent: %+v then %+v", c.mode, got, again)
+		}
+	}
+	// Merging text at the cap stays within the cap.
+	full := detailFields{Description: strings.Repeat("x", maxDescription-10)}
+	if got := resolveDetails(full, BookDetails{Description: strings.Repeat("y", 500)}, all(modeMerge)); len([]rune(got.Description)) > maxDescription {
+		t.Errorf("%d characters", len([]rune(got.Description)))
+	}
+	// Nothing found changes nothing, whatever the mode.
+	if got := resolveDetails(cur, BookDetails{}, all(modeTheirs)); !reflect.DeepEqual(got, cur) {
+		t.Errorf("%+v", got)
+	}
+}
+
+func TestImportLookupModesKeepTheirsMerge(t *testing.T) {
+	t.Parallel()
+	for _, c := range []struct{ mode, desc, tags string }{
+		{"keep", "Reader's own.", "mine"},
+		{"theirs", "A storm & a song.\n\nSecond paragraph.", "sailing, sea stories"},
+		{"merge", "Reader's own.\n\nA storm & a song.\n\nSecond paragraph.", "mine, sailing, sea stories"},
+	} {
+		t.Run(c.mode, func(t *testing.T) {
+			f := standardFake(t)
+			a, b := lookupApp(t, f, true)
+			addRecords(t, a, []Record{{Book: Book{Title: "Wind Song", Author: "Ada Lee", ISBN: "9780000000002", Status: "to-read", Source: "manual", Interest: 3, Description: "Reader's own.", Tags: "mine"}}})
+			row := Record{Book: Book{Title: "Wind Song", Author: "Ada Lee", ISBN: "9780000000002", Status: "to-read", Source: "goodreads", Interest: 3}}
+			var plan string
+			if err := a.store.Write(func(tx *sql.Tx) error {
+				var err error
+				plan, err = savePlan(tx, "import", Plan{Records: []Record{row}, Source: "goodreads"})
+				return err
+			}); err != nil {
+				t.Fatal(err)
+			}
+			b.request("GET", "/", nil)
+			if p := b.request("GET", "/plans/"+plan, nil).Body.String(); !strings.Contains(p, `name="mode" value="merge"`) {
+				t.Fatal("the import preview offers no choice")
+			}
+			expect(t, b.request("POST", "/plans/"+plan+"/lookup", url.Values{"mode": {c.mode}}), 303)
+			// Looking up changes nothing until the reader imports.
+			if got := bookByTitle(t, a, "Wind Song"); got.Description != "Reader's own." {
+				t.Fatalf("lookup changed the library: %+v", got)
+			}
+			expect(t, b.request("POST", "/plans/"+plan, nil), 303)
+			got := bookByTitle(t, a, "Wind Song")
+			if got.Description != c.desc || got.Tags != c.tags {
+				t.Fatalf("%q / %q, want %q / %q", got.Description, got.Tags, c.desc, c.tags)
+			}
+			// Importing the same plan's records again changes nothing.
+			_, stored, _, _ := readPlan(a.store.DB, plan)
+			for i := range stored.Records {
+				stored.Records[i].LookupMode = c.mode
+			}
+			if res := importOnce(t, a, stored.Records); res.Changed {
+				t.Fatalf("a second import changed the library: %+v", res)
+			}
+		})
+	}
+	// A bad mode is refused.
+	f := standardFake(t)
+	a, b := lookupApp(t, f, true)
+	var plan string
+	if err := a.store.Write(func(tx *sql.Tx) error {
+		var err error
+		plan, err = savePlan(tx, "import", Plan{Records: []Record{windSong()}, Source: "goodreads"})
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	expect(t, b.request("POST", "/plans/"+plan+"/lookup", url.Values{"mode": {"overwrite"}}), 400)
+	if f.count() != 0 {
+		t.Fatal("a bad request sent lookups")
 	}
 }
 
@@ -533,7 +667,7 @@ func TestLookupNeverReordersOrChangesRanking(t *testing.T) {
 		}
 	}
 	standaloneStrip()
-	applyLookup(t, b, bookByTitle(t, a, "Wind Song").ID, "description", "published_year", "tags")
+	applyLookup(t, b, bookByTitle(t, a, "Wind Song").ID, nil)
 	if got := ranking(); got != beforeRank {
 		t.Fatalf("ranking changed after a lookup:\n%s\n%s", beforeRank, got)
 	}
@@ -595,7 +729,7 @@ func TestImportLookupIsOptInIdempotentAndTransactional(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if stored.Records[0].Pages == nil || *stored.Records[0].Pages != 320 || stored.Records[0].DescriptionSource == "" || !stored.Records[0].LookedUp {
+	if stored.Records[0].Found == nil || stored.Records[0].Found.Pages == nil || *stored.Records[0].Found.Pages != 320 || !stored.Records[0].LookedUp {
 		t.Fatalf("%+v", stored.Records[0])
 	}
 	// Nothing reaches the library until the reader imports.
