@@ -491,3 +491,74 @@ func TestEstimateLocalSchemaBoundsReasons(t *testing.T) {
 		t.Fatal("the local schema differs from the hosted one beyond its limits")
 	}
 }
+
+func TestEstimateSendsDescriptionsOfRatedBooksToo(t *testing.T) {
+	t.Parallel()
+	c := Book{ID: 1, Title: "Candidate", Author: "Writer", Description: "The candidate's blurb."}
+	history := []ratedBook{
+		{ID: 2, Title: "Loved", Author: "Other", Rating: 5, Description: strings.Repeat("L", 900)},
+		{ID: 3, Title: "Plain", Author: "Other", Rating: 3},
+	}
+	base := baselineEstimate(c, history)
+	payload := buildEstimatePayload(c, history, base, false)
+	byTitle := map[string]estimateRow{}
+	for _, row := range payload.RatedBooks {
+		byTitle[row.Title] = row
+	}
+	if n := len([]rune(byTitle["Loved"].Description)); n != maxHistoryDescription {
+		t.Fatalf("a rated book's description is %d characters, want %d", n, maxHistoryDescription)
+	}
+	if byTitle["Plain"].Description != "" {
+		t.Fatalf("%q", byTitle["Plain"].Description)
+	}
+	raw, _ := json.Marshal(payload)
+	if !strings.Contains(string(raw), `"description":"The candidate's blurb."`) || strings.Count(string(raw), `"description"`) != 2 {
+		t.Fatalf("descriptions in the payload: %s", raw)
+	}
+	req, err := estimateRequest(payload)
+	if err != nil || !strings.Contains(req.User, strings.Repeat("L", 400)) || !strings.HasPrefix(req.User, "<library_data>") {
+		t.Fatalf("%v", err)
+	}
+	// A rated book's description is part of what is sent, so it is part of the
+	// fingerprint; with none, the fingerprint is the one it always was.
+	with := estimateFingerprint(c, history)
+	changed := slices.Clone(history)
+	changed[0].Description = "Different."
+	if estimateFingerprint(c, changed) == with {
+		t.Fatal("changing a rated book's description did not make the estimate stale")
+	}
+	none := slices.Clone(history)
+	none[0].Description = ""
+	other := slices.Clone(none)
+	if estimateFingerprint(c, none) != estimateFingerprint(c, other) {
+		t.Fatal("fingerprint is not stable")
+	}
+	// A description past the cap does not change the fingerprint, because
+	// nothing past the cap is sent.
+	longer := slices.Clone(history)
+	longer[0].Description += "tail"
+	if estimateFingerprint(c, longer) != with {
+		t.Fatal("text that is never sent changed the fingerprint")
+	}
+}
+
+func TestEstimateLoadsRatedBookDescriptions(t *testing.T) {
+	t.Parallel()
+	a := testApp(t, false)
+	rated := Record{Book: Book{Title: "Loved", Author: "Other", Status: "read", Source: "goodreads", Interest: 3, Description: "About a lighthouse."}, Rating: 5, FinishedAt: "2025-01-02"}
+	addRecords(t, a, []Record{rated, {Book: Book{Title: "Candidate", Author: "Writer", Status: "to-read", Source: "manual", Interest: 3}}})
+	in, err := loadEstimateInputs(a.store.DB, bookByTitle(t, a, "Candidate").ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(in.History) != 1 || in.History[0].Description != "About a lighthouse." {
+		t.Fatalf("%+v", in.History)
+	}
+	before := in.Fingerprint
+	if _, err = a.store.DB.Exec("UPDATE books SET description='Changed.' WHERE title='Loved'"); err != nil {
+		t.Fatal(err)
+	}
+	if after, _ := loadEstimateInputs(a.store.DB, bookByTitle(t, a, "Candidate").ID); after.Fingerprint == before {
+		t.Fatal("the fingerprint ignores a rated book's description")
+	}
+}

@@ -54,14 +54,15 @@
 <div class="panel shared">
   <h3>The book</h3>
   <p>{{.Candidate.Title}} · {{.Candidate.Author}}{{with .Candidate.Tags}} · tags: {{.}}{{end}}{{with .Candidate.Pages}} · {{pages .}} pages{{end}}{{with .Candidate.Series}} · series: {{.}}{{end}}{{with .Candidate.Goodreads}} · Goodreads average {{printf "%.2f" .}}{{end}} · baseline {{star .Candidate.Baseline}}</p>
+  {{with .Candidate.Description}}<p class="description"><strong>Description:</strong> {{.}}</p>{{end}}
   <h3>Your ratings overall</h3>
   <p>{{.Stats.RatedBooks}} rated books, averaging {{printf "%.2f" .Stats.AverageRating}}★; {{range $i, $n := .Stats.RatingCounts}}{{if $i}}, {{end}}{{$n}} × {{inc $i}}★{{end}}.</p>
   <h3>{{len .RatedBooks}} of your rated books</h3>
   <div class="table-scroll">
     <table>
-      <thead><tr><th scope="col">Title</th><th scope="col">Author</th><th scope="col">Tags</th><th scope="col">Pages</th><th scope="col">Series</th><th scope="col">Your rating</th><th scope="col">Finished</th></tr></thead>
+      <thead><tr><th scope="col">Title</th><th scope="col">Author</th><th scope="col">Tags</th><th scope="col">Pages</th><th scope="col">Series</th><th scope="col">Your rating</th><th scope="col">Finished</th><th scope="col">Description</th></tr></thead>
       <tbody>
-        {{range .RatedBooks}}<tr><td>{{.Title}}</td><td>{{.Author}}</td><td>{{.Tags}}</td><td>{{pages .Pages}}</td><td>{{.Series}}</td><td>{{.Rating}}★</td><td>{{.Finished}}</td></tr>{{end}}
+        {{range .RatedBooks}}<tr><td>{{.Title}}</td><td>{{.Author}}</td><td>{{.Tags}}</td><td>{{pages .Pages}}</td><td>{{.Series}}</td><td>{{.Rating}}★</td><td>{{.Finished}}</td><td>{{.Description}}</td></tr>{{end}}
       </tbody>
     </table>
   </div>
