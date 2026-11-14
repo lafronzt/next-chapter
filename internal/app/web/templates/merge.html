@@ -4,7 +4,7 @@
   <div>
     <div class="eyebrow">MERGE DUPLICATES</div>
     <h1>Merge “{{.Book.Title}}” into another book.</h1>
-    <p>Choose the entry to keep. Its title, author, reading status, interest, pin, and queue position stay as they are.</p>
+    <p>Choose the entry to keep. Its title, author, reading status, want-to-read, pin, and queue position stay as they are.</p>
   </div>
 </header>
 {{with .Preview}}
@@ -13,14 +13,14 @@
   <div class="preview-row">
     <div>
       <strong>Keep: {{.Target.Title}}</strong>
-      <p>{{.Target.Author}} · {{label .Target.Status}}</p>
+      <p>{{.Target.Author}} · {{status .Target.Status}}</p>
     </div>
     <span class="badge green">Kept</span>
   </div>
   <div class="preview-row">
     <div>
       <strong>Remove: {{.Source.Title}}</strong>
-      <p>{{.Source.Author}} · {{label .Source.Status}}</p>
+      <p>{{.Source.Author}} · {{status .Source.Status}}</p>
     </div>
     <span class="badge">Merged</span>
   </div>
@@ -60,7 +60,7 @@
   <div class="preview-row">
     <div>
       <strong>{{.Title}}</strong>
-      <p>{{.Author}} · {{label .Status}}</p>
+      <p>{{.Author}} · {{status .Status}}</p>
     </div>
     <a class="button small" href="/books/{{$.Book.ID}}/merge?target={{.ID}}" aria-label="Preview merge into {{.Title}}">Preview merge</a>
   </div>

@@ -43,7 +43,7 @@ func checkBook(b Book) string {
 		return "Choose a reading status."
 	}
 	if b.Interest < 1 || b.Interest > 5 {
-		return "Interest must be between 1 and 5."
+		return "Want-to-read must be between 1 and 5."
 	}
 	if b.Pages != nil && (*b.Pages < 1 || *b.Pages > 99999) {
 		return "Pages must be between 1 and 99,999."

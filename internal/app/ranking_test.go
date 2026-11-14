@@ -85,25 +85,25 @@ func TestScoreBoundaries(t *testing.T) {
 		want   float64
 		reason string
 	}{
-		{"interest only", Book{Interest: 3}, defaultPreferences, 30, "Interest 3/5"},
+		{"interest only", Book{Interest: 3}, defaultPreferences, 30, "Want-to-read 3/5"},
 		{"overdue", Book{Interest: 1, Loans: due(-1)}, defaultPreferences, 10 + 15 + 20, "Deadline has passed"},
 		{"due today", Book{Interest: 1, Loans: due(0)}, defaultPreferences, 10 + 15 + 20, "Deadline within 7 days"},
 		{"due in 7 days", Book{Interest: 1, Loans: due(7)}, defaultPreferences, 10 + 15 + 20, "Deadline within 7 days"},
 		{"due in 8 days", Book{Interest: 1, Loans: due(8)}, defaultPreferences, 10 + 15, "Already borrowed"},
 		{"bad due date", Book{Interest: 1, Loans: []Loan{{Status: "borrowed", DueDate: "soon"}}}, defaultPreferences, 10 + 15, "Already borrowed"},
 		{"ready", Book{Interest: 1, Loans: []Loan{{Status: "ready"}}}, defaultPreferences, 10 + 25, "Ready for pickup"},
-		{"available", Book{Interest: 1, Loans: []Loan{{Status: "available"}}}, defaultPreferences, 10 + 5, "Interest 1/5"},
-		{"hold", Book{Interest: 1, Loans: []Loan{{Status: "hold"}}}, defaultPreferences, 10, "Interest 1/5"},
+		{"available", Book{Interest: 1, Loans: []Loan{{Status: "available"}}}, defaultPreferences, 10 + 5, "Want-to-read 1/5"},
+		{"hold", Book{Interest: 1, Loans: []Loan{{Status: "hold"}}}, defaultPreferences, 10, "Want-to-read 1/5"},
 		{"best loan only", Book{Interest: 1, Loans: []Loan{{Status: "available"}, {Status: "ready"}}}, defaultPreferences, 10 + 25, "Ready for pickup"},
 		{"library weight 0", Book{Interest: 1, Loans: []Loan{{Status: "ready"}}}, Preferences{LibraryWeight: 0, Length: "any"}, 10, "Ready for pickup"},
 		{"library weight 2", Book{Interest: 1, Loans: []Loan{{Status: "ready"}}}, Preferences{LibraryWeight: 2, Length: "any"}, 10 + 50, "Ready for pickup"},
 		{"mood ignores case and spaces", Book{Interest: 1, Tags: "fiction, HOPEFUL "}, Preferences{LibraryWeight: 1, Length: "any", Mood: " hopeful"}, 10 + 15, "Matches your hopeful mood"},
-		{"mood needs a whole tag", Book{Interest: 1, Tags: "hopefulness"}, Preferences{LibraryWeight: 1, Length: "any", Mood: "hopeful"}, 10, "Interest 1/5"},
+		{"mood needs a whole tag", Book{Interest: 1, Tags: "hopefulness"}, Preferences{LibraryWeight: 1, Length: "any", Mood: "hopeful"}, 10, "Want-to-read 1/5"},
 		{"short at 250", Book{Interest: 1, Pages: pages(250)}, Preferences{LibraryWeight: 1, Length: "short"}, 20, "Matches your preferred length"},
-		{"short at 251", Book{Interest: 1, Pages: pages(251)}, Preferences{LibraryWeight: 1, Length: "short"}, 10, "Interest 1/5"},
+		{"short at 251", Book{Interest: 1, Pages: pages(251)}, Preferences{LibraryWeight: 1, Length: "short"}, 10, "Want-to-read 1/5"},
 		{"long at 400", Book{Interest: 1, Pages: pages(400)}, Preferences{LibraryWeight: 1, Length: "long"}, 20, "Matches your preferred length"},
-		{"long at 399", Book{Interest: 1, Pages: pages(399)}, Preferences{LibraryWeight: 1, Length: "long"}, 10, "Interest 1/5"},
-		{"length unknown", Book{Interest: 1}, Preferences{LibraryWeight: 1, Length: "short"}, 10, "Interest 1/5"},
+		{"long at 399", Book{Interest: 1, Pages: pages(399)}, Preferences{LibraryWeight: 1, Length: "long"}, 10, "Want-to-read 1/5"},
+		{"length unknown", Book{Interest: 1}, Preferences{LibraryWeight: 1, Length: "short"}, 10, "Want-to-read 1/5"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

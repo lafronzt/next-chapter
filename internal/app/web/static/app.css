@@ -1939,3 +1939,9 @@ input[type=checkbox] {
     min-height:44px;
   }
 }
+
+/* Want-to-read pips (never stars: stars are for ratings) */
+.pips {
+  letter-spacing:.12em;
+  color:var(--green);
+}

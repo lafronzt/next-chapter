@@ -112,7 +112,11 @@ func redirect(w http.ResponseWriter, r *http.Request, path string) error {
 // templateFuncs are the helpers available to every template.
 func templateFuncs() template.FuncMap {
 	return template.FuncMap{
-		"label": func(s string) string { return strings.ReplaceAll(s, "-", " ") },
+		"status": statusLabel,
+		"pips": func(n int) template.HTML {
+			n = min(5, max(0, n))
+			return template.HTML(fmt.Sprintf(`<span class="pips" aria-hidden="true">%s%s</span><span class="sr-only">Want-to-read %d of 5</span>`, strings.Repeat("●", n), strings.Repeat("○", 5-n), n))
+		},
 		"day": func(s string) string {
 			if len(s) >= 10 {
 				return s[:10]
