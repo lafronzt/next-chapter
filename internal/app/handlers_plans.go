@@ -360,7 +360,7 @@ func (a *App) planAIData(data page, kind string, p Plan, r *http.Request) error 
 	if showAI {
 		data["Shown"] = p.AIRows
 	}
-	if !ai.Available() || len(p.AIRows) > 0 || p.AINotice != "" || data["Stale"] == true {
+	if len(p.AIRows) > 0 || p.AINotice != "" || data["Stale"] == true {
 		return nil
 	}
 	ri, err := loadRerankInputs(a.store.DB, kind, p, a.now().UTC())
@@ -376,6 +376,7 @@ func (a *App) planAIData(data page, kind string, p Plan, r *http.Request) error 
 		return err
 	}
 	data["Shared"], data["SharedFingerprint"], data["Prompt"] = ri.Payload, ri.Fingerprint, a.previewPrompt(req)
+	data["Manual"] = manualFor(req, "/plans/"+r.PathValue("id")+"/paste", ri.Fingerprint)
 	return nil
 }
 

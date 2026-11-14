@@ -89,6 +89,23 @@
 </details>
 {{end}}
 
+{{/* manual takes the page; it offers the copy-and-paste way to use any AI, and needs .Manual. */}}
+{{define "manual"}}{{with .Manual}}
+<details class="manual-ai">
+  <summary>{{if $.AI.Available}}Or use your own AI instead{{else}}Use your own AI{{end}}</summary>
+  <p class="muted"><small>Optional. Copy this prompt, run it in any AI you like, and paste its reply below. Nothing is sent from this app; it checks the reply the same way it checks one from a provider, and your library does not change. It contains exactly the data shown above (without review text).</small></p>
+  <label for="manual-prompt">1. Copy this prompt</label>
+  <textarea id="manual-prompt" class="manual-prompt" rows="8" readonly>{{.Prompt}}</textarea>
+  <form method="post" action="{{.Action}}">
+    {{template "csrf" $}}
+    <input type="hidden" name="fingerprint" value="{{.Fingerprint}}">
+    <label for="manual-answer">2. Paste the AI’s reply</label>
+    <textarea id="manual-answer" name="answer" rows="6" required maxlength="65536" placeholder='{"…": …}'></textarea>
+    <button class="button"><span>Use this reply <span aria-hidden="true">→</span></span></button>
+  </form>
+</details>
+{{end}}{{end}}
+
 {{define "csrf"}}<input type="hidden" name="csrf" value="{{.CSRF}}">{{end}}
 
 {{define "fields"}}{{template "csrf" .}}<input type="hidden" name="revision" value="{{.Revision}}">{{end}}

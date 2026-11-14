@@ -37,7 +37,7 @@ func (a *App) estimate(w http.ResponseWriter, r *http.Request) error {
 		}
 		data["Accuracy"] = acc
 	}
-	if ai.Available() && !inputs.Rated && inputs.Baseline.Rated > 0 {
+	if !inputs.Rated && inputs.Baseline.Rated > 0 {
 		payload := buildEstimatePayload(inputs.Book, inputs.History, inputs.Baseline, false)
 		req, err := estimateRequest(payload)
 		if err != nil {
@@ -48,6 +48,7 @@ func (a *App) estimate(w http.ResponseWriter, r *http.Request) error {
 			prompt.Note = "If you also send your review text, the books you reviewed gain a \"your_review\" field with up to 1,000 characters of it."
 		}
 		data["Payload"], data["Prompt"] = payload, prompt
+		data["Manual"] = manualFor(req, fmt.Sprintf("/books/%d/estimate/paste", id), inputs.Fingerprint)
 		if inputs.KeepReviews {
 			with := buildEstimatePayload(inputs.Book, inputs.History, inputs.Baseline, true)
 			reviewed := []estimateRow{}

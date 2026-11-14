@@ -2475,3 +2475,24 @@ input[type=checkbox],input[type=radio] {
   gap:8px;
   white-space:nowrap;
 }
+
+.manual-ai {
+  margin-top: 1rem;
+}
+.manual-ai summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.manual-ai textarea {
+  display: block;
+  width: 100%;
+  margin: 0.25rem 0 0.75rem;
+  font: inherit;
+  font-family: ui-monospace, monospace;
+  font-size: 0.85rem;
+}
+.manual-ai label {
+  display: block;
+  font-weight: 600;
+  margin-top: 0.75rem;
+}

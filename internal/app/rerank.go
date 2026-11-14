@@ -388,7 +388,7 @@ func movedFrom(desired, final []int) map[int]bool {
 // called outside it, and the result is saved as a new plan in another short
 // one that first checks the library did not change meanwhile. An answer that
 // fails validation falls back to the usual ranking with a notice.
-func (a *App) prepareRerankAI(id, fingerprint string) (func(context.Context) (string, error), error) {
+func (a *App) prepareRerank(id, fingerprint string) (AIRequest, func(text, model string, in, out int) (string, error), error) {
 	var kind string
 	var p Plan
 	var rev int64
@@ -415,27 +415,23 @@ func (a *App) prepareRerankAI(id, fingerprint string) (func(context.Context) (st
 		return err
 	})
 	if err != nil {
-		return nil, err
+		return AIRequest{}, nil, err
 	}
 	if ri.Fingerprint != fingerprint {
-		return nil, conflict("What would be shared changed since the preview. Check it again before sending.")
+		return AIRequest{}, nil, conflict("What would be shared changed since the preview. Check it again before sending.")
 	}
 	req, err := ri.request()
 	if err != nil {
-		return nil, err
+		return AIRequest{}, nil, err
 	}
-	return func(ctx context.Context) (string, error) {
-		resp, err := a.askAI(ctx, req)
-		if err != nil {
-			return "", err
-		}
+	return req, func(text, model string, in, out int) (string, error) {
 		next := p
 		next.Rows = slices.Clone(p.Rows)
 		for i := range next.Rows {
 			next.Rows[i].Source = "rules"
 		}
-		next.AIModel, next.AIInputTokens, next.AIOutputTokens = a.config.AI.Model, resp.InputTokens, resp.OutputTokens
-		if next.AIRows, err = ri.aiRows(resp.Text); err != nil {
+		next.AIModel, next.AIInputTokens, next.AIOutputTokens = model, in, out
+		if next.AIRows, err = ri.aiRows(text); err != nil {
 			next.AIRows = nil
 			next.AINotice = "The AI’s answer could not be used (" + err.Error() + "), so this is your usual ranking. Nothing in your library changed."
 		}
@@ -455,5 +451,21 @@ func (a *App) prepareRerankAI(id, fingerprint string) (func(context.Context) (st
 			return err
 		})
 		return newID, err
+	}, nil
+}
+
+// prepareRerankAI is prepareRerank for the configured provider: it returns
+// a function that sends the request, which may run in the background.
+func (a *App) prepareRerankAI(id, fingerprint string) (func(context.Context) (string, error), error) {
+	req, save, err := a.prepareRerank(id, fingerprint)
+	if err != nil {
+		return nil, err
+	}
+	return func(ctx context.Context) (string, error) {
+		resp, err := a.askAI(ctx, req)
+		if err != nil {
+			return "", err
+		}
+		return save(resp.Text, a.config.AI.Model, resp.InputTokens, resp.OutputTokens)
 	}, nil
 }
