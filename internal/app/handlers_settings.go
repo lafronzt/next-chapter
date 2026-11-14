@@ -23,7 +23,7 @@ func (a *App) saveSettings(w http.ResponseWriter, r *http.Request) error {
 		return bad("Choose a section to save.")
 	}
 	// The privacy form has no ranking fields, so only the others validate them.
-	form := Preferences{KeepReviews: r.FormValue("keep_reviews") != ""}
+	form := Preferences{KeepReviews: r.FormValue("keep_reviews") != "", BookLookup: r.FormValue("book_lookup") != ""}
 	if section != "privacy" {
 		var err error
 		if form, err = preferenceFields(r); err != nil {
@@ -41,7 +41,7 @@ func (a *App) saveSettings(w http.ResponseWriter, r *http.Request) error {
 		prefs.LibraryWeight, prefs.Length, prefs.Mood, prefs.UseEstimates = form.LibraryWeight, form.Length, form.Mood, form.UseEstimates
 	case "privacy":
 		prefs = stored
-		prefs.KeepReviews = form.KeepReviews
+		prefs.KeepReviews, prefs.BookLookup = form.KeepReviews, form.BookLookup
 		// Turning review text off deletes it, so ask first.
 		if stored.KeepReviews && !prefs.KeepReviews && r.FormValue("confirm") != "yes" {
 			var kept int

@@ -2392,3 +2392,30 @@ input[type=checkbox] {
     overflow-wrap:anywhere;
   }
 }
+
+/* Book descriptions and the lookup preview */
+.description {
+  white-space:pre-line;
+  overflow-wrap:anywhere;
+  margin:0;
+}
+.lookup-row {
+  display:grid;
+  gap:8px;
+  padding:12px 0;
+  border-top:1px solid var(--line);
+}
+.lookup-row:first-child {
+  border-top:0;
+}
+.lookup-values {
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:16px;
+}
+@media (max-width:640px) {
+  .lookup-values {
+    grid-template-columns:1fr;
+    gap:8px;
+  }
+}

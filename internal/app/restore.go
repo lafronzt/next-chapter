@@ -36,7 +36,7 @@ const (
 	// maxRestoreSchema is the newest export this build can restore. A test
 	// fails when a migration is added, so the restore code is checked against
 	// the new schema before this is raised.
-	maxRestoreSchema = 9
+	maxRestoreSchema = 10
 	maxRestoreUpload = 10_000_000
 	maxRestoreEvents = 100_000
 	maxRestoreAlias  = 20_000
@@ -280,15 +280,15 @@ func restoreExport(q queryer, f exportFile) (restorePlan, error) {
 	}
 	books := slices.Clone(f.Books)
 	slices.SortStableFunc(books, func(a, b Book) int { return cmp.Or(cmp.Compare(a.Position, b.Position), cmp.Compare(a.ID, b.ID)) })
-	insertBook, err := q.Prepare(`INSERT INTO books(title,author,identity,isbn,goodreads_id,pages,tags,interest,reading_status,position,pinned,needs_placement,moved_by_hand,series,series_number,published_year,avg_rating,added_at,source)
-    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+	insertBook, err := q.Prepare(`INSERT INTO books(title,author,identity,isbn,goodreads_id,pages,tags,interest,reading_status,position,pinned,needs_placement,moved_by_hand,series,series_number,published_year,avg_rating,added_at,source,description,description_source)
+    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
 	if err != nil {
 		return result, err
 	}
 	defer insertBook.Close()
 	newID := make(map[int64]int64, len(books))
 	for _, b := range books {
-		res, err := insertBook.Exec(b.Title, b.Author, b.Identity, b.ISBN, b.GoodreadsID, b.Pages, b.Tags, b.Interest, b.Status, b.Position, b.Pinned, b.NeedsPlacement, b.MovedByHand, b.Series, b.SeriesNumber, b.PublishedYear, b.AvgRating, b.AddedAt, b.Source)
+		res, err := insertBook.Exec(b.Title, b.Author, b.Identity, b.ISBN, b.GoodreadsID, b.Pages, b.Tags, b.Interest, b.Status, b.Position, b.Pinned, b.NeedsPlacement, b.MovedByHand, b.Series, b.SeriesNumber, b.PublishedYear, b.AvgRating, b.AddedAt, b.Source, b.Description, b.DescriptionSource)
 		if err != nil {
 			return result, err
 		}

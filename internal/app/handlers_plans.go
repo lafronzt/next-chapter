@@ -72,7 +72,7 @@ func (a *App) suggest(w http.ResponseWriter, r *http.Request) error {
 }
 
 // planTitles name the preview page for each kind of plan.
-var planTitles = map[string]string{"import": "Import preview", "restore": "Restore preview", "triage": "Confirm sorting", "insert": "Suggested place", "reorder": "Suggested order"}
+var planTitles = map[string]string{"import": "Import preview", "restore": "Restore preview", "lookup": "Book details", "triage": "Confirm sorting", "insert": "Suggested place", "reorder": "Suggested order"}
 
 type undoBook struct {
 	ID             int64 `json:"id"`
@@ -99,6 +99,18 @@ func (a *App) plan(w http.ResponseWriter, r *http.Request) error {
 		data := page{"Title": planTitles[kind], "Kind": kind, "PlanID": id, "Plan": p, "PreviewRecords": preview, "Stale": rev != state(r).Revision, "UpgradeSummary": upgradeSummary(p.Upgrades), "AdvanceSummary": advanceSummary(p.Advances), "Skipped": p.Skipped}
 		if kind == "import" {
 			data["Summary"] = summarizeImport(p)
+			on, err := lookupEnabled(a.store.DB)
+			if err != nil {
+				return err
+			}
+			data["LookupOn"], data["LookupLimit"] = on, lookupBatchLimit
+			remaining := map[string]bool{}
+			for _, rec := range p.Records {
+				if !rec.LookedUp {
+					remaining[lookupKey(rec)] = true
+				}
+			}
+			data["LookupBatch"] = min(len(remaining), lookupBatchLimit)
 		}
 		if kind == "triage" {
 			byID, err := getBooks(a.store.DB, p.BookIDs)

@@ -200,7 +200,14 @@ func estimateFingerprint(c Book, history []ratedBook) string {
 			rows = append(rows, row{h.ID, h.Title, h.Author, h.Tags, h.Series, h.Pages, h.Rating, h.Year})
 		}
 	}
-	raw, _ := json.Marshal(map[string]any{"title": c.Title, "author": c.Author, "tags": c.Tags, "series": c.Series, "pages": c.Pages, "avg": c.AvgRating, "history": rows})
+	fields := map[string]any{"title": c.Title, "author": c.Author, "tags": c.Tags, "series": c.Series, "pages": c.Pages, "avg": c.AvgRating, "history": rows}
+	// The description is part of the candidate, not of the reader's history.
+	// It is left out when empty so saved estimates of books without one stay
+	// valid, and a new or changed description makes a saved AI estimate stale.
+	if c.Description != "" {
+		fields["description"] = truncate(c.Description, maxReviewSent)
+	}
+	raw, _ := json.Marshal(fields)
 	sum := sha256.Sum256(raw)
 	return hex.EncodeToString(sum[:])
 }
@@ -376,6 +383,9 @@ type estimateCandidate struct {
 	Series    string   `json:"series,omitempty"`
 	Goodreads *float64 `json:"goodreads_average,omitempty"`
 	Baseline  float64  `json:"baseline_estimate"`
+	// Description is the stored book description, cut to maxReviewSent
+	// characters. It is untrusted text and appears only inside <library_data>.
+	Description string `json:"description,omitempty"`
 }
 type estimateStats struct {
 	RatedBooks    int     `json:"rated_books"`
@@ -458,7 +468,7 @@ func sortSample(s []ratedBook) []ratedBook {
 // buildEstimatePayload assembles the request. Reviews are included only when
 // asked for, and only those already kept, cut to 1,000 characters.
 func buildEstimatePayload(c Book, history []ratedBook, base ratingBaseline, reviews bool) estimatePayload {
-	p := estimatePayload{Candidate: estimateCandidate{c.Title, c.Author, c.Tags, c.Pages, c.Series, c.AvgRating, base.Estimate}, RatedBooks: []estimateRow{}}
+	p := estimatePayload{Candidate: estimateCandidate{c.Title, c.Author, c.Tags, c.Pages, c.Series, c.AvgRating, base.Estimate, truncate(c.Description, maxReviewSent)}, RatedBooks: []estimateRow{}}
 	sum := 0.0
 	for _, h := range history {
 		if h.ID != c.ID {

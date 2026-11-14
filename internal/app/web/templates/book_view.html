@@ -40,6 +40,26 @@
     </div>
   </div>
 </section>
+<section class="section-heading" id="details">
+  <h2>Details</h2>
+</section>
+<div class="panel stack book-details">
+  {{if .Book.Description}}
+  <p class="description">{{.Book.Description}}</p>
+  <p class="muted"><small>{{with .Book.DescriptionSource}}From {{.}}. Databases can be wrong or out of date.{{else}}Written or imported by you.{{end}}</small></p>
+  {{else}}
+  <p class="muted">No description yet.</p>
+  {{end}}
+  {{if .LookupOn}}
+  <form method="post" action="/books/{{.Book.ID}}/lookup" class="stack">
+    {{template "fields" .}}
+    <p class="muted"><small>What gets sent: this book’s {{if .Book.ISBN}}title, author, and ISBN{{else}}title and author{{end}} to Open Library and Google Books. Never your ratings, reviews, tags, or reading history. You choose what to keep before anything is saved.</small></p>
+    <div><button class="button">Look up details</button></div>
+  </form>
+  {{else}}
+  <p class="muted"><small>Book lookup is off, so nothing is sent anywhere. Turn it on in <a href="/settings?open=privacy#privacy">Preferences</a> to fill in a description and missing details from a book database.</small></p>
+  {{end}}
+</div>
 <section class="section-heading" id="reading">
   <h2>Your readings</h2>
 </section>

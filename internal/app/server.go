@@ -28,6 +28,8 @@ type Config struct {
 	TrustedProxyHops int
 	// AI is the optional AI provider; see ai.go.
 	AI AIConfig
+	// Lookup holds the optional keys for book lookup (see lookup.go).
+	Lookup LookupConfig
 }
 type App struct {
 	store       *Store
@@ -38,8 +40,10 @@ type App struct {
 	logger      *slog.Logger
 	// ai is nil unless the operator configured a provider. aiMu allows one
 	// AI request at a time.
-	ai   Completer
-	aiMu sync.Mutex
+	ai Completer
+	// finder looks books up in global databases, only when the reader asks.
+	finder *Finder
+	aiMu   sync.Mutex
 	// job is the latest background AI request (see jobs.go). jobCtx ends
 	// when the app closes, and Close waits for jobs.
 	jobMu    sync.Mutex
@@ -112,6 +116,7 @@ func New(c Config) (*App, error) {
 	if client := newAIClient(c.AI, nil); client != nil {
 		a.ai = client
 	}
+	a.finder = newFinder(c.Lookup, lookupHosts{}, nil)
 	a.jobCtx, a.stopJobs = context.WithCancel(context.Background())
 	return a, nil
 }
@@ -167,6 +172,7 @@ func (a *App) Handler() http.Handler {
 		"POST /books/{id}/triage": a.triageBook, "POST /triage": a.triageAll,
 		"GET /history": a.history, "GET /reading": a.readingHistory, "POST /books/{id}/readings": a.addReading, "POST /readings/{rid}": a.editReading, "GET /export.json": a.export, "GET /backup.sqlite3": a.backup, "POST /demo": a.demo,
 		"POST /ai/settings": a.aiSettings, "POST /ai/test": a.aiTest, "GET /ai/jobs/{id}": a.aiJobPage,
+		"POST /books/{id}/lookup": a.lookupDetails, "GET /lookups/{plan}": a.lookupPage, "POST /lookups/{plan}": a.lookupPage, "POST /plans/{id}/lookup": a.lookupImport,
 		"GET /books/{id}/estimate": a.estimate, "POST /books/{id}/estimate": a.predict, "POST /books/{id}/estimate/ai": a.predictAI,
 	}
 	for pattern, handler := range endpoints {

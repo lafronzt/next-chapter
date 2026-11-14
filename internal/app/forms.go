@@ -10,7 +10,7 @@ import (
 )
 
 func bookFields(r *http.Request) (Book, error) {
-	b := Book{Title: strings.TrimSpace(r.FormValue("title")), Author: strings.TrimSpace(r.FormValue("author")), Tags: strings.TrimSpace(r.FormValue("tags")), Status: r.FormValue("reading_status"), Series: strings.TrimSpace(r.FormValue("series")), Source: "manual"}
+	b := Book{Title: strings.TrimSpace(r.FormValue("title")), Author: strings.TrimSpace(r.FormValue("author")), Tags: strings.TrimSpace(r.FormValue("tags")), Status: r.FormValue("reading_status"), Series: strings.TrimSpace(r.FormValue("series")), Description: cleanText(r.FormValue("description"), maxDescription), Source: "manual"}
 	// A non-numeric interest stays 0, which checkBook rejects.
 	b.Interest, _ = strconv.Atoi(r.FormValue("interest"))
 	if raw := r.FormValue("pages"); raw != "" {
@@ -51,6 +51,9 @@ func checkBook(b Book) string {
 	if n := b.SeriesNumber; n != nil && (math.IsNaN(*n) || math.IsInf(*n, 0) || *n < 0 || *n > 9999) {
 		return "Enter a valid series number."
 	}
+	if len([]rune(b.Description)) > maxDescription || len([]rune(b.DescriptionSource)) > 100 {
+		return "The description is too long."
+	}
 	if len([]rune(b.Tags)) > 500 || len([]rune(b.Series)) > 200 {
 		return "Tags or series name are too long."
 	}
@@ -72,7 +75,7 @@ func preferenceFields(r *http.Request) (Preferences, error) {
 	if err != nil {
 		weight = -1
 	}
-	p := Preferences{LibraryWeight: weight, Length: r.FormValue("length"), Mood: truncate(strings.TrimSpace(r.FormValue("mood")), 100), KeepReviews: r.FormValue("keep_reviews") != "", UseEstimates: r.FormValue("use_estimates") != ""}
+	p := Preferences{LibraryWeight: weight, Length: r.FormValue("length"), Mood: truncate(strings.TrimSpace(r.FormValue("mood")), 100), KeepReviews: r.FormValue("keep_reviews") != "", UseEstimates: r.FormValue("use_estimates") != "", BookLookup: r.FormValue("book_lookup") != ""}
 	if message := checkPreferences(p); message != "" {
 		return Preferences{}, bad(message)
 	}

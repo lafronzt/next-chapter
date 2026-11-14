@@ -184,7 +184,7 @@ func TestExportJSON(t *testing.T) {
 	if len(meta.Books) != 1 || len(meta.Events) != 1 {
 		t.Fatalf("%d books, %d events", len(meta.Books), len(meta.Events))
 	}
-	want := []string{"added_at", "author", "avg_rating", "goodreads_id", "id", "identity", "interest", "isbn", "loans", "needs_placement", "pages", "pinned", "position", "published_year", "reading_status", "series", "series_number", "source", "tags", "title"}
+	want := []string{"added_at", "author", "avg_rating", "description", "description_source", "goodreads_id", "id", "identity", "interest", "isbn", "loans", "needs_placement", "pages", "pinned", "position", "published_year", "reading_status", "series", "series_number", "source", "tags", "title"}
 	if got := jsonKeys(t, meta.Books[0]); !slices.Equal(got, want) {
 		t.Fatalf("book keys %v", got)
 	}
