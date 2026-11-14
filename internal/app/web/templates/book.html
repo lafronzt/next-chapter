@@ -9,6 +9,7 @@
 {{with .LookupNote}}<div class="notice" role="status">{{.}}</div>{{end}}
 {{with .LookupError}}<div class="notice error" role="alert">{{.}}</div>{{end}}
 <form class="panel form-grid" method="post">
+  {{if and .LookupOn (not .Editing)}}<button class="default-submit" tabindex="-1" aria-hidden="true">Add &amp; suggest a position</button>{{end}}
   {{template "fields" .}}
   <label class="span-2">Title<input name="title" required maxlength="500" value="{{.Book.Title}}" placeholder="The book you can’t stop thinking about"></label>
   <label class="span-2">Author<input name="author" required maxlength="300" value="{{.Book.Author}}"></label>
