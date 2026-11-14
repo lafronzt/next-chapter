@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"reflect"
 	"slices"
 	"strconv"
 	"strings"
@@ -36,38 +37,181 @@ func firstErr(err, fallback error) error {
 	return fallback
 }
 
-// lookupRow is one field of a proposed fill: what the book has, what the
-// database found, and whether the field can be filled (it is empty today).
-type lookupRow struct {
-	Key, Label, Current, Found string
-	Fill                       bool
+// What to do with a field the book already has. A field the book has not
+// filled is taken unless the reader leaves it empty (modeSkip).
+const (
+	modeKeep   = "keep"   // keep my value
+	modeTheirs = "theirs" // replace it with the database's
+	modeMerge  = "merge"  // combine the two: text is appended, tags are joined
+	modeSkip   = "skip"   // leave an empty field empty
+)
+
+// detailFields are the book fields a lookup can fill or change.
+type detailFields struct {
+	Description, DescriptionSource string
+	Pages, Year                    *int
+	Series                         string
+	SeriesNumber                   *float64
+	Tags                           string
 }
 
-func fillable(b Book, d BookDetails) []lookupRow {
-	rows := []lookupRow{}
-	add := func(key, label, current, found string) {
-		if found != "" {
-			rows = append(rows, lookupRow{key, label, current, found, current == ""})
+func fieldsOf(b Book) detailFields {
+	return detailFields{b.Description, b.DescriptionSource, b.Pages, b.PublishedYear, b.Series, b.SeriesNumber, b.Tags}
+}
+
+// act decides what a mode means for one field: "leave", "take", or "merge".
+func act(empty bool, mode string) string {
+	if empty {
+		if mode == modeSkip {
+			return "leave"
+		}
+		return "take"
+	}
+	switch mode {
+	case modeTheirs:
+		return "take"
+	case modeMerge:
+		return "merge"
+	}
+	return "leave"
+}
+
+// resolveDetails applies what a lookup found to a book's current fields as the
+// reader chose, field by field, and returns the result. It cleans every found
+// value again, so nothing reaches the database unchecked. A found value that is
+// missing changes nothing. It is pure, so a second run with the same choices
+// gives the same result.
+func resolveDetails(cur detailFields, d BookDetails, mode func(key string) string) detailFields {
+	out := cur
+	if theirs := cleanText(d.Description, maxDescription); theirs != "" {
+		source := cleanText(d.DescriptionSource, 100)
+		switch act(cur.Description == "", mode("description")) {
+		case "take":
+			out.Description, out.DescriptionSource = theirs, source
+		case "merge":
+			if !strings.Contains(foldKey(cur.Description), foldKey(theirs)) && len([]rune(cur.Description)) < maxDescription-2 {
+				out.Description = cleanText(cur.Description+"\n\n"+theirs, maxDescription)
+				owner := "You"
+				if cur.DescriptionSource != "" {
+					owner = cur.DescriptionSource
+				}
+				if source != "" {
+					out.DescriptionSource = truncate(owner+" and "+source, 100)
+				}
+			}
 		}
 	}
-	number := func(n *int) string {
+	if d.Pages != nil && *d.Pages >= 1 && *d.Pages <= 99999 && act(cur.Pages == nil, mode("pages")) == "take" {
+		out.Pages = d.Pages
+	}
+	if d.PublishedYear != nil && parseYear(strconv.Itoa(*d.PublishedYear)) != nil && act(cur.Year == nil, mode("published_year")) == "take" {
+		out.Year = d.PublishedYear
+	}
+	series := cleanText(d.Series, 200)
+	if series != "" && act(cur.Series == "", mode("series")) == "take" {
+		out.Series = series
+	}
+	// A number belongs to the series it was found with.
+	if n := d.SeriesNumber; n != nil && *n >= 0 && *n <= 9999 && series != "" && foldKey(out.Series) == foldKey(series) && act(cur.SeriesNumber == nil, mode("series_number")) == "take" {
+		out.SeriesNumber = n
+	}
+	if theirs := addTags(nil, d.Tags...); len(theirs) > 0 {
+		switch act(cur.Tags == "", mode("tags")) {
+		case "take":
+			out.Tags = strings.Join(theirs, ", ")
+		case "merge":
+			out.Tags = joinTags(cur.Tags, theirs)
+		}
+	}
+	return out
+}
+
+// joinTags appends tags the reader does not already have, keeping theirs first
+// and the result within the 500 characters the tags field allows.
+func joinTags(mine string, theirs []string) string {
+	have := map[string]bool{}
+	list := []string{}
+	for _, t := range strings.Split(mine, ",") {
+		if t = strings.TrimSpace(t); t != "" {
+			have[foldKey(t)] = true
+			list = append(list, t)
+		}
+	}
+	for _, t := range theirs {
+		if joined := strings.Join(append(list, t), ", "); !have[foldKey(t)] && len(joined) <= 500 {
+			have[foldKey(t)] = true
+			list = append(list, t)
+		}
+	}
+	return strings.Join(list, ", ")
+}
+
+// saveDetails writes the fields that changed and reports whether any did.
+func saveDetails(q queryer, id int64, before, after detailFields) (bool, error) {
+	if reflect.DeepEqual(before, after) {
+		return false, nil
+	}
+	_, err := q.Exec("UPDATE books SET description=?,description_source=?,pages=?,published_year=?,series=?,series_number=?,tags=? WHERE id=?",
+		after.Description, after.DescriptionSource, after.Pages, after.Year, after.Series, after.SeriesNumber, after.Tags, id)
+	return err == nil, err
+}
+
+// lookupOption is one choice for a field; lookupRow is a field's current value,
+// the found value, and the choices for it. A row with no options is the same
+// in both places.
+type lookupOption struct {
+	Value, Label string
+	Checked      bool
+}
+type lookupRow struct {
+	Key, Label, Current, Found string
+	Options                    []lookupOption
+}
+
+func lookupRows(b Book, d BookDetails) []lookupRow {
+	num := func(n *int) string {
 		if n == nil {
 			return ""
 		}
 		return strconv.Itoa(*n)
 	}
-	seriesNumber := func(n *float64) string {
+	ser := func(n *float64) string {
 		if n == nil {
 			return ""
 		}
 		return ratingText(*n)
 	}
-	add("description", "Description", b.Description, d.Description)
-	add("pages", "Pages", number(b.Pages), number(d.Pages))
-	add("published_year", "Year first published", number(b.PublishedYear), number(d.PublishedYear))
-	add("series", "Series", b.Series, d.Series)
-	add("series_number", "Number in series", seriesNumber(b.SeriesNumber), seriesNumber(d.SeriesNumber))
-	add("tags", "Tags", b.Tags, strings.Join(d.Tags, ", "))
+	cur, found := fieldsOf(b), resolveDetails(detailFields{}, d, func(string) string { return modeTheirs })
+	type pair struct {
+		key, label, mine, theirs string
+		mergeable                bool
+	}
+	pairs := []pair{
+		{"description", "Description", cur.Description, found.Description, true},
+		{"pages", "Pages", num(cur.Pages), num(found.Pages), false},
+		{"published_year", "Year first published", num(cur.Year), num(found.Year), false},
+		{"series", "Series", cur.Series, found.Series, false},
+		{"series_number", "Number in series", ser(cur.SeriesNumber), ser(found.SeriesNumber), false},
+		{"tags", "Tags", cur.Tags, found.Tags, true},
+	}
+	rows := []lookupRow{}
+	for _, p := range pairs {
+		if p.theirs == "" {
+			continue
+		}
+		row := lookupRow{Key: p.key, Label: p.label, Current: p.mine, Found: p.theirs}
+		switch {
+		case p.mine == "":
+			row.Options = []lookupOption{{modeTheirs, "Use theirs", true}, {modeSkip, "Leave empty", false}}
+		case foldKey(p.mine) == foldKey(p.theirs):
+		default:
+			row.Options = []lookupOption{{modeKeep, "Keep mine", true}, {modeTheirs, "Use theirs", false}}
+			if p.mergeable {
+				row.Options = append(row.Options, lookupOption{modeMerge, "Merge both", false})
+			}
+		}
+		rows = append(rows, row)
+	}
 	return rows
 }
 
@@ -150,8 +294,8 @@ func (a *App) lookupPage(w http.ResponseWriter, r *http.Request) error {
 		if err != nil {
 			return err
 		}
-		rows := fillable(b, p.Lookup.Found)
-		canFill := slices.ContainsFunc(rows, func(r lookupRow) bool { return r.Fill })
+		rows := lookupRows(b, p.Lookup.Found)
+		canFill := slices.ContainsFunc(rows, func(r lookupRow) bool { return len(r.Options) > 0 })
 		return a.render(w, r, "lookup.html", page{"Title": "Details for " + b.Title, "Book": b, "Rows": rows, "Found": p.Lookup.Found, "Sent": p.Lookup.Query.sent(), "PlanID": planID, "Stale": rev != state(r).Revision, "CanFill": canFill}, 200)
 	}
 	var bookID int64
@@ -171,7 +315,19 @@ func (a *App) lookupPage(w http.ResponseWriter, r *http.Request) error {
 		if err != nil {
 			return err
 		}
-		changed, err := fillBook(tx, b, p.Lookup.Found, r.Form["take"])
+		// Only the choices the page offered count; anything else keeps the book as it is.
+		offered := map[string][]lookupOption{}
+		for _, row := range lookupRows(b, p.Lookup.Found) {
+			offered[row.Key] = row.Options
+		}
+		choose := func(key string) string {
+			v := r.FormValue("mode_" + key)
+			if slices.ContainsFunc(offered[key], func(o lookupOption) bool { return o.Value == v }) {
+				return v
+			}
+			return modeKeep
+		}
+		changed, err := saveDetails(tx, bookID, fieldsOf(b), resolveDetails(fieldsOf(b), p.Lookup.Found, choose))
 		if err != nil || !changed {
 			return err
 		}
@@ -181,56 +337,6 @@ func (a *App) lookupPage(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	return redirect(w, r, fmt.Sprintf("/books/%d?notice=saved#details", bookID))
-}
-
-// fillBook writes the chosen fields of d into book b, each only where the book
-// has nothing, and reports whether anything changed. Values are cleaned again
-// here, so nothing that reaches the database skipped the checks.
-func fillBook(q queryer, b Book, d BookDetails, take []string) (bool, error) {
-	changed := false
-	run := func(statement string, args ...any) error {
-		c, err := execChanged(q, statement, args...)
-		changed = changed || c
-		return err
-	}
-	has := func(key string) bool { return slices.Contains(take, key) }
-	if text := cleanText(d.Description, maxDescription); has("description") && text != "" {
-		if err := run("UPDATE books SET description=?,description_source=? WHERE id=? AND description=''", text, cleanText(d.DescriptionSource, 100), b.ID); err != nil {
-			return false, err
-		}
-	}
-	if has("pages") && d.Pages != nil && *d.Pages >= 1 && *d.Pages <= 99999 {
-		if err := run("UPDATE books SET pages=? WHERE id=? AND pages IS NULL", *d.Pages, b.ID); err != nil {
-			return false, err
-		}
-	}
-	if has("published_year") && d.PublishedYear != nil && parseYear(strconv.Itoa(*d.PublishedYear)) != nil {
-		if err := run("UPDATE books SET published_year=? WHERE id=? AND published_year IS NULL", *d.PublishedYear, b.ID); err != nil {
-			return false, err
-		}
-	}
-	series := cleanText(d.Series, 200)
-	if has("series") && series != "" {
-		if err := run("UPDATE books SET series=? WHERE id=? AND series=''", series, b.ID); err != nil {
-			return false, err
-		}
-	}
-	if has("series_number") && d.SeriesNumber != nil && *d.SeriesNumber >= 0 && *d.SeriesNumber <= 9999 {
-		// A number belongs to the series it was found with.
-		if b.Series == "" && has("series") || b.Series != "" && foldKey(b.Series) == foldKey(series) {
-			if err := run("UPDATE books SET series_number=? WHERE id=? AND series_number IS NULL AND series!=''", *d.SeriesNumber, b.ID); err != nil {
-				return false, err
-			}
-		}
-	}
-	if has("tags") {
-		if joined := strings.Join(addTags(nil, d.Tags...), ", "); joined != "" {
-			if err := run("UPDATE books SET tags=? WHERE id=? AND tags=''", joined, b.ID); err != nil {
-				return false, err
-			}
-		}
-	}
-	return changed, nil
 }
 
 // needsDetails reports whether looking a record up could add anything: it is
@@ -259,6 +365,13 @@ func lookupKey(r Record) string { return identity(r.Title, r.Author) }
 // reader imports.
 func (a *App) lookupImport(w http.ResponseWriter, r *http.Request) error {
 	planID := r.PathValue("id")
+	mode := r.FormValue("mode")
+	if mode == "" {
+		mode = modeKeep
+	}
+	if !in(mode, []string{modeKeep, modeTheirs, modeMerge}) {
+		return bad("Choose whether to keep your values, use theirs, or merge them.")
+	}
 	if on, err := lookupEnabled(a.store.DB); err != nil || !on {
 		return firstErr(err, errLookupOff)
 	}
@@ -336,6 +449,7 @@ func (a *App) lookupImport(w http.ResponseWriter, r *http.Request) error {
 		if now, err := revision(tx); err != nil || now != rev {
 			return firstErr(err, conflict("Your library changed. Generate a fresh preview before looking up details."))
 		}
+		p.LookupMode = mode
 		counted := map[string]bool{}
 		for i := range p.Records {
 			rec := &p.Records[i]
@@ -353,7 +467,8 @@ func (a *App) lookupImport(w http.ResponseWriter, r *http.Request) error {
 				}
 			}
 			if res.err == nil {
-				fillRecord(rec, res.details)
+				found := res.details
+				rec.Found = &found
 			}
 		}
 		raw, err := encodePlan(p)
@@ -369,23 +484,8 @@ func (a *App) lookupImport(w http.ResponseWriter, r *http.Request) error {
 	return redirect(w, r, "/plans/"+planID+"#lookup")
 }
 
-// fillRecord adds found details to an import record's empty fields.
-func fillRecord(rec *Record, d BookDetails) {
-	if rec.Description == "" {
-		if rec.Description = cleanText(d.Description, maxDescription); rec.Description != "" {
-			rec.DescriptionSource = cleanText(d.DescriptionSource, 100)
-		}
-	}
-	if rec.Pages == nil && d.Pages != nil {
-		rec.Pages = d.Pages
-	}
-	if rec.PublishedYear == nil && d.PublishedYear != nil {
-		rec.PublishedYear = d.PublishedYear
-	}
-	if rec.Series == "" && d.Series != "" {
-		rec.Series, rec.SeriesNumber = cleanText(d.Series, 200), d.SeriesNumber
-	}
-	if rec.Tags == "" && len(d.Tags) > 0 {
-		rec.Tags = strings.Join(addTags(nil, d.Tags...), ", ")
-	}
+// importMode is the import preview's choice for every field: empty fields are
+// filled, and a field the book already has is kept, replaced, or merged.
+func importMode(mode string) func(string) string {
+	return func(string) string { return mode }
 }
