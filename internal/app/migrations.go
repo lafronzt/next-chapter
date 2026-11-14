@@ -15,6 +15,7 @@ var migrations = []migration{
 	{6, "reading history", migrateReadingLog},
 	{7, "estimated ratings", migrateRatingEstimates},
 	{8, "books moved by hand", migrateMovedByHand},
+	{9, "quarter-star ratings", migrateQuarterStars},
 }
 
 func migrateBaseline(tx *sql.Tx) error {
@@ -140,5 +141,24 @@ func migrateRatingEstimates(tx *sql.Tx) error {
 // suggestion clears it; no existing book has been marked.
 func migrateMovedByHand(tx *sql.Tx) error {
 	_, err := tx.Exec("ALTER TABLE books ADD COLUMN moved_by_hand INTEGER NOT NULL DEFAULT 0")
+	return err
+}
+
+// Goodreads ratings come in quarter stars, so reading_log.rating becomes a
+// number from 0.25 to 5. SQLite cannot change a CHECK in place, so the table
+// is rebuilt with its rows and indexes. Nothing references reading_log.
+// Rollback: restore the pre-v9 backup the migration framework writes.
+func migrateQuarterStars(tx *sql.Tx) error {
+	_, err := tx.Exec(`CREATE TABLE reading_log_new (
+ id INTEGER PRIMARY KEY, book_id INTEGER NOT NULL REFERENCES books(id),
+ finished_at TEXT NULL, rating REAL NULL CHECK(rating BETWEEN 0.25 AND 5),
+ source TEXT NOT NULL CHECK(source IN ('goodreads','manual')),
+ review_chars INTEGER NOT NULL DEFAULT 0, review TEXT NULL, fingerprint TEXT NOT NULL UNIQUE
+);
+INSERT INTO reading_log_new SELECT id,book_id,finished_at,rating,source,review_chars,review,fingerprint FROM reading_log;
+DROP TABLE reading_log;
+ALTER TABLE reading_log_new RENAME TO reading_log;
+CREATE INDEX reading_log_book ON reading_log(book_id, finished_at);
+CREATE INDEX reading_log_finished ON reading_log(finished_at, id);`)
 	return err
 }

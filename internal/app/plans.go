@@ -31,7 +31,7 @@ type planRecord struct {
 	Series       string     `json:"sr,omitempty"`
 	SeriesNumber *float64   `json:"sn,omitempty"`
 	Source       string     `json:"src"`
-	Rating       int        `json:"r,omitempty"`
+	Rating       float64    `json:"r,omitempty"`
 	Finished     string     `json:"fd,omitempty"`
 	ReviewChars  int        `json:"rc,omitempty"`
 	Review       string     `json:"rv,omitempty"`
@@ -60,8 +60,8 @@ func compactRecord(r Record) planRecord {
 func (c planRecord) record() Record {
 	r := Record{Book: Book{Title: c.Title, Author: c.Author, ISBN: c.ISBN, GoodreadsID: c.GoodreadsID, Pages: c.Pages, Tags: c.Tags, Status: c.Status, Series: c.Series, SeriesNumber: c.SeriesNumber, Source: c.Source, Interest: 3, NeedsPlacement: true, PublishedYear: c.Published, AvgRating: c.Average},
 		Rating: c.Rating, FinishedAt: c.Finished, ReviewChars: c.ReviewChars, Review: c.Review}
-	if c.Rating >= 1 && c.Rating <= 5 {
-		r.Interest = c.Rating
+	if c.Rating > 0 && c.Rating <= 5 {
+		r.Interest = interestFor(c.Rating)
 	}
 	if e := c.Event; e != nil {
 		r.Event = &Event{Format: e.Format, Status: e.Status, Activity: e.Activity, At: e.At, DueDate: e.DueDate}

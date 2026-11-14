@@ -11,11 +11,11 @@ import (
 )
 
 // finished is a Goodreads read-shelf record.
-func finished(title, date string, rating int) Record {
+func finished(title, date string, rating float64) Record {
 	r := shelf(title, "read")
 	r.FinishedAt, r.Rating = date, rating
 	if rating > 0 {
-		r.Interest = rating
+		r.Interest = interestFor(rating)
 	}
 	return r
 }
@@ -252,7 +252,7 @@ func TestReadingHistoryPageAndStats(t *testing.T) {
 	pages := func(n int) *int { return &n }
 	rs := []Record{}
 	for i := range 55 {
-		r := finished(fmt.Sprintf("Book %02d", i), fmt.Sprintf("%d-06-%02d", 2023+i%3, 1+i%28), 1+i%5)
+		r := finished(fmt.Sprintf("Book %02d", i), fmt.Sprintf("%d-06-%02d", 2023+i%3, 1+i%28), float64(1+i%5))
 		r.Tags = []string{"Fiction, hopeful", "fiction", "mystery, Hopeful"}[i%3]
 		if i%2 == 0 {
 			r.Pages = pages(100 + i)
@@ -451,5 +451,49 @@ func TestRestoreReadingHistory(t *testing.T) {
 		if rr := uploadRestore(b, editExport(t, original, change)); rr.Code != 400 {
 			t.Errorf("%s: status %d", name, rr.Code)
 		}
+	}
+}
+
+func TestQuarterStarRatings(t *testing.T) {
+	t.Parallel()
+	a := testApp(t, true)
+	rows, problems, err := ParseCSV([]byte("Book Id,Title,Author,My Rating,Date Read,Exclusive Shelf\n1,Open Era,W,4.25,2026/11/13,read\n2,Tiny,W,0.25,2026/11/14,read\n"), "goodreads")
+	if err != nil || len(problems) != 0 {
+		t.Fatal(problems, err)
+	}
+	addRecords(t, a, rows)
+	if rs := readingsOf(t, a, "Open Era"); len(rs) != 1 || *rs[0].Rating != 4.25 {
+		t.Fatalf("%+v", rs)
+	}
+	if rs := readingsOf(t, a, "Tiny"); len(rs) != 1 || *rs[0].Rating != 0.25 {
+		t.Fatalf("%+v", rs)
+	}
+	if b := bookNamed(t, a, "Open Era"); b.Interest != 4 {
+		t.Fatalf("interest %d", b.Interest)
+	}
+	// Importing it again changes nothing, and the reading page shows 4.25.
+	if again := importResultFor(t, a, rows); again.Changed {
+		t.Fatalf("%+v", again)
+	}
+	b := &browser{t: t, handler: a.Handler()}
+	if body := b.request("GET", "/reading", nil).Body.String(); !strings.Contains(body, "4.25 out of 5") {
+		t.Fatal("quarter-star rating not shown")
+	}
+	// The reader can set quarter stars by hand, but not other fractions.
+	id := bookNamed(t, a, "Open Era").ID
+	expect(t, b.form(fmt.Sprintf("/books/%d/readings", id), url.Values{"finished_at": {"2026-12-01"}, "rating": {"3.75"}}), 303)
+	for _, bad := range []string{"3.3", "0", "5.25", "x"} {
+		expect(t, b.form(fmt.Sprintf("/books/%d/readings", id), url.Values{"rating": {bad}}), 400)
+	}
+	// A restore keeps them.
+	original := exportOf(t, a)
+	target := testApp(t, true)
+	tb := &browser{t: t, handler: target.Handler()}
+	expect(t, tb.request("GET", "/imports", nil), 200)
+	rr := uploadRestore(tb, original)
+	expect(t, rr, 303)
+	expect(t, tb.request("POST", rr.Header().Get("Location"), nil), 303)
+	if rs := readingsOf(t, target, "Open Era"); len(rs) != 2 || (*rs[0].Rating != 3.75 && *rs[1].Rating != 3.75) {
+		t.Fatalf("%+v", rs)
 	}
 }

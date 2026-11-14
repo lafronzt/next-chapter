@@ -27,7 +27,7 @@ type ratedBook struct {
 	ID                          int64
 	Title, Author, Tags, Series string
 	Pages                       *int
-	Rating                      int
+	Rating                      float64
 	Year                        string // finish year, or ""
 	Review                      string
 }
@@ -72,7 +72,7 @@ func sameName(a, b string) bool {
 // The candidate's own readings are never part of history.
 func baselineEstimate(c Book, history []ratedBook) ratingBaseline {
 	var b ratingBaseline
-	sum := 0
+	sum := 0.0
 	for _, h := range history {
 		if h.ID != c.ID {
 			sum += h.Rating
@@ -84,14 +84,15 @@ func baselineEstimate(c Book, history []ratedBook) ratingBaseline {
 		b.Factors = []string{"You have no rated books yet. Rate a few finished books in Reading history first."}
 		return b
 	}
-	overall := float64(sum) / float64(b.Rated)
+	overall := sum / float64(b.Rated)
 	b.Factors = append(b.Factors, fmt.Sprintf("Your average: %.1f★ over %d rated %s", overall, b.Rated, plural(b.Rated, "book", "books")))
 	weight, total := 3.0, 3*overall
 	candidateTags := tagSet(c.Tags)
 	type group struct {
 		label  string
 		match  func(ratedBook) bool
-		n, sum int
+		n      int
+		sum    float64
 		shared map[string]string
 	}
 	groups := []*group{
@@ -120,9 +121,9 @@ func baselineEstimate(c Book, history []ratedBook) ratingBaseline {
 			continue
 		}
 		matched += g.n
-		avg := float64(g.sum) / float64(g.n)
+		avg := g.sum / float64(g.n)
 		weight += float64(g.n)
-		total += float64(g.sum)
+		total += g.sum
 		label := g.label
 		if g.shared != nil {
 			keys := slices.Sorted(maps.Keys(g.shared))
@@ -190,7 +191,7 @@ func estimateFingerprint(c Book, history []ratedBook) string {
 		ID                          int64
 		Title, Author, Tags, Series string
 		Pages                       *int
-		Rating                      int
+		Rating                      float64
 		Year                        string
 	}
 	rows := []row{}
@@ -358,14 +359,14 @@ const (
 )
 
 type estimateRow struct {
-	Title    string `json:"title"`
-	Author   string `json:"author"`
-	Tags     string `json:"tags,omitempty"`
-	Pages    *int   `json:"pages,omitempty"`
-	Series   string `json:"series,omitempty"`
-	Rating   int    `json:"your_rating"`
-	Finished string `json:"finished_year,omitempty"`
-	Review   string `json:"your_review,omitempty"`
+	Title    string  `json:"title"`
+	Author   string  `json:"author"`
+	Tags     string  `json:"tags,omitempty"`
+	Pages    *int    `json:"pages,omitempty"`
+	Series   string  `json:"series,omitempty"`
+	Rating   float64 `json:"your_rating"`
+	Finished string  `json:"finished_year,omitempty"`
+	Review   string  `json:"your_review,omitempty"`
 }
 type estimateCandidate struct {
 	Title     string   `json:"title"`
@@ -458,16 +459,17 @@ func sortSample(s []ratedBook) []ratedBook {
 // asked for, and only those already kept, cut to 1,000 characters.
 func buildEstimatePayload(c Book, history []ratedBook, base ratingBaseline, reviews bool) estimatePayload {
 	p := estimatePayload{Candidate: estimateCandidate{c.Title, c.Author, c.Tags, c.Pages, c.Series, c.AvgRating, base.Estimate}, RatedBooks: []estimateRow{}}
-	sum := 0
+	sum := 0.0
 	for _, h := range history {
 		if h.ID != c.ID {
 			p.Stats.RatedBooks++
-			p.Stats.RatingCounts[h.Rating-1]++
+			// The histogram counts whole stars; a 4.25 falls in 4.
+			p.Stats.RatingCounts[interestFor(h.Rating)-1]++
 			sum += h.Rating
 		}
 	}
 	if p.Stats.RatedBooks > 0 {
-		p.Stats.AverageRating = math.Round(float64(sum)/float64(p.Stats.RatedBooks)*100) / 100
+		p.Stats.AverageRating = math.Round(sum/float64(p.Stats.RatedBooks)*100) / 100
 	}
 	for _, h := range sampleHistory(c, history) {
 		row := estimateRow{Title: h.Title, Author: h.Author, Tags: h.Tags, Pages: h.Pages, Series: h.Series, Rating: h.Rating, Finished: h.Year}

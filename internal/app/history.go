@@ -14,14 +14,14 @@ import (
 // reading status, interest, queue order, and library events, and never change
 // any of them.
 type readingEntry struct {
-	ID          int64   `json:"id"`
-	BookID      int64   `json:"book_id"`
-	FinishedAt  *string `json:"finished_at"` // YYYY-MM-DD, or nil when unknown
-	Rating      *int    `json:"rating"`
-	Source      string  `json:"source"` // goodreads or manual
-	ReviewChars int     `json:"review_chars"`
-	Review      *string `json:"review"`
-	Fingerprint string  `json:"fingerprint"`
+	ID          int64    `json:"id"`
+	BookID      int64    `json:"book_id"`
+	FinishedAt  *string  `json:"finished_at"` // YYYY-MM-DD, or nil when unknown
+	Rating      *float64 `json:"rating"`
+	Source      string   `json:"source"` // goodreads or manual
+	ReviewChars int      `json:"review_chars"`
+	Review      *string  `json:"review"`
+	Fingerprint string   `json:"fingerprint"`
 	// Title and Author are filled for the history page; they are not stored.
 	Title  string `json:"title,omitempty"`
 	Author string `json:"author,omitempty"`

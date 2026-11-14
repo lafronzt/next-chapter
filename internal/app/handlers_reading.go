@@ -3,6 +3,7 @@ package app
 import (
 	"database/sql"
 	"fmt"
+	"math"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -29,7 +30,7 @@ func (a *App) readingHistory(w http.ResponseWriter, r *http.Request) error {
 }
 
 // readingFields reads a finish date and rating; both may be left blank.
-func readingFields(r *http.Request) (finished *string, rating *int, err error) {
+func readingFields(r *http.Request) (finished *string, rating *float64, err error) {
 	if raw := strings.TrimSpace(r.FormValue("finished_at")); raw != "" {
 		if !validFinishDate(raw) {
 			return nil, nil, bad("Enter the finish date as a calendar date, or leave it blank.")
@@ -37,9 +38,9 @@ func readingFields(r *http.Request) (finished *string, rating *int, err error) {
 		finished = &raw
 	}
 	if raw := r.FormValue("rating"); raw != "" {
-		n, e := strconv.Atoi(raw)
-		if e != nil || n < 1 || n > 5 {
-			return nil, nil, bad("Choose a rating from 1 to 5, or leave it unrated.")
+		n, e := strconv.ParseFloat(raw, 64)
+		if e != nil || n < 0.25 || n > 5 || n*4 != math.Trunc(n*4) {
+			return nil, nil, bad("Choose a rating from 0.25 to 5 in quarter stars, or leave it unrated.")
 		}
 		rating = &n
 	}
@@ -84,7 +85,7 @@ func (a *App) editReading(w http.ResponseWriter, r *http.Request) error {
 	}
 	action := r.FormValue("action")
 	var finished *string
-	var rating *int
+	var rating *float64
 	switch action {
 	case "save":
 		if finished, rating, err = readingFields(r); err != nil {

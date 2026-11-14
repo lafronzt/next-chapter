@@ -272,18 +272,22 @@ func FuzzParseTime(f *testing.F) {
 func TestGoodreadsRatingSeedsInterest(t *testing.T) {
 	t.Parallel()
 	csv := "Book Id,Title,Author,My Rating,Average Rating\n" +
-		"1,Loved,W,5,1.20\n2,Unrated,W,0,4.90\n3,Blank,W,,4.90\n4,Seven,W,7,4.90\n5,Word,W,abc,4.90\n6,Half,W,3.5,4.90\n7,Liked,W, 2 ,4.90\n"
+		"1,Loved,W,5,1.20\n2,Unrated,W,0,4.90\n3,Blank,W,,4.90\n4,Seven,W,7,4.90\n5,Word,W,abc,4.90\n6,Half,W,3.5,4.90\n7,Liked,W, 2 ,4.90\n" +
+		"8,Quarter,W,4.25,4.90\n9,Tiny,W,0.25,4.90\n10,Between,W,4.6,4.90\n11,TooMany,W,5.5,4.90\n12,Negative,W,-1,4.90\n"
 	rows, problems, err := ParseCSV([]byte(csv), "goodreads")
-	if err != nil || len(problems) != 0 || len(rows) != 7 {
+	if err != nil || len(problems) != 0 || len(rows) != 12 {
 		t.Fatal(rows, problems, err)
 	}
 	for i, want := range []struct {
-		interest, rating int
-		ignored          bool
-	}{{5, 5, false}, {3, 0, false}, {3, 0, false}, {3, 0, true}, {3, 0, true}, {3, 0, true}, {2, 2, false}} {
+		interest int
+		rating   float64
+		ignored  bool
+	}{{5, 5, false}, {3, 0, false}, {3, 0, false}, {3, 0, true}, {3, 0, true}, {4, 3.5, false}, {2, 2, false},
+		// Quarter stars are kept exactly; interest is the nearest whole star.
+		{4, 4.25, false}, {1, 0.25, false}, {5, 4.5, false}, {3, 0, true}, {3, 0, true}} {
 		r := rows[i]
 		if r.Interest != want.interest || r.Rating != want.rating || r.RatingIgnored != want.ignored {
-			t.Errorf("%s: interest %d rating %d ignored %v", r.Title, r.Interest, r.Rating, r.RatingIgnored)
+			t.Errorf("%s: interest %d rating %v ignored %v", r.Title, r.Interest, r.Rating, r.RatingIgnored)
 		}
 	}
 	// Average Rating alone is never the reader's opinion.
@@ -303,7 +307,7 @@ func TestImportUsesRatingOnlyForNewBooks(t *testing.T) {
 	a := testApp(t, true)
 	rated := func(title string, rating int) Record {
 		r := shelf(title, "to-read")
-		r.Rating, r.Interest = rating, rating
+		r.Rating, r.Interest = float64(rating), rating
 		return r
 	}
 	result := importResultFor(t, a, []Record{rated("Rated", 5), shelf("Unrated", "to-read"), rated("Read", 4)})

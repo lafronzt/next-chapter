@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"regexp"
 	"slices"
 	"strings"
@@ -35,7 +36,7 @@ const (
 	// maxRestoreSchema is the newest export this build can restore. A test
 	// fails when a migration is added, so the restore code is checked against
 	// the new schema before this is raised.
-	maxRestoreSchema = 8
+	maxRestoreSchema = 9
 	maxRestoreUpload = 10_000_000
 	maxRestoreEvents = 100_000
 	maxRestoreAlias  = 20_000
@@ -233,8 +234,8 @@ func validateExport(f *exportFile) []string {
 		if e.FinishedAt != nil && !validFinishDate(*e.FinishedAt) {
 			add("%s: finished_at must be YYYY-MM-DD.", label)
 		}
-		if e.Rating != nil && (*e.Rating < 1 || *e.Rating > 5) {
-			add("%s: the rating must be 1 to 5.", label)
+		if e.Rating != nil && (*e.Rating < 0.25 || *e.Rating > 5 || *e.Rating*4 != math.Trunc(*e.Rating*4)) {
+			add("%s: the rating must be 0.25 to 5 in quarter stars.", label)
 		}
 		if !in(e.Source, []string{"goodreads", "manual"}) {
 			add("%s: the source must be goodreads or manual.", label)

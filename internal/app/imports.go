@@ -8,6 +8,7 @@ import (
 	"golang.org/x/text/cases"
 	"golang.org/x/text/unicode/norm"
 	"io"
+	"math"
 	"regexp"
 	"slices"
 	"strconv"
@@ -143,19 +144,27 @@ func activityStatus(s string) (string, error) {
 	return status, nil
 }
 
-// parseRating reads a Goodreads "My Rating" or user_rating. Blank and 0 mean
-// unrated. Anything else outside 1-5 is ignored rather than failing the row:
-// the rating only seeds interest, which the reader can set by hand.
-func parseRating(s string) (rating int, ignored bool) {
+// parseRating reads a Goodreads "My Rating", which can be set in quarter
+// stars. Blank and 0 mean unrated. Anything else outside 0.25-5 is ignored
+// rather than failing the row: the rating only seeds interest, which the
+// reader can set by hand. Values between quarters round to the nearest one.
+func parseRating(s string) (rating float64, ignored bool) {
 	s = strings.TrimSpace(s)
-	if s == "" || s == "0" {
+	if s == "" {
 		return 0, false
 	}
-	n, err := strconv.Atoi(s)
-	if err != nil || n < 1 || n > 5 {
+	n, err := strconv.ParseFloat(s, 64)
+	if err != nil || math.IsNaN(n) || n < 0 || n > 5 {
 		return 0, true
 	}
+	n = math.Round(n*4) / 4
 	return n, false
+}
+
+// interestFor is the whole-star interest a rating seeds: the nearest star,
+// so 4.25 is 4 and 4.5 is 5, but never less than 1 for a rated book.
+func interestFor(rating float64) int {
+	return min(5, max(1, int(math.Round(rating))))
 }
 func ParseCSV(data []byte, source string) ([]Record, []string, error) {
 	if !in(source, []string{"goodreads", "libby", "nypl"}) {
@@ -272,7 +281,7 @@ func parseRecord(row map[string]string, source string) (Record, error) {
 		// Only the reader's own rating; never "Average Rating".
 		r.Rating, r.RatingIgnored = parseRating(field(row, "my rating"))
 		if r.Rating > 0 {
-			r.Interest = r.Rating
+			r.Interest = interestFor(r.Rating)
 		}
 		// Reading history. Goodreads keeps only the latest Date Read.
 		finished, e := parseDate(field(row, "date read"))

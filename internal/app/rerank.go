@@ -46,11 +46,11 @@ type rerankBook struct {
 	Position     int      `json:"current_position"`
 }
 type recentBook struct {
-	Title    string `json:"title"`
-	Author   string `json:"author"`
-	Tags     string `json:"tags,omitempty"`
-	Rating   *int   `json:"your_rating,omitempty"`
-	Finished string `json:"finished,omitempty"` // YYYY-MM
+	Title    string   `json:"title"`
+	Author   string   `json:"author"`
+	Tags     string   `json:"tags,omitempty"`
+	Rating   *float64 `json:"your_rating,omitempty"`
+	Finished string   `json:"finished,omitempty"` // YYYY-MM
 }
 
 // rerankPayload is exactly what the request sends; the preview shows it.

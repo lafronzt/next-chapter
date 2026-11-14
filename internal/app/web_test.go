@@ -616,7 +616,7 @@ func TestRatingsInImportPreview(t *testing.T) {
 	planURL := rr.Header().Get("Location")
 	rr = b.request("GET", planURL, nil)
 	expect(t, rr, 200)
-	for _, text := range []string{"2 new books start with your Goodreads rating as interest.", "1 rated book is already here and keeps its current interest.", "1 rating was not a whole number from 0 to 5 and was ignored"} {
+	for _, text := range []string{"2 new books start with your Goodreads rating as interest.", "1 rated book is already here and keeps its current interest.", "1 rating was not a number from 0 to 5 and was ignored"} {
 		if !strings.Contains(rr.Body.String(), text) {
 			t.Fatalf("preview missing %q", text)
 		}

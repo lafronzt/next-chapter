@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"html/template"
+	"math"
 	"net/http"
 	"strconv"
 	"strings"
@@ -138,14 +139,23 @@ func templateFuncs() template.FuncMap {
 		},
 		"activeLoan": func(s string) bool { return in(s, []string{"borrowed", "ready", "hold"}) },
 		"upper":      strings.ToUpper,
-		"ratings":    func() []int { return []int{5, 4, 3, 2, 1} },
-		"rated":      func(r *int, n int) bool { return r != nil && *r == n },
-		// stars shows a 1-5 rating; the text alternative is for screen readers.
-		"stars": func(n *int) template.HTML {
+		// ratings lists the quarter-star choices, highest first.
+		"ratings": func() []float64 {
+			out := []float64{}
+			for q := 20; q >= 1; q-- {
+				out = append(out, float64(q)/4)
+			}
+			return out
+		},
+		"rated": func(r *float64, n float64) bool { return r != nil && *r == n },
+		// stars shows a 0.25-5 rating as whole stars (rounded to the nearest
+		// one) beside the exact value; the text alternative is for screen readers.
+		"stars": func(n *float64) template.HTML {
 			if n == nil {
 				return ""
 			}
-			return template.HTML(fmt.Sprintf(`<span aria-hidden="true">%s%s</span><span class="sr-only">%d out of 5</span>`, strings.Repeat("★", *n), strings.Repeat("☆", 5-*n), *n))
+			whole := int(math.Round(*n))
+			return template.HTML(fmt.Sprintf(`<span aria-hidden="true">%s%s %s</span><span class="sr-only">%s out of 5</span>`, strings.Repeat("★", whole), strings.Repeat("☆", 5-whole), ratingText(*n), ratingText(*n)))
 		},
 		"version": func() string { return Version },
 		"star":    func(f float64) string { return fmt.Sprintf("%.1f★", f) },
@@ -207,3 +217,6 @@ func pageTitle(name string, p pager) string {
 	}
 	return name
 }
+
+// ratingText writes a rating without trailing zeros: 4, 4.25, 4.5.
+func ratingText(n float64) string { return strconv.FormatFloat(n, 'f', -1, 64) }

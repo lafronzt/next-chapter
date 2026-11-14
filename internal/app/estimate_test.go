@@ -21,10 +21,10 @@ import (
 func floatp(f float64) *float64 { return &f }
 
 func TestBaselineEstimate(t *testing.T) {
-	rated := func(id int64, rating int, author, tags, series string) ratedBook {
+	rated := func(id int64, rating float64, author, tags, series string) ratedBook {
 		return ratedBook{ID: id, Title: fmt.Sprint("Book ", id), Author: author, Tags: tags, Series: series, Rating: rating}
 	}
-	many := func(n, rating int, author, tags string, from int64) []ratedBook {
+	many := func(n int, rating float64, author, tags string, from int64) []ratedBook {
 		out := []ratedBook{}
 		for i := range n {
 			out = append(out, rated(from+int64(i), rating, author, tags, ""))
@@ -65,7 +65,7 @@ func TestBaselineEstimate(t *testing.T) {
 func TestSampleHistory(t *testing.T) {
 	history := []ratedBook{}
 	for i := range 100 {
-		h := ratedBook{ID: int64(i + 1), Author: "Someone", Rating: 1 + i%5}
+		h := ratedBook{ID: int64(i + 1), Author: "Someone", Rating: float64(1 + i%5)}
 		if i%17 == 0 {
 			h.Tags = "space"
 		}
@@ -76,7 +76,7 @@ func TestSampleHistory(t *testing.T) {
 	if len(sample) != estimateSampleSize {
 		t.Fatalf("sampled %d books", len(sample))
 	}
-	counts := map[int]int{}
+	counts := map[float64]int{}
 	ids := map[int64]bool{}
 	for _, h := range sample {
 		counts[h.Rating]++
