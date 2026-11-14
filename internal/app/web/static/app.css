@@ -2354,3 +2354,41 @@ input[type=checkbox] {
   text-decoration:underline;
   min-height:44px;
 }
+
+/* Preferences sections */
+.settings-section {
+  margin-bottom:var(--space-4);
+}
+
+.settings-section>summary {
+  display:flex;
+  align-items:baseline;
+  gap:var(--space-3);
+  cursor:pointer;
+  min-height:44px;
+  list-style:none;
+}
+
+.settings-section>summary h2 {
+  margin:0;
+}
+
+.settings-section[open]>summary {
+  margin-bottom:var(--space-4);
+}
+
+.two-columns>* {
+  min-width:0;
+}
+
+@media(max-width:760px) {
+  .rating-table meter {
+    min-width:48px;
+  }
+  .rating-table th,.rating-table td {
+    padding:var(--space-1);
+  }
+  .rating-table td:last-child {
+    overflow-wrap:anywhere;
+  }
+}

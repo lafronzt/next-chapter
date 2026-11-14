@@ -5,39 +5,76 @@
     <p>A few simple preferences. Every suggestion stays explainable.</p>
   </div>
 </header>
-<form class="panel form-grid" method="post">
-  {{template "fields" .}}
-  <h2 class="span-2">What matters right now?</h2>
-  <label>Library timing<select name="library_weight">
-    <option value="0" {{if eq .Prefs.LibraryWeight 0.0}}selected{{end}}>Ignore deadlines for ranking</option>
-    <option value="0.5" {{if eq .Prefs.LibraryWeight 0.5}}selected{{end}}>A gentle nudge</option>
-    <option value="1" {{if eq .Prefs.LibraryWeight 1.0}}selected{{end}}>Balance with my want-to-read</option>
-    <option value="2" {{if eq .Prefs.LibraryWeight 2.0}}selected{{end}}>Prioritize loans and pickup deadlines</option>
-  </select></label>
-  <label>Preferred length<select name="length">
-    <option value="any" {{if eq .Prefs.Length "any"}}selected{{end}}>Any length</option>
-    <option value="short" {{if eq .Prefs.Length "short"}}selected{{end}}>Short · up to 250 pages</option>
-    <option value="long" {{if eq .Prefs.Length "long"}}selected{{end}}>Long · 400+ pages</option>
-  </select></label>
-  <label class="span-2">In the mood for<input name="mood" maxlength="100" value="{{.Prefs.Mood}}" placeholder="A tag such as hopeful, nature, or mystery"><small>Matches one of your comma-separated book tags.</small></label>
-  <label class="checkbox span-2"><input type="checkbox" name="use_estimates" {{if .Prefs.UseEstimates}}checked{{end}}> Let my saved estimated ratings nudge suggestions</label>
-  <p class="span-2 muted"><small>Off by default. A saved estimate adds up to 10 points for a book you would probably love, or takes up to 10 away, shown as a reason such as “Estimated 4.3★ for you”. Suggestions use the estimate already saved and never contact an AI. Books without one are ranked as before.</small></p>
-  <label class="checkbox span-2"><input type="checkbox" name="keep_reviews" {{if .Prefs.KeepReviews}}checked{{end}}> Keep my Goodreads review text in this library</label>
-  <p class="span-2 muted"><small>Off by default: only each review’s length is stored. Reviews are personal and can be long. Turning this off deletes review text already kept here.</small></p>
-  <div class="span-2">
-    <button class="button primary">Save preferences</button>
+<details class="panel settings-section" id="ranking" open>
+  <summary><h2>Ranking</h2><span class="muted">What matters right now</span></summary>
+  <form class="form-grid" method="post">
+    {{template "fields" .}}
+    <input type="hidden" name="section" value="ranking">
+    <label>Library timing<select name="library_weight">
+      <option value="0" {{if eq .Prefs.LibraryWeight 0.0}}selected{{end}}>Ignore deadlines for ranking</option>
+      <option value="0.5" {{if eq .Prefs.LibraryWeight 0.5}}selected{{end}}>A gentle nudge</option>
+      <option value="1" {{if eq .Prefs.LibraryWeight 1.0}}selected{{end}}>Balance with my want-to-read</option>
+      <option value="2" {{if eq .Prefs.LibraryWeight 2.0}}selected{{end}}>Prioritize loans and pickup deadlines</option>
+    </select><small>How much a library loan or pickup deadline lifts a book. Default: Balance with my want-to-read.</small></label>
+    <label>Preferred length<select name="length">
+      <option value="any" {{if eq .Prefs.Length "any"}}selected{{end}}>Any length</option>
+      <option value="short" {{if eq .Prefs.Length "short"}}selected{{end}}>Short · up to 250 pages</option>
+      <option value="long" {{if eq .Prefs.Length "long"}}selected{{end}}>Long · 400+ pages</option>
+    </select><small>Gives books of that length a small boost. Default: Any length.</small></label>
+    <label class="span-2">In the mood for<input name="mood" maxlength="100" value="{{.Prefs.Mood}}" placeholder="A tag such as hopeful, nature, or mystery"><small>Matches one of your comma-separated book tags. Default: blank.</small></label>
+    <label class="checkbox span-2"><input type="checkbox" name="use_estimates" {{if .Prefs.UseEstimates}}checked{{end}}> Let my saved estimated ratings nudge suggestions</label>
+    <p class="span-2 muted"><small>Default: off. A saved estimate adds up to 10 points for a book you would probably love, or takes up to 10 away, shown as a reason such as “Estimated 4.3★ for you”. Suggestions use the estimate already saved and never contact an AI. Books without one are ranked as before.</small></p>
+    <div class="span-2">
+      <button class="button primary">Save ranking</button>
+    </div>
+  </form>
+</details>
+<details class="panel settings-section" id="privacy" {{if eq .Open "privacy"}}open{{end}}>
+  <summary><h2>Privacy</h2><span class="muted">What this library keeps</span></summary>
+  {{with .ConfirmDelete}}
+  <div class="notice error" role="alert">
+    <p><strong>Delete {{.}} stored {{if eq . 1}}review{{else}}reviews{{end}}?</strong> Turning this off removes the review text already kept here. Only each review’s length stays. This cannot be undone.</p>
+    <form method="post">
+      {{template "fields" $}}
+      <input type="hidden" name="section" value="privacy">
+      <input type="hidden" name="confirm" value="yes">
+      <div class="button-row">
+        <button class="button danger">Yes, delete the review text</button>
+        <a class="button" href="/settings?open=privacy#privacy"><span>Keep it</span></a>
+      </div>
+    </form>
   </div>
-</form>
-<section class="section-heading" id="ai">
-  <h2>AI assistance <span class="badge">Optional</span></h2>
+  {{else}}
+  <form class="form-grid" method="post">
+    {{template "fields" .}}
+    <input type="hidden" name="section" value="privacy">
+    <label class="checkbox span-2"><input type="checkbox" name="keep_reviews" {{if .Prefs.KeepReviews}}checked{{end}}> Keep my Goodreads review text in this library</label>
+    <p class="span-2 muted"><small>Default: off, so only each review’s length is stored. Reviews are personal and can be long. Turning this off deletes review text already kept here, after you confirm.</small></p>
+    <div class="span-2">
+      <button class="button primary">Save privacy</button>
+    </div>
+  </form>
+  {{end}}
+  {{if not .Demo}}
+  <h3>Signed in somewhere you shouldn’t be?</h3>
+  <p>Sign out every browser and device, including this one. Your library is not changed.</p>
+  <form method="post" action="/sessions/revoke">
+    {{template "fields" .}}
+    <button class="button">Sign out everywhere</button>
+  </form>
+  {{end}}
+</details>
+<details class="panel settings-section" id="ai" {{if eq .Open "ai"}}open{{end}}>
+  <summary><h2>AI assistance</h2><span class="badge">Optional</span></summary>
+  <div class="stack">
   {{if .AI.Configured}}
   <p>{{.AI.Provider}} · model <code>{{.AI.Model}}</code>{{with .AI.Endpoint}} · <code>{{.}}</code>{{end}}. Set by whoever runs this app.{{if .AI.Endpoint}}{{if .AI.OnNetwork}} This AI server is on this machine or your private network, so what you share stays on hardware you or your host control.{{else}} This AI server is reached over HTTPS; whoever runs it can see what you share.{{end}}{{end}} Any API key stays in the server’s environment and is never shown or stored here.</p>
   {{else}}
   <p>Not set up. Whoever runs this app can connect Claude or OpenAI with their own API key, or a model running on their own hardware with Ollama or another OpenAI-compatible server (see the README). Until then nothing is ever sent to an AI service.</p>
   {{end}}
-</section>
+
 {{if .AI.Configured}}
-<div class="panel ai-panel">
+<div class="ai-panel">
   <h3>What gets shared</h3>
   <ul class="ai-sharing">
     <li>Nothing leaves this server until you press a button for an AI suggestion and confirm. Nothing is sent in the background, on a schedule, or when a page loads.</li>
@@ -61,23 +98,15 @@
   {{if .AI.Enabled}}<p class="muted"><small>The test sends a fixed prompt with no library data and counts as one request.</small></p>{{end}}
 </div>
 {{end}}
-<section class="section-heading">
-  <h2>Take your library with you.</h2>
+  </div>
+</details>
+<section class="section-heading" id="about">
+  <h2>About this library</h2>
+  <p class="muted">Next Chapter v{{version}} · database schema version {{.SchemaVersion}}.</p>
   <p>Download readable data, or a complete database backup for restoring your self-hosted app.</p>
   <div class="button-row">
     <a class="button" href="/export.json"><span>Export library JSON <span aria-hidden="true">↓</span></span></a>
     <a class="button" href="/backup.sqlite3"><span>Download database backup <span aria-hidden="true">↓</span></span></a>
   </div>
-  <p class="muted"><small>Database schema version {{.SchemaVersion}}.</small></p>
 </section>
-{{if not .Demo}}
-<section class="section-heading">
-  <h2>Signed in somewhere you shouldn’t be?</h2>
-  <p>Sign out every browser and device, including this one. Your library is not changed.</p>
-  <form method="post" action="/sessions/revoke">
-    {{template "fields" .}}
-    <button class="button">Sign out everywhere</button>
-  </form>
-</section>
-{{end}}
 {{template "bottom" .}}

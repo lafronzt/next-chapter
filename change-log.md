@@ -18,3 +18,14 @@
 | 22 | Goodreads-first import page with a numbered guide and drop zone; Libby/NYPL collapsed; "last imported" in `meta`; preview leads with a summary row and names the books leaving the queue. |
 | 23 | Dark palette, All books status filter and sort (`sort`, `status` params), `#book-ID` redirects, collapsed book form, sticky search, `app.js` submit-disable. |
 | 25 | `GET/POST /place` placement sessions; plan application extracted to `applyPlan` and shared with `/plans/{id}`. |
+
+## Prompts 26–31 (stacked on the 22–25 branch)
+
+| Prompt | Change |
+|---|---|
+| 27 | `/books/{id}` is a read-only page with one primary action per status; the form moves to `/books/{id}/edit`. |
+| 26 | `queueReason` (reasons.go): fixed precedence, two queries per page, hand-placed rows marked with an icon and legend. |
+| 28 | 16px type scale and spacing scale as CSS variables, 12 hashed cover colors x 4 patterns at 2:3, eyebrows removed except Home and Import. |
+| 29 | Reading history: year sections, rating distribution table, year / rating / unrated filters that page. |
+| 30 | Signed `n=` notices naming the book, single-slot Undo for moves, pins, Keep here and status changes, empty states with a next step. |
+| 31 | Preferences in Ranking / Privacy / AI sections that save independently; confirmation before deleting review text; About footer. |

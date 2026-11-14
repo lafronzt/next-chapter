@@ -20,3 +20,14 @@ window.addEventListener('pageshow', function () {
     b.removeAttribute('data-was-submitting');
   });
 });
+
+// Open the Preferences section a link points at (#privacy or #ai); sections
+// are collapsed otherwise. Without script they open from the Preferences page.
+function openSettingsSection() {
+  try {
+    var target = location.hash && document.querySelector('details.settings-section' + location.hash);
+    if (target) target.open = true;
+  } catch (e) { /* a hash that is not a valid selector */ }
+}
+window.addEventListener('hashchange', openSettingsSection);
+openSettingsSection();
