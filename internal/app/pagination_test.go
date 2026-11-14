@@ -184,13 +184,13 @@ func TestQueueMoveStateAcrossPages(t *testing.T) {
 	b.request("GET", "/?page=2", nil)
 	rr := b.request("POST", fmt.Sprintf("/books/%d/action", ids["Book 060"]), url.Values{"action": {"up"}, "return": {"/?page=2&view=queue&notice=saved"}})
 	expect(t, rr, 303)
-	if got := rr.Header().Get("Location"); got != "/?page=2&view=queue" {
+	if got := rr.Header().Get("Location"); got != fmt.Sprintf("/?page=2&view=queue#book-%d", ids["Book 060"]) {
 		t.Fatal(got)
 	}
 	for _, hostile := range []string{"//evil.example/?page=2", "https://evil.example/", "/books/1", `/\evil`, ""} {
 		b.request("GET", "/", nil)
 		rr = b.request("POST", fmt.Sprintf("/books/%d/action", ids["Book 060"]), url.Values{"action": {"pin"}, "return": {hostile}})
-		if got := rr.Header().Get("Location"); got != "/" {
+		if got := rr.Header().Get("Location"); got != fmt.Sprintf("/#book-%d", ids["Book 060"]) {
 			t.Fatalf("%q redirected to %q", hostile, got)
 		}
 	}

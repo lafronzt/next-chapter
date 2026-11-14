@@ -424,7 +424,7 @@ func TestBookActions(t *testing.T) {
 	}
 	rr := act("B", "up")
 	expect(t, rr, 303)
-	if order() != "BACD" || rr.Header().Get("Location") != "/?page=1&view=all" {
+	if order() != "BACD" || !strings.HasPrefix(rr.Header().Get("Location"), "/?page=1&view=all#book-") {
 		t.Fatal(order(), rr.Header())
 	}
 	expect(t, act("B", "down"), 303)

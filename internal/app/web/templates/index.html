@@ -89,10 +89,28 @@
   </nav>
   <form class="search" method="get" role="search">
     <input type="hidden" name="view" value="{{.View}}">
+    {{if .Status}}<input type="hidden" name="status" value="{{.Status}}">{{end}}
+    {{if .Sort}}<input type="hidden" name="sort" value="{{.Sort}}">{{end}}
     <input aria-label="Search books" name="q" value="{{.Query}}" placeholder="Find a title, author, or tag…">
     <button aria-label="Search"><span aria-hidden="true">⌕</span></button>
   </form>
 </div>
+{{if eq .View "all"}}
+<form class="filters" method="get">
+  <input type="hidden" name="view" value="all">
+  {{if .Query}}<input type="hidden" name="q" value="{{.Query}}">{{end}}
+  <label>Status<select name="status">
+    <option value="">Any status</option>
+    {{range .ReadingStates}}<option value="{{.}}" {{if eq $.Status .}}selected{{end}}>{{status .}}{{if eq . "archived"}} (archived){{end}}{{if eq . "abandoned"}} (stopped){{end}}</option>{{end}}
+  </select></label>
+  <label>Sort by<select name="sort">
+    <option value="">Queue order</option>
+    {{range .SortOptions}}<option value="{{.Key}}" {{if eq $.Sort .Key}}selected{{end}}>{{.Label}}</option>{{end}}
+  </select></label>
+  <button class="button small"><span>Apply</span></button>
+  <span class="muted"><small>Sorting changes only how this list is read, never your queue order.</small></span>
+</form>
+{{end}}
 {{if and (eq .View "unreviewed") .Items}}
 <form class="bulk-triage" method="post" action="/triage">
   {{template "fields" .}}
@@ -109,7 +127,7 @@
 {{end}}
 <div class="queue-list">
   {{range .Items}}
-  <article class="book-row">
+  <article class="book-row" id="book-{{.ID}}">
     <div class="position">{{if .QueuePos}}<span class="sr-only">Queue position </span>{{end}}{{pos .QueuePos}}</div>
     <a href="/books/{{.ID}}" class="book-cover cover-{{cover .ID}}" aria-label="Edit {{.Title}}">
       <span class="cover-line"></span>
