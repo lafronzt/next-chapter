@@ -7,7 +7,10 @@ metadata:
 spec:
   replicas: {{ .Values.image.replicas }}
   strategy:
-    type: Recreate
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
   selector:
     matchLabels:
       app: next-chapter
