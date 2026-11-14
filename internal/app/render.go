@@ -199,6 +199,7 @@ func templateFuncs() template.FuncMap {
 		"star":    func(f float64) string { return fmt.Sprintf("%.1f★", f) },
 		"deref":   func(f *float64) float64 { return *f },
 		"inc":     func(i int) int { return i + 1 },
+		"sub":     func(a, b int) int { return a - b },
 		"join":    strings.Join,
 		"minute": func(s string) string {
 			if len(s) >= 16 {

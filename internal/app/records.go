@@ -70,8 +70,17 @@ type importResult struct {
 	// counts rated records for existing books, which keep their interest.
 	Rated, RatingsKept int
 	// Logged counts finished readings added to the reading history.
-	Logged  int
+	Logged int
+	// Moved names the queued books a Goodreads shelf moves forward.
+	Moved   []bookMove
 	Changed bool
+}
+
+// bookMove is a queued book an import moves to Reading or Read.
+type bookMove struct {
+	Title  string `json:"title"`
+	Author string `json:"author"`
+	To     string `json:"to"`
 }
 
 func (r importResult) upgradedTotal() int { return sum(r.Upgraded) }
@@ -215,7 +224,7 @@ func importRecords(q queryer, records []Record) (out importResult, err error) {
 			}
 			if upgradesUnreviewed(r) {
 				var old Book
-				if err = q.QueryRow("SELECT id,reading_status,pinned,needs_placement,position FROM books WHERE id=?", id).Scan(&old.ID, &old.Status, &old.Pinned, &old.NeedsPlacement, &old.Position); err != nil {
+				if err = q.QueryRow("SELECT id,reading_status,pinned,needs_placement,position,title,author FROM books WHERE id=?", id).Scan(&old.ID, &old.Status, &old.Pinned, &old.NeedsPlacement, &old.Position, &old.Title, &old.Author); err != nil {
 					return out, err
 				}
 				switch {
@@ -230,6 +239,7 @@ func importRecords(q queryer, records []Record) (out importResult, err error) {
 						return out, err
 					}
 					out.Advanced[r.Status]++
+					out.Moved = append(out.Moved, bookMove{old.Title, old.Author, r.Status})
 					out.Changed = true
 				}
 			}

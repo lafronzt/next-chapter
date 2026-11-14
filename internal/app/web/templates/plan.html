@@ -9,6 +9,24 @@
 </header>
 {{if .Stale}}<div class="notice error" role="alert">Your library has changed since this preview. Generate a fresh preview before applying it.</div>{{end}}
 {{if eq .Kind "import"}}
+<section class="summary-row" aria-label="What this import does">
+  {{with .Summary}}
+  <div><span class="stat-number">{{.New}}</span><span>new books</span></div>
+  <div><span class="stat-number">{{.Finished}}</span><span>finished</span></div>
+  <div><span class="stat-number">{{.Started}}</span><span>started</span></div>
+  <div><span class="stat-number">{{.AlreadyHere}}</span><span>already here</span></div>
+  <div><span class="stat-number">{{.Skipped}}</span><span>skipped (deleted)</span></div>
+  <div><span class="stat-number">{{.RatingsRead}}</span><span>ratings read</span></div>
+  <div><span class="stat-number">{{.NeedAttention}}</span><span>rows needing attention</span></div>
+  {{end}}
+</section>
+{{if .Plan.Moves}}
+<section class="panel" aria-labelledby="leaving-title">
+  <h2 id="leaving-title">{{len .Plan.Moves}} {{if eq (len .Plan.Moves) 1}}book leaves{{else}}books leave{{end}} your queue</h2>
+  <p class="muted">Goodreads says you finished or started {{if eq (len .Plan.Moves) 1}}it{{else}}them{{end}}. Nothing moves until you confirm.</p>
+  <ul>{{range .Plan.Moves}}<li><strong>{{.Title}}</strong> · {{.Author}} → {{if eq .To "read"}}Read{{else}}Reading{{end}}</li>{{end}}</ul>
+</section>
+{{end}}
 <div class="notice" role="status">{{len .Plan.Records}} rows from {{.Plan.Source}}. Repeated library events are ignored; existing books keep their queue order and reading status, except that books still waiting in To review follow their Goodreads shelf, and queued books you have since started or finished on Goodreads move to Reading or Read. Library-only books are saved as unreviewed.</div>
 {{if .UpgradeSummary}}<div class="notice" role="status">{{.UpgradeSummary}}</div>{{end}}
 {{if .AdvanceSummary}}<div class="notice" role="status">{{.AdvanceSummary}}</div>{{end}}
@@ -17,14 +35,28 @@
 {{if .Plan.Logged}}<div class="notice" role="status">{{.Plan.Logged}} finished {{if eq .Plan.Logged 1}}reading is{{else}}readings are{{end}} added to your <a href="/reading">reading history</a>. History never changes reading status, want-to-read, or queue order.</div>{{end}}
 {{if .Plan.RatingsIgnored}}<div class="notice" role="status">{{.Plan.RatingsIgnored}} {{if eq .Plan.RatingsIgnored 1}}rating was{{else}}ratings were{{end}} not a number from 0 to 5 and {{if eq .Plan.RatingsIgnored 1}}was{{else}}were{{end}} ignored; {{if eq .Plan.RatingsIgnored 1}}that book starts{{else}}those books start{{end}} at want-to-read 3.</div>{{end}}
 <div class="panel preview-list">
-  {{range .PreviewRecords}}
+  {{range $i, $r := .PreviewRecords}}{{if lt $i 20}}
   <div class="preview-row">
     <div>
-      <strong>{{.Title}}</strong>
-      <p>{{.Author}}</p>
+      <strong>{{$r.Title}}</strong>
+      <p>{{$r.Author}}</p>
     </div>
-    <span class="badge">{{if .Event}}{{.Event.Status}}{{else}}{{.Status}}{{end}}</span>
+    <span class="badge">{{if $r.Event}}{{$r.Event.Status}}{{else}}{{status $r.Status}}{{end}}</span>
   </div>
+  {{end}}{{end}}
+  {{if gt (len .PreviewRecords) 20}}
+  <details>
+    <summary>Show the other {{sub (len .PreviewRecords) 20}} records</summary>
+    {{range $i, $r := .PreviewRecords}}{{if ge $i 20}}
+    <div class="preview-row">
+      <div>
+        <strong>{{$r.Title}}</strong>
+        <p>{{$r.Author}}</p>
+      </div>
+      <span class="badge">{{if $r.Event}}{{$r.Event.Status}}{{else}}{{status $r.Status}}{{end}}</span>
+    </div>
+    {{end}}{{end}}
+  </details>
   {{end}}
   {{if gt (len .Plan.Records) 100}}<p>Showing the first 100 records.</p>{{end}}
 </div>

@@ -3,7 +3,7 @@
   <div>
     <div class="eyebrow">BRING YOUR BOOKS ALONG</div>
     <h1>One home for all your reading.</h1>
-    <p>Import shelves and library activity. We’ll show you a preview first.</p>
+    <p>Export from Goodreads, drop the file here, and check the preview. Nothing changes until you confirm.</p>
   </div>
 </header>
 {{if .Errors}}
@@ -16,18 +16,40 @@
 {{end}}
 <div class="two-columns">
   <div class="stack">
-  <form class="panel stack" method="post" enctype="multipart/form-data">
-    {{template "fields" .}}
-    <h2>Import a CSV</h2>
-    <label>Where is it from?<select name="source">
-      <option value="goodreads">Goodreads library export</option>
-      <option value="libby">Libby timeline</option>
-      <option value="nypl">NYPL activity (standard CSV)</option>
-    </select></label>
-    <label>Choose your file<input name="file" type="file" accept=".csv,text/csv" required {{if .Errors}}aria-invalid="true" aria-describedby="import-errors"{{end}}></label>
-    <p class="muted">UTF-8 CSV · up to 2 MB and 10,000 rows. No account passwords needed.</p>
-    <button class="button primary"><span>Preview import <span aria-hidden="true">→</span></span></button>
-  </form>
+  <section class="panel stack" aria-labelledby="goodreads-title">
+    <h2 id="goodreads-title">Import from Goodreads</h2>
+    {{with index .Last "goodreads"}}<p class="last-import" role="status">Last imported {{minute .At}} UTC: {{.Added}} new, {{.Finished}} finished, {{.Started}} started.</p>{{else}}<p class="last-import muted">No Goodreads import yet.</p>{{end}}
+    <ol class="steps">
+      <li>On Goodreads open <strong>My Books → Import and export → Export Library</strong>.</li>
+      <li>Download the CSV.</li>
+      <li>Choose it below. You will see a preview before anything changes.</li>
+    </ol>
+    <form class="stack" method="post" enctype="multipart/form-data">
+      {{template "fields" .}}
+      <input type="hidden" name="source" value="goodreads">
+      <label class="dropzone"><span class="dz-title">Choose your Goodreads CSV</span><span class="muted">Tap to browse, or drop the file here</span><input name="file" type="file" accept=".csv,text/csv" required {{if .Errors}}aria-invalid="true" aria-describedby="import-errors"{{end}}></label>
+      <p class="muted">UTF-8 CSV · up to 2 MB and 10,000 rows. No account passwords needed. Import again whenever you want new books and status changes. <a href="/examples/goodreads.csv">Download a sample CSV<span class="sr-only"> for Goodreads</span> <span aria-hidden="true">↓</span></a></p>
+      <button class="button primary"><span>Preview import <span aria-hidden="true">→</span></span></button>
+    </form>
+  </section>
+  <details class="panel library-sources">
+    <summary><h2>Libby or NYPL library activity</h2></summary>
+    <form class="stack" method="post" enctype="multipart/form-data">
+      {{template "fields" .}}
+      <label>Where is it from?<select name="source">
+        <option value="libby">Libby timeline</option>
+        <option value="nypl">NYPL activity (standard CSV)</option>
+      </select></label>
+      <label>Choose your file<input name="file" type="file" accept=".csv,text/csv" required></label>
+      <p><strong>Libby:</strong> Shelf → Timeline → Actions → Export Timeline → Spreadsheet. Clear filters to include all available history. If your export uses different columns or activities, use the sample format. <a href="/examples/libby.csv">Download a sample CSV<span class="sr-only"> for Libby</span> <span aria-hidden="true">↓</span></a></p>
+      <p><strong>NYPL:</strong> Use the sample to collect current loans, holds, and records from your receipts. This is our standard format, not an official NYPL export. Old physical checkout history may no longer exist. <a href="/examples/nypl.csv">Download the NYPL template <span aria-hidden="true">↓</span></a></p>
+      {{with index .Last "libby"}}<p class="muted">Last Libby import {{minute .At}} UTC.</p>{{end}}
+      {{with index .Last "nypl"}}<p class="muted">Last NYPL import {{minute .At}} UTC.</p>{{end}}
+      <button class="button"><span>Preview import <span aria-hidden="true">→</span></span></button>
+    </form>
+  </details>
+  </div>
+  <div class="stack">
   <form class="panel stack" method="post" action="/imports/restore" enctype="multipart/form-data">
     {{template "fields" .}}
     <h2>Restore a Next Chapter JSON export</h2>
@@ -44,26 +66,6 @@
     <p class="muted">The <code>next-chapter.json</code> file from Preferences · up to 10 MB.</p>
     <button class="button"><span>Preview restore <span aria-hidden="true">→</span></span></button>
   </form>
-  </div>
-  <div class="stack">
-    <section class="help-card">
-      <span class="eyebrow">01 / GOODREADS</span>
-      <h2>Your existing shelves</h2>
-      <p>On the desktop site, open My Books → Import and export → Export Library. Upload the downloaded CSV here.</p>
-      <a href="/examples/goodreads.csv">Download a sample CSV<span class="sr-only"> for Goodreads</span> <span aria-hidden="true">↓</span></a>
-    </section>
-    <section class="help-card">
-      <span class="eyebrow">02 / LIBBY</span>
-      <h2>Your digital borrowing</h2>
-      <p>Shelf → Timeline → Actions → Export Timeline → Spreadsheet. Clear filters to include all available history. If your export uses different columns or activities, use the sample format.</p>
-      <a href="/examples/libby.csv">Download a sample CSV<span class="sr-only"> for Libby</span> <span aria-hidden="true">↓</span></a>
-    </section>
-    <section class="help-card">
-      <span class="eyebrow">03 / NYPL</span>
-      <h2>Your physical library visits</h2>
-      <p>Use the sample to collect current loans, holds, and records from your receipts. This is our standard format, not an official NYPL export. Old physical checkout history may no longer exist.</p>
-      <a href="/examples/nypl.csv">Download the NYPL template <span aria-hidden="true">↓</span></a>
-    </section>
   </div>
 </div>
 {{template "bottom" .}}

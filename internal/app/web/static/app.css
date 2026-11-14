@@ -1945,3 +1945,69 @@ input[type=checkbox] {
   letter-spacing:.12em;
   color:var(--green);
 }
+
+/* Import page */
+.steps {
+  margin:0;
+  padding-left:22px;
+}
+
+.steps li {
+  margin-bottom:6px;
+}
+
+.last-import {
+  margin:0;
+}
+
+.dropzone {
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+  padding:28px 20px;
+  border:2px dashed var(--line);
+  border-radius:12px;
+  background:var(--paper);
+  text-align:center;
+  align-items:center;
+}
+
+.dropzone:focus-within,.dropzone:hover {
+  border-color:var(--green);
+}
+
+.dropzone .dz-title {
+  font:20px/1.2 var(--serif);
+}
+
+.dropzone input[type=file] {
+  max-width:100%;
+  min-height:44px;
+}
+
+.library-sources summary {
+  cursor:pointer;
+  min-height:44px;
+  display:flex;
+  align-items:center;
+}
+
+.library-sources summary h2 {
+  margin:0;
+  font-size:18px;
+}
+
+.summary-row {
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(120px,1fr));
+  gap:8px;
+  margin-bottom:20px;
+}
+
+.summary-row>div {
+  display:flex;
+  flex-direction:column;
+  padding:10px 12px;
+  border:1px solid var(--line);
+  border-radius:10px;
+}
