@@ -15,6 +15,8 @@ Every suggestion has a preview and reasons. Pinned books keep their positions. Y
 
 - Add and edit books; move them manually, one place at a time or straight to a queue number (type 3 to make it #3; the books in between shift by one); pin positions; mark reading, finished, abandoned, or archived. A manual move never crosses a pinned book.
 - Separate views for Up next, Reading, Finished, To review, Set aside (abandoned), Archived, and All books. Lists show 50 books per page (`per_page` up to 200); queue numbers always count from the top of the whole queue, and a page past the end shows the last page.
+- A home screen with **Next up** (the first queued book that is not waiting for placement), **Reading now**, and **Due soon** (borrowed library books due within a week; a loan never changes reading status). Starting or stopping a book moves only that book; **Finished** logs one reading with a quarter-star rating.
+- Phone-friendly: a bottom tab bar, a per-row action sheet in the queue, and a quarter-star rating control. On a phone, use your browser's Add to Home Screen to open it like an app (no offline mode and no service worker).
 - Delete a book, or merge a duplicate into the entry you keep, each after a confirmation preview. Re-imports never bring them back.
 - Explainable placement and full-queue reordering, with preview, stale-preview protection, and undo. With AI assistance on, a suggestion can also show an AI-suggested order beside the usual one. Every AI request shows what it shares (and, if you want, the exact prompt) before it is sent, and runs in the background while you keep using the app.
 - Goodreads CSV imports that keep your `to-read` shelf order and are safe to repeat: export again from Goodreads whenever you want to bring in new books.

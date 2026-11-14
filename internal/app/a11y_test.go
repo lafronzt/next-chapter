@@ -247,7 +247,7 @@ func TestSkipLinkAndMarkupStayCSPSafe(t *testing.T) {
 		if csp := rr.Header().Get("Content-Security-Policy"); csp != "default-src 'self'; style-src 'self'; script-src 'self'; img-src 'self' data:; frame-ancestors 'none'; form-action 'self'; base-uri 'self'" {
 			t.Errorf("%s: CSP changed: %s", path, csp)
 		}
-		if !strings.Contains(body, `<meta name="viewport" content="width=device-width,initial-scale=1">`) || strings.Contains(body, "user-scalable") {
+		if !strings.Contains(body, `<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">`) || strings.Contains(body, "user-scalable") {
 			t.Errorf("%s: viewport", path)
 		}
 	}

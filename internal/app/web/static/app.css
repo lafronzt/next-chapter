@@ -19,6 +19,9 @@ body {
   background:var(--paper);
   color:var(--ink);
   font:14px/1.6 var(--sans);
+  /* Keep content clear of a notch or rounded corners when launched from the
+     home screen (the page opts in with viewport-fit=cover). */
+  padding:env(safe-area-inset-top) env(safe-area-inset-right) 0 env(safe-area-inset-left);
 }
 
 a {
