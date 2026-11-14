@@ -489,3 +489,73 @@ func (a *App) lookupImport(w http.ResponseWriter, r *http.Request) error {
 func importMode(mode string) func(string) string {
 	return func(string) string { return mode }
 }
+
+// fillNewBook fills the fields of a book that is not saved yet from what a
+// lookup found. Only empty fields are filled: whatever the reader typed wins.
+// It returns the book and the names of the fields it filled.
+func fillNewBook(b Book, d BookDetails) (Book, []string) {
+	var filled []string
+	if b.Description == "" && d.Description != "" {
+		b.Description, b.DescriptionSource = d.Description, d.DescriptionSource
+		filled = append(filled, "description")
+	}
+	if b.Pages == nil && d.Pages != nil {
+		b.Pages = d.Pages
+		filled = append(filled, "pages")
+	}
+	if b.PublishedYear == nil && d.PublishedYear != nil {
+		b.PublishedYear = d.PublishedYear
+		filled = append(filled, "year first published")
+	}
+	if b.Series == "" && d.Series != "" {
+		b.Series, b.SeriesNumber = d.Series, d.SeriesNumber
+		filled = append(filled, "series")
+	}
+	if b.Tags == "" && len(d.Tags) > 0 {
+		b.Tags = strings.Join(d.Tags, ", ")
+		filled = append(filled, "tags")
+	}
+	return b, filled
+}
+
+// newBookLookup looks up a book that is being added by hand, before it is in
+// any list. It saves nothing: it shows the same form again with the empty
+// fields filled in, for the reader to check, change, and then add.
+func (a *App) newBookLookup(w http.ResponseWriter, r *http.Request) error {
+	if on, err := lookupEnabled(a.store.DB); err != nil || !on {
+		return firstErr(err, errLookupOff)
+	}
+	// The form is read as it stands, even when another field is not valid
+	// yet; adding the book checks everything.
+	b, _ := bookFields(r)
+	if b.Title == "" || b.Author == "" {
+		return bad("Enter a title and author before looking up details.")
+	}
+	b.ISBN = cleanISBN(r.FormValue("isbn"))
+	if y, e := strconv.Atoi(r.FormValue("published_year")); e == nil && y > 0 && y <= 9999 {
+		b.PublishedYear = &y
+	}
+	looked := cleanText(r.FormValue("looked_up_description"), maxDescription)
+	if looked != "" && b.Description == looked {
+		b.DescriptionSource = truncate(strings.TrimSpace(r.FormValue("description_source")), 100)
+	}
+	started := time.Now()
+	found, err := a.finder.Find(r.Context(), LookupQuery{Title: b.Title, Author: b.Author, ISBN: b.ISBN})
+	a.logLookup(r, 0, found, err, time.Since(started))
+	data := page{"Title": "Add a book", "LookupOn": true}
+	switch {
+	case err != nil:
+		data["LookupError"] = lookupMessage(err)
+	default:
+		var filled []string
+		b, filled = fillNewBook(b, found)
+		if len(filled) == 0 {
+			data["LookupNote"] = "The book databases had nothing to add to what you already have."
+		} else {
+			data["LookupNote"] = "Filled in " + strings.Join(filled, ", ") + " from " + strings.Join(found.Sources, " and ") + ". Databases can be wrong, so check and change anything before you add the book. Nothing is saved yet."
+		}
+	}
+	data["Book"] = b
+	data["LookedUp"] = b.DescriptionSource != ""
+	return a.render(w, r, "book.html", data, 200)
+}

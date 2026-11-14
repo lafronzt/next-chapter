@@ -16,20 +16,23 @@ type Book struct {
 	GoodreadsID string `json:"goodreads_id"`
 	Pages       *int   `json:"pages"`
 	// ProgressPage is the page reached while reading; nil when not tracked.
-	ProgressPage   *int     `json:"progress_page,omitempty"`
-	Tags           string   `json:"tags"`
-	Interest       int      `json:"interest"`
-	Status         string   `json:"reading_status"`
-	Position       int      `json:"position"`
-	Pinned         bool     `json:"pinned"`
-	NeedsPlacement bool     `json:"needs_placement"`
-	MovedByHand    bool     `json:"moved_by_hand,omitempty"` // the reader moved it in the queue
-	Series         string   `json:"series"`
-	SeriesNumber   *float64 `json:"series_number"`
-	PublishedYear  *int     `json:"published_year"`
-	AvgRating      *float64 `json:"avg_rating"`
-	AddedAt        string   `json:"added_at"`
-	Source         string   `json:"source"`
+	ProgressPage *int `json:"progress_page,omitempty"`
+	// ProgressPercent is the progress in percent for a book tracked that way,
+	// such as an audiobook; at most one of the two progress fields is set.
+	ProgressPercent *int     `json:"progress_percent,omitempty"`
+	Tags            string   `json:"tags"`
+	Interest        int      `json:"interest"`
+	Status          string   `json:"reading_status"`
+	Position        int      `json:"position"`
+	Pinned          bool     `json:"pinned"`
+	NeedsPlacement  bool     `json:"needs_placement"`
+	MovedByHand     bool     `json:"moved_by_hand,omitempty"` // the reader moved it in the queue
+	Series          string   `json:"series"`
+	SeriesNumber    *float64 `json:"series_number"`
+	PublishedYear   *int     `json:"published_year"`
+	AvgRating       *float64 `json:"avg_rating"`
+	AddedAt         string   `json:"added_at"`
+	Source          string   `json:"source"`
 	// Description is plain text from the reader or a book database, at most
 	// maxDescription characters; DescriptionSource names the database, or is
 	// empty. It is untrusted data wherever it is shown or sent.

@@ -13,13 +13,14 @@
     <p><span class="badge">{{status .Book.Status}}</span>{{if .Book.Pinned}} <span class="badge pin"><span aria-hidden="true">◆</span> Pinned</span>{{end}}</p>
     {{if eq .Book.Status "reading"}}
     <div class="progress-block">
-      {{if .Book.Pages}}<meter class="progress-meter" min="0" max="{{.Book.Pages}}" value="{{.Book.ProgressValue}}" aria-label="Progress in {{.Book.Title}}"></meter>{{end}}
+      {{if .Book.HasProgress}}<meter class="progress-meter" min="0" max="100" value="{{.Book.Percent}}" aria-label="Progress in {{.Book.Title}}"></meter>{{end}}
       {{with .Book.ProgressText}}<p class="muted">{{.}}</p>{{end}}
       <form class="progress-form" method="post" action="/books/{{.Book.ID}}/progress">
         {{template "fields" .}}
         <input type="hidden" name="back" value="book">
-        <label>Page <input type="number" name="page" min="0" {{if .Book.Pages}}max="{{.Book.Pages}}"{{end}} inputmode="numeric" value="{{.Book.ProgressValue}}"></label>
-        <button class="button small"><span>Save page</span></button>
+        <label>Progress <input type="number" name="progress" min="0" inputmode="numeric" value="{{.Book.ProgressValue}}"></label>
+        <select name="unit" aria-label="Progress unit"><option value="page" {{if eq .Book.ProgressUnit "page"}}selected{{end}}>pages</option><option value="percent" {{if eq .Book.ProgressUnit "percent"}}selected{{end}}>%</option></select>
+        <button class="button small"><span>Save</span></button>
       </form>
     </div>
     {{end}}

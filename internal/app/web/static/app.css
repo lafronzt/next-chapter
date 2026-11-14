@@ -2025,8 +2025,56 @@ input[type=checkbox],input[type=radio] {
 }
 
 .progress-form input[type=number] {
-  width:6.5em;
+  width:5.5em;
   padding:7px 10px;
+}
+
+/* The global select rule is full width; here it sits beside the number. */
+.progress-form select {
+  width:auto;
+  padding:7px 10px;
+}
+
+.progress-meter {
+  height:10px;
+  border-radius:5px;
+  background:var(--line);
+  border:0;
+}
+
+.progress-meter::-webkit-meter-bar {
+  height:10px;
+  border:0;
+  border-radius:5px;
+  background:var(--line);
+}
+
+.progress-meter::-webkit-meter-optimum-value {
+  background:var(--green);
+  border-radius:5px;
+}
+
+.progress-meter::-moz-meter-bar {
+  background:var(--green);
+  border-radius:5px;
+}
+
+.progress-text {
+  display:block;
+}
+
+.progress-block {
+  margin:0 0 var(--space-4);
+}
+
+@media(max-width:760px) {
+  .progress-form input[type=number],.progress-form select,.progress-form .button {
+    min-height:44px;
+  }
+}
+
+.lookup-new p {
+  margin:8px 0 0;
 }
 
 .reading-goal {
@@ -2203,6 +2251,12 @@ input[type=checkbox],input[type=radio] {
   }
   .help-card a,.list-footnote a,.pips {
     color:#9fcf9f;
+  }
+  .progress-meter::-webkit-meter-optimum-value {
+    background:#9fcf9f;
+  }
+  .progress-meter::-moz-meter-bar {
+    background:#9fcf9f;
   }
   .tabs a.selected {
     border-bottom-color:#9fcf9f;
