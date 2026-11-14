@@ -145,7 +145,7 @@ func TestLookupAgreementPicksMostCommonPagesAndYear(t *testing.T) {
 	}
 	f.handlers["/idb/book/"] = func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Authorization") != "secret-key" {
-			http.Error(w, "no", 401)
+			http.Error(w, "no", http.StatusUnauthorized)
 			return
 		}
 		writeJSON(w, map[string]any{"book": map[string]any{"synopsis": "ISBNdb blurb", "pages": 320, "date_published": "2005-01-01"}})
@@ -211,7 +211,7 @@ func TestLookupFailures(t *testing.T) {
 		}
 	})
 	run("server error", func(f *fakeDatabases) {
-		f.handlers["/ol/"] = func(w http.ResponseWriter, r *http.Request) { http.Error(w, "boom", 500) }
+		f.handlers["/ol/"] = func(w http.ResponseWriter, r *http.Request) { http.Error(w, "boom", http.StatusInternalServerError) }
 	}, func(t *testing.T, f *fakeDatabases, err error) {
 		if err == nil || !strings.Contains(err.Error(), "status 500") {
 			t.Fatal(err)
@@ -232,7 +232,7 @@ func TestLookupFailures(t *testing.T) {
 		}
 	})
 	run("failure does not hide a result", func(f *fakeDatabases) {
-		f.handlers["/ol/"] = func(w http.ResponseWriter, r *http.Request) { http.Error(w, "boom", 500) }
+		f.handlers["/ol/"] = func(w http.ResponseWriter, r *http.Request) { http.Error(w, "boom", http.StatusInternalServerError) }
 		f.handlers["/gb/books/v1/volumes"] = func(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, map[string]any{"items": []map[string]any{{"volumeInfo": map[string]any{"title": "x", "pageCount": 12}}}})
 		}
