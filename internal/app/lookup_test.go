@@ -1,11 +1,13 @@
 package app
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -485,13 +487,16 @@ func TestLookupFailureShowsMessageAndChangesNothing(t *testing.T) {
 	t.Parallel()
 	f := newFake(t)
 	a, b := lookupApp(t, f, true)
-	b.gateway = true
 	addRecords(t, a, []Record{windSong()})
 	id := bookByTitle(t, a, "Wind Song").ID
 	rev, _ := revision(a.store.DB)
 	rr := b.request("POST", fmt.Sprintf("/books/%d/lookup", id), nil)
-	if rr.Code != 502 && rr.Code != 404 && rr.Code != 400 {
+	// Not finding a book is an answer, not a server error: it is not logged as one.
+	if rr.Code != http.StatusNotFound {
 		t.Fatalf("status %d", rr.Code)
+	}
+	if strings.Contains(rr.Body.String(), "mention reference") {
+		t.Fatal("not found is shown as a server error")
 	}
 	if !strings.Contains(rr.Body.String(), "No book database had this book") {
 		t.Fatal(rr.Body)
@@ -835,5 +840,37 @@ func TestEditFormKeepsAndClearsDescriptionSource(t *testing.T) {
 	expect(t, b.request("POST", fmt.Sprintf("/books/%d/edit", id), form("<script>x</script>")), 303)
 	if page = b.request("GET", fmt.Sprintf("/books/%d", id), nil).Body.String(); strings.Contains(page, "<script>x") {
 		t.Fatal("description rendered unescaped")
+	}
+}
+
+func TestLookupLogsOutcomeWithoutLibraryData(t *testing.T) {
+	t.Parallel()
+	f := standardFake(t)
+	a, b := lookupApp(t, f, true)
+	var logs bytes.Buffer
+	a.logger = slog.New(slog.NewTextHandler(&logs, nil))
+	b.gateway = true
+	addRecords(t, a, []Record{windSong(), {Book: Book{Title: "Secret Title", Author: "Private Author", Status: "to-read", Source: "manual", Interest: 3}}})
+	ok, missing := bookByTitle(t, a, "Wind Song").ID, bookByTitle(t, a, "Secret Title").ID
+	expect(t, b.request("POST", fmt.Sprintf("/books/%d/lookup", ok), nil), 303)
+	expect(t, b.request("POST", fmt.Sprintf("/books/%d/lookup", missing), nil), 404)
+	limited := func(w http.ResponseWriter, r *http.Request) { http.Error(w, "x", http.StatusTooManyRequests) }
+	clear(f.handlers)
+	f.handlers["/ol/"], f.handlers["/gb/"] = limited, limited
+	expect(t, b.request("POST", fmt.Sprintf("/books/%d/lookup", missing), nil), 502)
+	out := logs.String()
+	for _, want := range []string{"outcome=found", "sources=\"Open Library,Google Books\"", "outcome=not_found", "level=WARN", "outcome=error", "status 429", fmt.Sprintf("book_id=%d", ok)} {
+		if !strings.Contains(out, want) {
+			t.Errorf("log lacks %q:\n%s", want, out)
+		}
+	}
+	for _, secret := range []string{"Secret Title", "Private Author", "Wind Song", "9780000000002"} {
+		if strings.Contains(out, secret) {
+			t.Errorf("log contains library data %q", secret)
+		}
+	}
+	// Only the genuine upstream failure (the 502) is a server error.
+	if n := strings.Count(out, "level=ERROR"); n != 1 {
+		t.Errorf("%d error lines, want 1 (the failed request):\n%s", n, out)
 	}
 }

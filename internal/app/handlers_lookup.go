@@ -86,9 +86,20 @@ func (a *App) lookupDetails(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	q := LookupQuery{Title: b.Title, Author: b.Author, ISBN: b.ISBN}
+	started := time.Now()
 	found, err := a.finder.Find(r.Context(), q)
+	a.logLookup(r, id, found, err, time.Since(started))
 	if err != nil {
-		return httpError{Status: http.StatusBadGateway, Message: lookupMessage(err)}
+		// A book the databases do not know, or cannot tell apart, is a normal
+		// answer, not a server fault; only a failed request is a bad gateway.
+		status := http.StatusBadGateway
+		switch {
+		case errors.Is(err, errLookupNotFound):
+			status = http.StatusNotFound
+		case errors.Is(err, errLookupAmbiguous):
+			status = http.StatusConflict
+		}
+		return httpError{Status: status, Message: lookupMessage(err)}
 	}
 	var plan string
 	err = a.store.Write(func(tx *sql.Tx) error {
@@ -105,6 +116,25 @@ func (a *App) lookupDetails(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	return redirect(w, r, "/lookups/"+plan)
+}
+
+// logLookup records the outcome of one lookup. It logs the book's ID, never
+// its title, author, or ISBN: those are the reader's library data. A failed
+// request is a warning with the database's own error (for example "Google
+// Books: the database answered with status 429"); not finding the book is
+// ordinary and logged at info.
+func (a *App) logLookup(r *http.Request, bookID int64, found BookDetails, err error, took time.Duration) {
+	attrs := []any{"request_id", state(r).ID, "book_id", bookID, "ms", took.Milliseconds()}
+	switch {
+	case err == nil:
+		a.logger.Info("book lookup", append(attrs, "outcome", "found", "sources", strings.Join(found.Sources, ","), "description", found.Description != "", "pages", found.Pages != nil, "year", found.PublishedYear != nil)...)
+	case errors.Is(err, errLookupNotFound):
+		a.logger.Info("book lookup", append(attrs, "outcome", "not_found")...)
+	case errors.Is(err, errLookupAmbiguous):
+		a.logger.Info("book lookup", append(attrs, "outcome", "ambiguous")...)
+	default:
+		a.logger.Warn("book lookup failed", append(attrs, "outcome", "error", "err", err)...)
+	}
 }
 
 // lookupPage shows what a lookup found beside what the book has, and saves the
@@ -239,6 +269,7 @@ func (a *App) lookupImport(w http.ResponseWriter, r *http.Request) error {
 	if kind != "import" {
 		return bad("Only an import preview can look up its books.")
 	}
+	started := time.Now()
 	targets := []LookupQuery{}
 	seen := map[string]bool{}
 	for _, rec := range p.Records {
@@ -274,6 +305,18 @@ func (a *App) lookupImport(w http.ResponseWriter, r *http.Request) error {
 		}()
 	}
 	wg.Wait()
+	failed, notFound := 0, 0
+	for _, res := range results {
+		switch {
+		case res.err == nil:
+		case errors.Is(res.err, errLookupNotFound), errors.Is(res.err, errLookupAmbiguous):
+			notFound++
+		default:
+			failed++
+			a.logger.Warn("book lookup failed", "request_id", state(r).ID, "plan", "import", "err", res.err)
+		}
+	}
+	a.logger.Info("import book lookup", "request_id", state(r).ID, "books", len(targets), "found", len(targets)-failed-notFound, "not_found", notFound, "failed", failed, "ms", time.Since(started).Milliseconds())
 	byKey := map[string]outcome{}
 	for i, q := range targets {
 		// A book the databases do not know is settled; a failed request is not,
