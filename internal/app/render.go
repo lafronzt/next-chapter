@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 )
 
 func (a *App) render(w http.ResponseWriter, r *http.Request, name string, data page, status int) error {
@@ -172,10 +173,11 @@ func templateFuncs() template.FuncMap {
 			}
 			return out
 		},
-		"noRating":   func() *float64 { return nil },
-		"ratingText": ratingText,
-		"isWhole":    func(n float64) bool { return n == math.Floor(n) },
-		"rated":      func(r *float64, n float64) bool { return r != nil && *r == n },
+		"ratingFloors": func() []float64 { return []float64{1, 2, 3, 3.5, 4, 4.5, 5} },
+		"noRating":     func() *float64 { return nil },
+		"ratingText":   ratingText,
+		"isWhole":      func(n float64) bool { return n == math.Floor(n) },
+		"rated":        func(r *float64, n float64) bool { return r != nil && *r == n },
 		"ratingShort": func(n float64) string {
 			switch frac := n - math.Floor(n); frac {
 			case 0:
@@ -206,8 +208,20 @@ func templateFuncs() template.FuncMap {
 		"star":    func(f float64) string { return fmt.Sprintf("%.1f★", f) },
 		"deref":   func(f *float64) float64 { return *f },
 		"inc":     func(i int) int { return i + 1 },
-		"sub":     func(a, b int) int { return a - b },
-		"join":    strings.Join,
+		"month": func(date *string) string {
+			if date == nil {
+				return ""
+			}
+			if t, err := time.Parse(time.DateOnly, *date); err == nil {
+				return t.Format("January")
+			}
+			if t, err := time.Parse("2006-01", (*date)[:min(7, len(*date))]); err == nil {
+				return t.Format("January")
+			}
+			return ""
+		},
+		"sub":  func(a, b int) int { return a - b },
+		"join": strings.Join,
 		"minute": func(s string) string {
 			if len(s) >= 16 {
 				return strings.Replace(s[:16], "T", " ", 1)

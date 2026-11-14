@@ -2280,3 +2280,65 @@ input[type=checkbox] {
   font-family:var(--serif);
 }
 
+
+/* Reading history */
+.reading-summary {
+  font:var(--text-md)/1.5 var(--serif);
+  margin:0 0 var(--space-4);
+}
+
+.rating-table {
+  width:100%;
+  border-collapse:collapse;
+  font-size:var(--text-sm);
+}
+
+.rating-table th,.rating-table td {
+  text-align:left;
+  padding:var(--space-1) var(--space-2);
+  border-bottom:1px solid var(--line);
+}
+
+.rating-table meter {
+  width:100%;
+  min-width:80px;
+  height:12px;
+}
+
+.year-section {
+  margin-bottom:var(--space-6);
+}
+
+.reading-tiles {
+  list-style:none;
+  margin:0;
+  padding:0;
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(260px,1fr));
+  gap:var(--space-4);
+}
+
+.reading-tiles li {
+  display:flex;
+  gap:var(--space-3);
+  align-items:flex-start;
+}
+
+.reading-tiles .book-cover {
+  width:56px;
+}
+
+.reading-tiles p {
+  margin:2px 0;
+}
+
+.filters .check {
+  display:flex;
+  align-items:center;
+  gap:var(--space-2);
+  min-height:44px;
+}
+
+.reading-stats .panel h2:not(:first-child) {
+  margin-top:var(--space-5);
+}

@@ -7,6 +7,7 @@
   <a class="button" href="/imports"><span>Import from Goodreads <span aria-hidden="true">↓</span></span></a>
 </header>
 {{if .Stats.Readings}}
+<p class="reading-summary">{{.Stats.Books}} {{if eq .Stats.Books 1}}book{{else}}books{{end}}{{if .Stats.PerYear}} across {{len .Stats.PerYear}} {{if eq (len .Stats.PerYear) 1}}year{{else}}years{{end}}{{end}}{{if .Stats.Rated}}, averaging {{printf "%.1f" .Stats.AverageRating}}★{{end}}{{if gt .Stats.Readings .Stats.Books}} · {{.Stats.Readings}} readings{{end}}.</p>
 <section class="stats" aria-label="Reading history overview">
   <div><span class="stat-number">{{.Stats.Books}}</span><span>books finished{{if gt .Stats.Readings .Stats.Books}} · {{.Stats.Readings}} readings{{end}}</span></div>
   <div><span class="stat-number">{{if .Stats.Rated}}{{printf "%.1f" .Stats.AverageRating}}{{else}}—{{end}}</span><span>average rating{{if .Stats.Rated}} · {{.Stats.Rated}} rated{{end}}</span></div>
@@ -17,17 +18,34 @@
 {{end}}{{end}}
 <div class="two-columns reading-stats">
   <section class="panel">
+    <h2>How you rated them</h2>
+    <table class="rating-table">
+      <caption class="sr-only">Readings by rating. Each row counts readings rated up to that many stars; the quarter-star split is in the last column.</caption>
+      <thead><tr><th scope="col">Rating</th><th scope="col">Bar</th><th scope="col">Readings</th><th scope="col">Quarter stars</th></tr></thead>
+      <tbody>
+        {{range .Dist.Buckets}}
+        <tr>
+          <th scope="row">{{.Stars}}★</th>
+          <td><meter min="0" max="{{$.Dist.Max}}" value="{{.Count}}" aria-label="{{.Count}} readings up to {{.Stars}} stars"></meter></td>
+          <td>{{.Count}}</td>
+          <td class="muted">{{range $i, $n := .Quarters}}{{if $i}} · {{end}}{{$n}}{{end}}</td>
+        </tr>
+        {{end}}
+        <tr><th scope="row">Unrated</th><td></td><td>{{.Dist.Unrated}}</td><td class="muted">not in the average</td></tr>
+      </tbody>
+    </table>
+    <p class="muted"><small>Quarter stars read left to right: ¼ above the star below, ½, ¾, then the whole star.</small></p>
+  </section>
+  <section class="panel">
     <h2>Books per year</h2>
     {{if .Stats.PerYear}}
     <dl class="year-bars">
       {{range .Stats.PerYear}}
-      <div><dt>{{.Year}}</dt><dd><meter min="0" max="{{$.Stats.MostPerYear}}" value="{{.Books}}"></meter> {{.Books}}</dd></div>
+      <div><dt>{{.Year}}</dt><dd><meter min="0" max="{{$.Stats.MostPerYear}}" value="{{.Books}}" aria-label="{{.Books}} books in {{.Year}}"></meter> {{.Books}}</dd></div>
       {{end}}
     </dl>
     {{end}}
     {{if .Stats.Undated}}<p class="muted"><small>{{.Stats.Undated}} {{if eq .Stats.Undated 1}}reading has{{else}}readings have{{end}} no finish date.</small></p>{{end}}
-  </section>
-  <section class="panel">
     <h2>Shelves you return to</h2>
     {{if .Stats.TopTags}}
     <ol class="tag-list">
@@ -36,24 +54,51 @@
     {{else}}<p class="muted">Finished books have no tags or shelves yet.</p>{{end}}
   </section>
 </div>
+<form class="filters" method="get" action="/reading">
+  <label>Year<select name="year">
+    <option value="">All years</option>
+    {{range .Stats.PerYear}}<option value="{{.Year}}" {{if eq $.Filter.Year .Year}}selected{{end}}>{{.Year}}</option>{{end}}
+    {{if .Stats.Undated}}<option value="undated" {{if eq .Filter.Year "undated"}}selected{{end}}>No finish date</option>{{end}}
+  </select></label>
+  <label>Rating at least<select name="min">
+    <option value="">Any</option>
+    {{range $v := ratingFloors}}<option value="{{$v}}" {{if eq $.Filter.Min $v}}selected{{end}}>{{$v}}★</option>{{end}}
+  </select></label>
+  <label class="check"><input type="checkbox" name="unrated" value="1" {{if .Filter.Unrated}}checked{{end}}> Unrated only</label>
+  <button class="button small"><span>Apply</span></button>
+  {{if .Filter.Active}}<a class="button small" href="/reading"><span>Clear filters</span></a>{{end}}
+</form>
 {{end}}
+{{range .Years}}
+<section class="year-section" aria-labelledby="year-{{if .Year}}{{.Year}}{{else}}none{{end}}-{{if .Continued}}c{{else}}s{{end}}">
+  <h2 id="year-{{if .Year}}{{.Year}}{{else}}none{{end}}-{{if .Continued}}c{{else}}s{{end}}">{{if .Year}}{{.Year}}{{else}}No finish date{{end}}{{if .Continued}} <span class="muted">(continued)</span>{{end}}</h2>
+  <p class="muted">{{.Readings}} {{if eq .Readings 1}}reading{{else}}readings{{end}}{{if .Rated}} · averaging {{printf "%.2f" .Average}}★ over {{.Rated}} rated{{else}} · none rated{{end}}</p>
+  <ul class="reading-tiles">
+    {{range .Items}}
+    <li>
+      <a class="book-cover {{cover .Title .Author}}" href="/books/{{.BookID}}#reading" aria-hidden="true" tabindex="-1"><span class="cover-line"></span><span class="cover-title">{{.Title}}</span><span class="cover-author">{{.Author}}</span></a>
+      <div>
+        <a href="/books/{{.BookID}}#reading"><strong>{{.Title}}</strong></a>
+        <p class="muted">{{.Author}}</p>
+        <p>{{with .Rating}}{{stars .}}{{else}}Unrated{{end}}{{with month .FinishedAt}}<span class="muted"> · finished {{.}}</span>{{end}}</p>
+        <span class="badge">{{if eq .Source "manual"}}Yours{{else}}Goodreads{{end}}</span>
+      </div>
+    </li>
+    {{end}}
+  </ul>
+</section>
+{{else}}
 <div class="panel">
-  {{range .Readings}}
-  <article class="history-row">
-    {{with .FinishedAt}}<time datetime="{{.}}">{{.}}</time>{{else}}<time>Date unknown</time>{{end}}
-    <div>
-      <a href="/books/{{.BookID}}#reading"><strong>{{.Title}}</strong></a>
-      <p>{{.Author}}</p>
-    </div>
-    <span>{{with .Rating}}{{stars .}}{{else}}Unrated{{end}}</span>
-    <span class="badge">{{if eq .Source "manual"}}Yours{{else}}Goodreads{{end}}</span>
-  </article>
-  {{else}}
   <div class="empty">
+    {{if .Filter.Active}}
+    <h2>No readings match those filters.</h2>
+    <p><a href="/reading">Clear the filters</a> to see everything.</p>
+    {{else}}
     <h2>Every finished book tells you something.</h2>
     <p>Import your Goodreads library CSV for your full history, or log a reading from a book’s page. Importing again keeps it current.</p>
+    {{end}}
   </div>
-  {{end}}
 </div>
+{{end}}
 {{template "pager" .Pager}}
 {{template "bottom" .}}
