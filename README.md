@@ -109,6 +109,21 @@ kubectl apply -f deploy/kubernetes/app.yaml
 kubectl port-forward service/next-chapter 8000:80
 ```
 
+### Helm
+
+`deploy/helm/next-chapter` is a chart with the same hardening (one replica, Recreate, non-root) plus an optional cert-manager Ingress. Set options in a values file or with `--set`; see `values.yaml` for all of them.
+
+```sh
+helm upgrade --install next-chapter deploy/helm/next-chapter \
+  -n next-chapter --create-namespace \
+  --set auth.password="$(openssl rand -hex 32)" \
+  --set ingress.host=next-chapter.example.com \
+  --set ai.provider=ollama --set ai.model=llama3.1:8b \
+  --set ai.baseUrl=http://ollama.<namespace>.svc.cluster.local:11434
+```
+
+`auth.secretKey` is generated once and kept across upgrades. Use `auth.existingSecret` to supply your own Secret instead, and `env.*` for any other app setting. The data PVC is kept on `helm uninstall`.
+
 For optional AI assistance, see [AI on Kubernetes](#ai-on-kubernetes); `deploy/kubernetes/ollama.yaml` runs a private Ollama server in the cluster if you want local models.
 
 The PVC defaults to 1 GiB. The manifest includes resource limits, readiness/liveness checks, a non-root user, dropped capabilities, and a writable temporary directory. `/healthz` is unauthenticated and returns only a health status.

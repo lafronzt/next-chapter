@@ -1,0 +1,60 @@
+# Single replica + Recreate is deliberate: SQLite and one poller must not overlap.
+image:
+  repository: ghcr.io/lafronzt/next-chapter
+  tag: ""            # defaults to the chart appVersion
+  pullPolicy: IfNotPresent
+imagePullSecrets: []
+
+auth:
+  # Use an existing Secret with APP_PASSWORD and APP_SECRET_KEY (and AI_API_KEY if ai.apiKey is used)...
+  existingSecret: ""
+  # ...or let the chart create one. Generate each with: openssl rand -hex 32
+  password: ""
+  # Left empty, a random key is generated once and kept across upgrades.
+  secretKey: ""
+
+# Plain (non-secret) environment variables. Add or override any app setting here.
+env:
+  COOKIE_SECURE: "1"        # HTTPS ingress
+  TRUSTED_PROXY_HOPS: "1"   # one proxy (the ingress controller) appends to X-Forwarded-For
+
+# Optional AI assistance (README "AI assistance"). Readers also enable it in Preferences.
+ai:
+  provider: ""              # off, anthropic, openai, ollama, or custom; empty leaves it unset
+  model: ""
+  baseUrl: ""               # e.g. http://ollama.ollama.svc.cluster.local:11434
+  timeoutSeconds: ""
+  maxMonthlyRequests: ""
+  apiKey: ""                # stored in the chart Secret; not needed for ollama
+  apiKeySecret:             # or reference your own Secret instead of apiKey
+    name: ""
+    key: AI_API_KEY
+
+# Extra raw container env entries (valueFrom etc.).
+extraEnv: []
+
+persistence:
+  size: 1Gi
+  storageClass: ""
+  existingClaim: ""
+
+ingress:
+  enabled: true
+  className: ""
+  host: next-chapter.k8s.nyc.lafronz.net
+  tls:
+    enabled: true
+    secretName: next-chapter-tls
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-he
+  
+service:
+  port: 80
+
+resources:
+  requests: {cpu: 100m, memory: 128Mi}
+  limits: {cpu: "1", memory: 256Mi}
+
+nodeSelector: {}
+tolerations: []
+affinity: {}

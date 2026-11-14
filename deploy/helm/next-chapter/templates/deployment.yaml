@@ -1,0 +1,108 @@
+{{- $ai := .Values.ai }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}
+  labels: {{- include "nc.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: next-chapter
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels: {{- include "nc.labels" . | nindent 8 }}
+      annotations:
+        {{- if not .Values.auth.existingSecret }}
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        {{- end }}
+    spec:
+      automountServiceAccountToken: false
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: app
+          image: "{{ .Values.image.repository }}:{{ default .Chart.AppVersion .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8000
+          envFrom:
+            - secretRef:
+                name: {{ include "nc.secretName" . }}
+          env:
+            - name: DATABASE_PATH
+              value: /data/next-chapter.sqlite3
+            {{- range $k, $v := .Values.env }}
+            - name: {{ $k }}
+              value: {{ $v | quote }}
+            {{- end }}
+            {{- with $ai.provider }}
+            - {name: AI_PROVIDER, value: {{ . | quote }}}
+            {{- end }}
+            {{- with $ai.model }}
+            - {name: AI_MODEL, value: {{ . | quote }}}
+            {{- end }}
+            {{- with $ai.baseUrl }}
+            - {name: AI_BASE_URL, value: {{ . | quote }}}
+            {{- end }}
+            {{- with $ai.timeoutSeconds }}
+            - {name: AI_TIMEOUT_SECONDS, value: {{ . | quote }}}
+            {{- end }}
+            {{- with $ai.maxMonthlyRequests }}
+            - {name: AI_MAX_MONTHLY_REQUESTS, value: {{ . | quote }}}
+            {{- end }}
+            {{- if $ai.apiKeySecret.name }}
+            - name: AI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $ai.apiKeySecret.name }}
+                  key: {{ $ai.apiKeySecret.key }}
+            {{- end }}
+            {{- with .Values.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          resources: {{- toYaml .Values.resources | nindent 12 }}
+          readinessProbe:
+            httpGet: {path: /healthz, port: http}
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: {path: /healthz, port: http}
+            initialDelaySeconds: 15
+            periodSeconds: 30
+          volumeMounts:
+            - {name: data, mountPath: /data}
+            - {name: tmp, mountPath: /tmp}
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ include "nc.claimName" . }}
+        - name: tmp
+          emptyDir:
+            sizeLimit: 64Mi
+      {{- with .Values.nodeSelector }}
+      nodeSelector: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity: {{- toYaml . | nindent 8 }}
+      {{- end }}

@@ -1,6 +1,12 @@
 apiVersion: v1
+kind: Namespace
+metadata:
+  name: next-chapter
+---
+apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
+  namespace: next-chapter
   name: next-chapter-data
 spec:
   accessModes: [ReadWriteOnce]
@@ -11,6 +17,7 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
+  namespace: next-chapter
   name: next-chapter
 spec:
   replicas: 1
@@ -48,14 +55,14 @@ spec:
               value: /data/next-chapter.sqlite3
             # Set 1 for HTTPS ingress. 0 supports localhost port-forward testing.
             - name: COOKIE_SECURE
-              value: "0"
+              value: "1"
             # Set 1 behind an Ingress controller so login limits apply per visitor.
             - name: TRUSTED_PROXY_HOPS
-              value: "0"
+              value: "1"
             # Optional AI assistance (README "AI assistance"). Either put the AI_*
             # lines in the .env behind next-chapter-auth, or uncomment what you
             # need here. For a hosted provider, keep the key in its own Secret:
-            #   kubectl create secret generic next-chapter-ai --from-literal=AI_API_KEY='…'
+            #   kubectl -n next-chapter create secret generic next-chapter-ai --from-literal=AI_API_KEY='…'
             # - name: AI_PROVIDER
             #   value: anthropic              # or openai, ollama, custom
             # - name: AI_MODEL
@@ -65,9 +72,10 @@ spec:
             #     secretKeyRef:
             #       name: next-chapter-ai
             #       key: AI_API_KEY
-            # With ollama.yaml applied in the same namespace:
+            # For an Ollama already on the cluster, use its service DNS name, e.g.
+            # http://ollama.<ollama-namespace>.svc.cluster.local:11434
             # - name: AI_BASE_URL
-            #   value: http://ollama:11434
+            #   value: http://ollama.<ollama-namespace>.svc.cluster.local:11434
             # - name: AI_TIMEOUT_SECONDS
             #   value: "300"
           securityContext:
@@ -110,6 +118,7 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
+  namespace: next-chapter
   name: next-chapter
 spec:
   selector:
@@ -117,3 +126,28 @@ spec:
   ports:
     - port: 80
       targetPort: http
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  namespace: next-chapter
+  name: next-chapter
+  annotations:
+    # cert-manager creates and renews the next-chapter-tls Secret.
+    # Change this if your ClusterIssuer has a different name.
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+spec:
+  tls:
+    - hosts: [next-chapter.k8s.nyc.lafronz.net]
+      secretName: next-chapter-tls
+  rules:
+    - host: next-chapter.k8s.nyc.lafronz.net
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: next-chapter
+                port:
+                  name: http
