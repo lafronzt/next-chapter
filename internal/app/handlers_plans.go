@@ -97,6 +97,9 @@ func (a *App) plan(w http.ResponseWriter, r *http.Request) error {
 			}
 		}
 		data := page{"Title": planTitles[kind], "Kind": kind, "PlanID": id, "Plan": p, "PreviewRecords": preview, "Stale": rev != state(r).Revision, "UpgradeSummary": upgradeSummary(p.Upgrades), "AdvanceSummary": advanceSummary(p.Advances), "Skipped": p.Skipped}
+		if kind == "import" {
+			data["Summary"] = summarizeImport(p)
+		}
 		if kind == "triage" {
 			byID, err := getBooks(a.store.DB, p.BookIDs)
 			if err != nil {
@@ -117,8 +120,25 @@ func (a *App) plan(w http.ResponseWriter, r *http.Request) error {
 		}
 		return a.render(w, r, "plan.html", data, 200)
 	}
-	location := "/?notice=ordered"
+	var location string
 	err := a.store.Write(func(tx *sql.Tx) error {
+		var err error
+		location, err = applyPlan(tx, id, r.FormValue("use") == "ai")
+		return err
+	})
+	if err != nil {
+		return err
+	}
+	return redirect(w, r, location)
+}
+
+// applyPlan applies a stored plan inside tx: the one path import, triage,
+// restore, and reorder/insert previews all take, so Undo and the revision
+// check behave the same wherever a plan is applied. It returns where to send
+// the reader.
+func applyPlan(tx *sql.Tx, id string, useAI bool) (string, error) {
+	location := "/?notice=ordered"
+	err := func() error {
 		kind, p, rev, err := readPlan(tx, id)
 		if err != nil {
 			return err
@@ -140,6 +160,9 @@ func (a *App) plan(w http.ResponseWriter, r *http.Request) error {
 				if err = bump(tx); err != nil {
 					return err
 				}
+			}
+			if err = recordLastImport(tx, p.Source, result); err != nil {
+				return err
 			}
 			location = fmt.Sprintf("/?notice=imported&moved=%d&advanced=%d", result.upgradedTotal(), result.advancedTotal())
 			if result.Skipped > 0 {
@@ -189,7 +212,7 @@ func (a *App) plan(w http.ResponseWriter, r *http.Request) error {
 				return err
 			}
 			rows := p.Rows
-			if r.FormValue("use") == "ai" {
+			if useAI {
 				if len(p.AIRows) == 0 {
 					return bad("This preview has no AI suggestion to apply.")
 				}
@@ -224,12 +247,11 @@ func (a *App) plan(w http.ResponseWriter, r *http.Request) error {
 		}
 		_, err = tx.Exec("DELETE FROM plans WHERE id=?", id)
 		return err
-	})
-	if err != nil {
-		return err
-	}
-	return redirect(w, r, location)
+
+	}()
+	return location, err
 }
+
 func (a *App) undo(w http.ResponseWriter, r *http.Request) error {
 	err := a.store.Write(func(tx *sql.Tx) error {
 		if err := current(tx, r); err != nil {
@@ -346,4 +368,41 @@ func (a *App) planAI(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	return redirect(w, r, "/ai/jobs/"+job)
+}
+
+// lastImport is what the most recently applied import from a source did.
+type lastImport struct {
+	At       string `json:"at"`
+	Added    int    `json:"added"`
+	Finished int    `json:"finished"`
+	Started  int    `json:"started"`
+}
+
+// recordLastImport remembers an applied import in the meta table, which needs
+// no migration and does not count as a library change.
+func recordLastImport(q queryer, source string, r importResult) error {
+	all, err := readMeta(q, "last_imports", map[string]*lastImport{})
+	if err != nil {
+		return err
+	}
+	all[source] = &lastImport{At: canonicalTime(time.Now()), Added: r.Added, Finished: r.Advanced["read"] + r.Upgraded["read"], Started: r.Advanced["reading"] + r.Upgraded["reading"]}
+	return setMeta(q, "last_imports", all)
+}
+
+// importSummary is the row of counts that leads an import preview.
+type importSummary struct {
+	New, Finished, Started, AlreadyHere, Skipped, RatingsRead, NeedAttention int
+}
+
+func summarizeImport(p Plan) importSummary {
+	s := importSummary{
+		New:           p.Added,
+		Finished:      p.Advances["read"] + p.Upgrades["read"],
+		Started:       p.Advances["reading"] + p.Upgrades["reading"],
+		Skipped:       p.Skipped,
+		RatingsRead:   p.Rated + p.RatingsKept,
+		NeedAttention: p.RatingsIgnored,
+	}
+	s.AlreadyHere = max(0, len(p.Records)-p.Added-p.Skipped)
+	return s
 }

@@ -281,7 +281,7 @@ func TestRestoreRejectsInvalidFiles(t *testing.T) {
 		{"unknown book key", edit(func(m map[string]any) { book(m, 0)["rating"] = 5 }), 400, `unknown field "rating"`},
 		{"wrong type", edit(func(m map[string]any) { book(m, 0)["pages"] = "many" }), 400, "wrong type"},
 		{"no books", edit(func(m map[string]any) { m["books"], m["events"], m["aliases"] = []any{}, []any{}, []any{} }), 400, "no books"},
-		{"interest out of range", edit(func(m map[string]any) { book(m, 0)["interest"] = 9 }), 400, "Interest must be between 1 and 5"},
+		{"interest out of range", edit(func(m map[string]any) { book(m, 0)["interest"] = 9 }), 400, "Want-to-read must be between 1 and 5"},
 		{"pages out of range", edit(func(m map[string]any) { book(m, 0)["pages"] = 0 }), 400, "Pages must be between"},
 		{"series number", edit(func(m map[string]any) { book(m, 0)["series_number"] = 10000 }), 400, "valid series number"},
 		{"long title", edit(func(m map[string]any) { book(m, 0)["title"] = strings.Repeat("t", 501) }), 400, "within the field limits"},

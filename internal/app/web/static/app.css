@@ -1939,3 +1939,245 @@ input[type=checkbox] {
     min-height:44px;
   }
 }
+
+/* Want-to-read pips (never stars: stars are for ratings) */
+.pips {
+  letter-spacing:.12em;
+  color:var(--green);
+}
+
+/* Import page */
+.steps {
+  margin:0;
+  padding-left:22px;
+}
+
+.steps li {
+  margin-bottom:6px;
+}
+
+.last-import {
+  margin:0;
+}
+
+.dropzone {
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+  padding:28px 20px;
+  border:2px dashed var(--line);
+  border-radius:12px;
+  background:var(--paper);
+  text-align:center;
+  align-items:center;
+}
+
+.dropzone:focus-within,.dropzone:hover {
+  border-color:var(--green);
+}
+
+.dropzone .dz-title {
+  font:20px/1.2 var(--serif);
+}
+
+.dropzone input[type=file] {
+  max-width:100%;
+  min-height:44px;
+}
+
+.library-sources summary {
+  cursor:pointer;
+  min-height:44px;
+  display:flex;
+  align-items:center;
+}
+
+.library-sources summary h2 {
+  margin:0;
+  font-size:18px;
+}
+
+.summary-row {
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(120px,1fr));
+  gap:8px;
+  margin-bottom:20px;
+}
+
+.summary-row>div {
+  display:flex;
+  flex-direction:column;
+  padding:10px 12px;
+  border:1px solid var(--line);
+  border-radius:10px;
+}
+
+/* Dark mode: follows the system. Colors that light mode hard-codes are
+   re-declared here; contrast ratios are listed in the pull request. */
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme:dark;
+    --paper:#14201c;
+    --sidebar:#1b2f2a;
+    --ink:#e6ede4;
+    --muted:#a9b6a8;
+    --line:#34463f;
+    --green:#3f7a63;
+    --accent:#e39274;
+  }
+  a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible {
+    outline-color:#e2b98e;
+  }
+  .sidebar nav a,.position,.author,.author span,.book-meta,footer,.rank-change span,.reasons span,.empty-mark,.mini-actions button,.text-button,.move-to,.move-to button,.row-more summary {
+    color:var(--muted);
+  }
+  .sidebar nav a:hover,.button:hover,.apply-bar {
+    background:#22382f;
+  }
+  .sidebar nav a.active {
+    background:#27443a;
+    color:#d6e8d2;
+  }
+  .button {
+    border-color:#627a6f;
+  }
+  .button.primary:hover {
+    background:#4a8a71;
+  }
+  .button.danger {
+    color:#f0a98d;
+    border-color:#6a4536;
+  }
+  .button.danger:hover,.notice.error {
+    background:#3a241c;
+  }
+  .notice.error {
+    color:#f4b9a1;
+    border-color:#6a4536;
+  }
+  .tab-count,.nav-count,.badge.new {
+    background:#27443a;
+    color:#c4e2bd;
+  }
+  .tabbar .nav-count {
+    background:#b35a3d;
+    color:#fff;
+  }
+  .badge {
+    background:#243730;
+    color:#bccbb9;
+  }
+  .badge.pin {
+    color:#bccbb9;
+  }
+  .badge.warm {
+    background:#3b3022;
+    color:#ebcba2;
+  }
+  .badge.green {
+    background:#27443a;
+    color:#bcdcb4;
+  }
+  .move-to button,.row-more summary {
+    border-color:#4a5f56;
+  }
+  .notice {
+    background:#1f352d;
+    border-color:#34584a;
+    color:#cfe4c9;
+  }
+  .panel,.merge-search {
+    background:#192a24;
+  }
+  input,select {
+    border-color:#74857a;
+  }
+  .help-card a,.list-footnote a,.pips {
+    color:#9fcf9f;
+  }
+  .tabs a.selected {
+    border-bottom-color:#9fcf9f;
+  }
+}
+
+/* Polish: keep the reader's place, sticky search, collapsed book form */
+.book-row {
+  scroll-margin-top:96px;
+}
+
+.more-details>summary {
+  cursor:pointer;
+  min-height:44px;
+  display:flex;
+  align-items:center;
+  gap:8px;
+  font-weight:600;
+}
+
+.more-details .form-grid {
+  margin-top:8px;
+}
+
+@media(max-width:760px) {
+  .list-toolbar {
+    position:sticky;
+    top:0;
+    z-index:15;
+    background:var(--paper);
+  }
+  .notice.ai-job {
+    font-size:14px;
+    line-height:1.5;
+  }
+  .filters label,.filters select {
+    width:100%;
+  }
+}
+
+/* Placement flow */
+.place-banner {
+  display:flex;
+  flex-wrap:wrap;
+  gap:12px;
+  align-items:center;
+  justify-content:space-between;
+  padding:14px 18px;
+  margin-bottom:20px;
+  border:1px solid var(--line);
+  border-radius:12px;
+  background:var(--sidebar);
+}
+
+.place-banner p {
+  margin:0;
+}
+
+.slot-list {
+  margin:12px 0;
+  padding-left:28px;
+}
+
+.slot-list li {
+  padding:6px 0;
+}
+
+.slot-list .candidate {
+  padding:10px 12px;
+  margin:4px 0;
+  border:2px solid var(--green);
+  border-radius:8px;
+}
+
+.place-actions {
+  display:flex;
+  flex-wrap:wrap;
+  gap:10px;
+  margin:20px 0 8px;
+}
+
+@media(max-width:760px) {
+  .place-actions .button {
+    width:100%;
+    min-height:48px;
+  }
+}

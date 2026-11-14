@@ -66,6 +66,12 @@
   <div><span class="stat-number">{{.Stats.Pending}}</span><span>waiting for their place</span></div>
   <div><span class="stat-number">{{.Stats.ActiveLoans}}</span><span>borrowed or ready</span></div>
 </section>
+{{if and (eq .View "queue") .Stats.Pending (not .Query)}}
+<aside class="place-banner" aria-label="Books waiting for a spot">
+  <p><strong>{{.Stats.Pending}} {{if eq .Stats.Pending 1}}book needs{{else}}books need{{end}} a spot.</strong> Nothing moves until you say so.</p>
+  <a class="button primary" href="/place"><span>Place {{if eq .Stats.Pending 1}}it{{else}}them{{end}} <span aria-hidden="true">→</span></span></a>
+</aside>
+{{end}}
 {{if .Stats.Queue}}
 <section class="intention">
   <div class="intention-icon" aria-hidden="true">✧</div>
@@ -89,10 +95,28 @@
   </nav>
   <form class="search" method="get" role="search">
     <input type="hidden" name="view" value="{{.View}}">
+    {{if .Status}}<input type="hidden" name="status" value="{{.Status}}">{{end}}
+    {{if .Sort}}<input type="hidden" name="sort" value="{{.Sort}}">{{end}}
     <input aria-label="Search books" name="q" value="{{.Query}}" placeholder="Find a title, author, or tag…">
     <button aria-label="Search"><span aria-hidden="true">⌕</span></button>
   </form>
 </div>
+{{if eq .View "all"}}
+<form class="filters" method="get">
+  <input type="hidden" name="view" value="all">
+  {{if .Query}}<input type="hidden" name="q" value="{{.Query}}">{{end}}
+  <label>Status<select name="status">
+    <option value="">Any status</option>
+    {{range .ReadingStates}}<option value="{{.}}" {{if eq $.Status .}}selected{{end}}>{{status .}}{{if eq . "archived"}} (archived){{end}}{{if eq . "abandoned"}} (stopped){{end}}</option>{{end}}
+  </select></label>
+  <label>Sort by<select name="sort">
+    <option value="">Queue order</option>
+    {{range .SortOptions}}<option value="{{.Key}}" {{if eq $.Sort .Key}}selected{{end}}>{{.Label}}</option>{{end}}
+  </select></label>
+  <button class="button small"><span>Apply</span></button>
+  <span class="muted"><small>Sorting changes only how this list is read, never your queue order.</small></span>
+</form>
+{{end}}
 {{if and (eq .View "unreviewed") .Items}}
 <form class="bulk-triage" method="post" action="/triage">
   {{template "fields" .}}
@@ -109,7 +133,7 @@
 {{end}}
 <div class="queue-list">
   {{range .Items}}
-  <article class="book-row">
+  <article class="book-row" id="book-{{.ID}}">
     <div class="position">{{if .QueuePos}}<span class="sr-only">Queue position </span>{{end}}{{pos .QueuePos}}</div>
     <a href="/books/{{.ID}}" class="book-cover cover-{{cover .ID}}" aria-label="Edit {{.Title}}">
       <span class="cover-line"></span>
@@ -121,12 +145,12 @@
         {{if .Pinned}}<span class="badge pin"><span aria-hidden="true">◆</span> Pinned</span>{{end}}
         {{if and .MovedByHand (eq .Status "to-read")}}<span class="badge">Moved by hand</span>{{end}}
         {{if and .NeedsPlacement (eq .Status "to-read")}}<span class="badge new">Needs placement</span>{{end}}
-        {{if ne .Status "to-read"}}<span class="badge">{{label .Status}}</span>{{end}}
+        {{if ne .Status "to-read"}}<span class="badge">{{status .Status}}</span>{{end}}
         {{range .Loans}}{{if activeLoan .Status}}<span class="badge {{if eq .Status "borrowed"}}warm{{else}}green{{end}}">{{upper .Source}} · {{.Status}}{{if .DueDate}} · {{.DueDate}}{{end}}</span>{{end}}{{end}}
       </div>
       <h2><a href="/books/{{.ID}}">{{.Title}}</a></h2>
       <p class="author">{{.Author}}{{if .Pages}}<span> · {{pages .Pages}} pages</span>{{end}}</p>
-      <p class="book-meta">Interest {{.Interest}}/5{{if .Estimate}}<span> · <a class="estimate-link" href="/books/{{.ID}}/estimate">estimated {{star (deref .Estimate)}}</a></span>{{end}}{{if .Tags}}<span> · {{.Tags}}</span>{{end}}</p>
+      <p class="book-meta">{{pips .Interest}}{{if .Estimate}}<span> · <a class="estimate-link" href="/books/{{.ID}}/estimate">estimated {{star (deref .Estimate)}}</a></span>{{end}}{{if .Tags}}<span> · {{.Tags}}</span>{{end}}</p>
     </div>
     <div class="book-actions">
       {{if eq .Status "to-read"}}

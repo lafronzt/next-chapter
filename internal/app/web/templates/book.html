@@ -4,14 +4,14 @@
   <div>
     <div class="eyebrow">FOLLOW YOUR CURIOSITY</div>
     <h1>{{if .Editing}}A little more about this book.{{else}}What caught your eye?{{end}}</h1>
-    <p>Your interest and preferences help it find the right place.</p>
+    <p>Your want-to-read and preferences help it find the right place.</p>
   </div>
 </header>
 <form class="panel form-grid" method="post">
   {{template "fields" .}}
   <label class="span-2">Title<input name="title" required maxlength="500" value="{{.Book.Title}}" placeholder="The book you can’t stop thinking about"></label>
   <label class="span-2">Author<input name="author" required maxlength="300" value="{{.Book.Author}}"></label>
-  <label>How much does it call to you?<select name="interest">
+  <label>Want-to-read <span class="muted">how much it calls to you, 1–5</span><select name="interest">
     <option value="5" {{if eq .Book.Interest 5}}selected{{end}}>5 · Can’t wait</option>
     <option value="4" {{if eq .Book.Interest 4}}selected{{end}}>4 · Very interested</option>
     <option value="3" {{if eq .Book.Interest 3}}selected{{end}}>3 · Curious</option>
@@ -19,12 +19,18 @@
     <option value="1" {{if eq .Book.Interest 1}}selected{{end}}>1 · Just keeping track</option>
   </select></label>
   <label>Reading status<select name="reading_status">
-    {{range .ReadingStates}}<option value="{{.}}" {{if eq $.Book.Status .}}selected{{end}}>{{label .}}</option>{{end}}
+    {{$set := "abandoned"}}{{if eq .Book.Status "archived"}}{{$set = "archived"}}{{end}}
+    {{range .ReadingStates}}{{if or (eq . "abandoned") (eq . "archived")}}{{if eq . $set}}<option value="{{.}}" {{if eq $.Book.Status .}}selected{{end}}>{{status .}}</option>{{end}}{{else}}<option value="{{.}}" {{if eq $.Book.Status .}}selected{{end}}>{{status .}}</option>{{end}}{{end}}
   </select></label>
+  <details class="span-2 more-details" {{if or .Book.Pages .Book.Tags .Book.Series .Book.SeriesNumber}}open{{end}}>
+    <summary>Details <span class="muted">pages, tags, series</span></summary>
+    <div class="form-grid">
   <label>Pages <span class="muted">optional</span><input name="pages" type="number" min="1" max="99999" value="{{pages .Book.Pages}}"></label>
   <label>Tags <span class="muted">comma separated</span><input name="tags" maxlength="500" value="{{.Book.Tags}}" placeholder="hopeful, nature, fiction"></label>
   <label>Series <span class="muted">optional</span><input name="series" maxlength="200" value="{{.Book.Series}}"></label>
   <label>Number in series<input name="series_number" type="number" step="0.1" min="0" max="9999" value="{{seriesNumber .Book.SeriesNumber}}"></label>
+    </div>
+  </details>
   <div class="span-2 button-row">
     <button class="button primary">{{if .Editing}}Save book{{else}}Add & suggest a position{{end}}</button>
     <a class="button" href="/">Cancel</a>
@@ -45,7 +51,7 @@
 </section>
 <section class="section-heading" id="reading">
   <h2>When you read it</h2>
-  <p>Your finish dates and ratings. Changing them here keeps them yours: later Goodreads checks leave them alone. Reading history never changes this book’s status or interest.</p>
+  <p>Your finish dates and ratings. Changing them here keeps them yours: later imports leave them alone. Reading history never changes this book’s status or want-to-read.</p>
 </section>
 {{range .Readings}}
 <form class="panel form-grid reading-entry" method="post" action="/readings/{{.ID}}">

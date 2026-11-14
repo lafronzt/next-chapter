@@ -210,7 +210,8 @@ func (a *App) bookAction(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
-	return redirect(w, r, listReturn(r))
+	// Land on the row that changed, without scrolling from the top.
+	return redirect(w, r, fmt.Sprintf("%s#book-%d", listReturn(r), id))
 }
 func (a *App) loan(w http.ResponseWriter, r *http.Request) error {
 	id, err := requestID(r)

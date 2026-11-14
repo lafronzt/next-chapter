@@ -5,7 +5,7 @@
   <div>
     <div class="eyebrow">DELETE A BOOK</div>
     <h1>Remove “{{.Book.Title}}”?</h1>
-    <p>{{.Book.Author}} · {{label .Book.Status}}</p>
+    <p>{{.Book.Author}} · {{status .Book.Status}}</p>
   </div>
 </header>
 <div class="notice error" role="status">Deleting this book also removes {{.Events}} library events{{if .Readings}}, {{.Loans}} current loans, and {{.Readings}} finished readings from your reading history{{else}} and {{.Loans}} current loans{{end}}. Future imports will skip it; adding it again by hand brings it back. Download a database backup first if you might want this history.</div>

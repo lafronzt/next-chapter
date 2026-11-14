@@ -380,18 +380,18 @@ func TestBookFormValidation(t *testing.T) {
 	addRecords(t, a, records("Kept"))
 	b := &browser{t: t, handler: a.Handler()}
 	cases := map[string]url.Values{
-		"Enter a title and author": bookForm(" ", "to-read"),
-		"within the field limits":  bookForm(strings.Repeat("t", 501), "to-read"),
-		"Choose a reading status":  bookForm("Book", "finished"),
-		"Interest must be between": bookForm("Book", "to-read", "interest", "6"),
-		"between 1 and 5":          bookForm("Book", "to-read", "interest", "x"),
-		"Pages must be between":    bookForm("Book", "to-read", "pages", "100000"),
-		"1 and 99,999":             bookForm("Book", "to-read", "pages", "0"),
-		"valid series number":      bookForm("Book", "to-read", "series_number", "NaN"),
-		"a valid series number":    bookForm("Book", "to-read", "series_number", "10000"),
-		"Enter a valid series":     bookForm("Book", "to-read", "series_number", "-1"),
-		"Tags or series name":      bookForm("Book", "to-read", "tags", strings.Repeat("t", 501)),
-		"series name are too long": bookForm("Book", "to-read", "series", strings.Repeat("s", 201)),
+		"Enter a title and author":     bookForm(" ", "to-read"),
+		"within the field limits":      bookForm(strings.Repeat("t", 501), "to-read"),
+		"Choose a reading status":      bookForm("Book", "finished"),
+		"Want-to-read must be between": bookForm("Book", "to-read", "interest", "6"),
+		"between 1 and 5":              bookForm("Book", "to-read", "interest", "x"),
+		"Pages must be between":        bookForm("Book", "to-read", "pages", "100000"),
+		"1 and 99,999":                 bookForm("Book", "to-read", "pages", "0"),
+		"valid series number":          bookForm("Book", "to-read", "series_number", "NaN"),
+		"a valid series number":        bookForm("Book", "to-read", "series_number", "10000"),
+		"Enter a valid series":         bookForm("Book", "to-read", "series_number", "-1"),
+		"Tags or series name":          bookForm("Book", "to-read", "tags", strings.Repeat("t", 501)),
+		"series name are too long":     bookForm("Book", "to-read", "series", strings.Repeat("s", 201)),
 	}
 	for message, values := range cases {
 		for _, path := range []string{"/books/new", "/books/1"} {
@@ -424,7 +424,7 @@ func TestBookActions(t *testing.T) {
 	}
 	rr := act("B", "up")
 	expect(t, rr, 303)
-	if order() != "BACD" || rr.Header().Get("Location") != "/?page=1&view=all" {
+	if order() != "BACD" || !strings.HasPrefix(rr.Header().Get("Location"), "/?page=1&view=all#book-") {
 		t.Fatal(order(), rr.Header())
 	}
 	expect(t, act("B", "down"), 303)
@@ -616,7 +616,7 @@ func TestRatingsInImportPreview(t *testing.T) {
 	planURL := rr.Header().Get("Location")
 	rr = b.request("GET", planURL, nil)
 	expect(t, rr, 200)
-	for _, text := range []string{"2 new books start with your Goodreads rating as interest.", "1 rated book is already here and keeps its current interest.", "1 rating was not a number from 0 to 5 and was ignored"} {
+	for _, text := range []string{"2 new books start with your Goodreads rating as want-to-read.", "1 rated book is already here and keeps its current want-to-read.", "1 rating was not a number from 0 to 5 and was ignored"} {
 		if !strings.Contains(rr.Body.String(), text) {
 			t.Fatalf("preview missing %q", text)
 		}

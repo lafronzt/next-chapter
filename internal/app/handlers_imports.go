@@ -9,7 +9,7 @@ import (
 
 func (a *App) importPage(w http.ResponseWriter, r *http.Request) error {
 	if r.Method == http.MethodGet {
-		return a.render(w, r, "imports.html", page{"Title": "Import books"}, 200)
+		return a.renderImports(w, r, page{}, 200)
 	}
 	source := r.FormValue("source")
 	if !in(source, []string{"goodreads", "libby", "nypl"}) {
@@ -33,7 +33,7 @@ func (a *App) importPage(w http.ResponseWriter, r *http.Request) error {
 		if count > 30 {
 			problems = problems[:30]
 		}
-		return a.render(w, r, "imports.html", page{"Title": "Import books", "Errors": problems, "ErrorCount": count}, 400)
+		return a.renderImports(w, r, page{"Errors": problems, "ErrorCount": count}, 400)
 	}
 	var id string
 	err = a.store.Write(func(tx *sql.Tx) error {
@@ -59,7 +59,7 @@ func (a *App) importPage(w http.ResponseWriter, r *http.Request) error {
 				records[i].Review = ""
 			}
 		}
-		id, err = savePlan(tx, "import", Plan{Records: records, Source: source, Upgrades: preview.Upgraded, Advances: preview.Advanced, Rated: preview.Rated, RatingsKept: preview.RatingsKept, RatingsIgnored: ignored, Logged: preview.Logged})
+		id, err = savePlan(tx, "import", Plan{Records: records, Source: source, Upgrades: preview.Upgraded, Advances: preview.Advanced, Added: preview.Added, Moves: preview.Moved, Skipped: preview.Skipped, Rated: preview.Rated, RatingsKept: preview.RatingsKept, RatingsIgnored: ignored, Logged: preview.Logged})
 		return err
 	})
 	if err != nil {
@@ -87,7 +87,7 @@ func (a *App) restoreUpload(w http.ResponseWriter, r *http.Request) error {
 	if len(problems) > 0 {
 		count := len(problems)
 		problems = problems[:min(count, maxProblemsShown)]
-		return a.render(w, r, "imports.html", page{"Title": "Import books", "RestoreErrors": problems, "RestoreErrorCount": count}, 400)
+		return a.renderImports(w, r, page{"RestoreErrors": problems, "RestoreErrorCount": count}, 400)
 	}
 	var id string
 	err = a.store.Write(func(tx *sql.Tx) error {
@@ -120,4 +120,14 @@ func (a *App) example(w http.ResponseWriter, r *http.Request) error {
 	w.Header().Set("Content-Disposition", `attachment; filename="`+name+`.csv"`)
 	_, err = w.Write(data)
 	return err
+}
+
+// renderImports shows the import page with what each source last did.
+func (a *App) renderImports(w http.ResponseWriter, r *http.Request, data page, status int) error {
+	last, err := readMeta(a.store.DB, "last_imports", map[string]*lastImport{})
+	if err != nil {
+		return err
+	}
+	data["Title"], data["Last"] = "Import books", last
+	return a.render(w, r, "imports.html", data, status)
 }

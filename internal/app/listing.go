@@ -11,7 +11,30 @@ import (
 
 // bookFilter selects the books of one list: a reading status ("" for every
 // book) and a search query already normalized by searchQuery.
-type bookFilter struct{ Status, Query string }
+type bookFilter struct {
+	Status, Query string
+	// Sort is a key of sortOptions; empty is queue order. Sorting only
+	// changes how a list is read and never touches stored positions.
+	Sort string
+}
+
+// sortOptions are the orders the All books list offers, besides queue order.
+var sortOptions = []struct{ Key, Label, Order string }{
+	{"title", "Title", "nc_lower(b.title)"},
+	{"author", "Author", "nc_lower(b.author),nc_lower(b.title)"},
+	{"added", "Date added (newest first)", "b.added_at DESC"},
+	{"interest", "Want-to-read (highest first)", "b.interest DESC"},
+}
+
+// orderBy is the ORDER BY clause for the filter's sort.
+func (f bookFilter) orderBy() string {
+	for _, o := range sortOptions {
+		if o.Key == f.Sort {
+			return " ORDER BY " + o.Order + ",b.position,b.id"
+		}
+	}
+	return " ORDER BY b.position,b.id"
+}
 
 // likeEscaper makes %, _, and the escape character itself match literally in
 // LIKE ... ESCAPE '\'.
@@ -73,7 +96,7 @@ type listedBook struct {
 // listBooks returns one page of the filter's books in list order.
 func listBooks(q queryer, f bookFilter, limit, offset int) ([]listedBook, error) {
 	where, args := f.where()
-	books, err := queryBooks(q, where+" ORDER BY b.position,b.id LIMIT ? OFFSET ?", append(args, limit, offset)...)
+	books, err := queryBooks(q, where+f.orderBy()+" LIMIT ? OFFSET ?", append(args, limit, offset)...)
 	if err != nil {
 		return nil, err
 	}
@@ -87,6 +110,9 @@ func listBooks(q queryer, f bookFilter, limit, offset int) ([]listedBook, error)
 		if b.Status == "to-read" {
 			queued = append(queued, &items[i])
 		}
+	}
+	if f.Sort != "" {
+		return items, placeSorted(q, queued)
 	}
 	return items, placeInQueue(q, queued, f.Query != "")
 }
@@ -133,6 +159,20 @@ func placeInQueue(q queryer, queued []*listedBook, search bool) error {
 		}
 		l.CanUp, l.UpBlock = canMove(l.Book, above, "first", "above")
 		l.CanDown, l.DownBlock = canMove(l.Book, below, "last", "below")
+	}
+	return nil
+}
+
+// placeSorted numbers queued books on a sorted page by their true queue
+// place and turns moves off: a sorted list is not the queue order.
+func placeSorted(q queryer, queued []*listedBook) error {
+	for _, l := range queued {
+		var err error
+		if l.QueuePos, err = queueCount(q, "(position,id)<=(?,?)", l.Position, l.ID); err != nil {
+			return err
+		}
+		l.UpBlock = "This list is sorted. Show queue order to move books."
+		l.DownBlock = l.UpBlock
 	}
 	return nil
 }

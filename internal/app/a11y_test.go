@@ -241,7 +241,7 @@ func TestSkipLinkAndMarkupStayCSPSafe(t *testing.T) {
 				t.Errorf("%s: aria reference to missing id %q", path, ref[1])
 			}
 		}
-		if strings.Contains(body, " style=") || strings.Contains(body, "<style") || strings.Contains(body, "<script") {
+		if strings.Contains(body, " style=") || strings.Contains(body, "<style") || regexp.MustCompile(`<script(\s[^>]*)?>`).MatchString(strings.ReplaceAll(body, `<script src="/static/app.js" defer></script>`, "")) {
 			t.Errorf("%s: inline style or script", path)
 		}
 		if csp := rr.Header().Get("Content-Security-Policy"); csp != "default-src 'self'; style-src 'self'; script-src 'self'; img-src 'self' data:; frame-ancestors 'none'; form-action 'self'; base-uri 'self'" {

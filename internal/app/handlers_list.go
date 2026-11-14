@@ -47,7 +47,7 @@ func (v listView) Title() string {
 }
 
 // filter selects this view's books for a normalized query.
-func (v listView) filter(query string) bookFilter { return bookFilter{v.Status, query} }
+func (v listView) filter(query string) bookFilter { return bookFilter{Status: v.Status, Query: query} }
 
 func (a *App) index(w http.ResponseWriter, r *http.Request) error {
 	view := findView(r.URL.Query().Get("view"))
@@ -56,12 +56,26 @@ func (a *App) index(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
-	total, err := countBooks(a.store.DB, view.filter(query))
+	filter := view.filter(query)
+	status, sortKey := "", ""
+	if view.Key == "all" {
+		// Only All books filters by status and sorts; both are plain query
+		// parameters and unknown values fall back to the default.
+		if s := r.URL.Query().Get("status"); in(s, readingStates) {
+			status, filter.Status = s, s
+		}
+		for _, o := range sortOptions {
+			if r.URL.Query().Get("sort") == o.Key {
+				sortKey, filter.Sort = o.Key, o.Key
+			}
+		}
+	}
+	total, err := countBooks(a.store.DB, filter)
 	if err != nil {
 		return err
 	}
-	pages := newPager(r, total, "/", url.Values{"view": {view.Key}, "q": {query}})
-	items, err := listBooks(a.store.DB, view.filter(query), pages.PerPage, pages.offset())
+	pages := newPager(r, total, "/", url.Values{"view": {view.Key}, "q": {query}, "status": {status}, "sort": {sortKey}})
+	items, err := listBooks(a.store.DB, filter, pages.PerPage, pages.offset())
 	if err != nil {
 		return err
 	}
@@ -79,7 +93,7 @@ func (a *App) index(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
-	data := page{"AI": ai, "Title": pageTitle(title, pages), "Items": items, "Pager": pages, "Stats": stats, "View": view.Key, "ViewInfo": view, "Views": views, "Query": query, "CanUndo": canUndo}
+	data := page{"AI": ai, "Title": pageTitle(title, pages), "Items": items, "Pager": pages, "Stats": stats, "View": view.Key, "ViewInfo": view, "Views": views, "Query": query, "CanUndo": canUndo, "Status": status, "Sort": sortKey, "SortOptions": sortOptions, "ReadingStates": readingStates}
 	if view.Key == "queue" && query == "" && pages.Page == 1 {
 		home, err := loadHome(a.store.DB, time.Now())
 		if err != nil {

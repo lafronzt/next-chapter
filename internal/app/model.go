@@ -94,6 +94,18 @@ type Preferences struct {
 }
 
 var defaultPreferences = Preferences{LibraryWeight: 1, Length: "any"}
+
+// statusLabels is the one display vocabulary for reading status. Stored values
+// stay as they are; abandoned and archived both read "Set aside".
+var statusLabels = map[string]string{"to-read": "Queue", "reading": "Reading", "read": "Read", "abandoned": "Set aside", "archived": "Set aside", "unreviewed": "To review"}
+
+func statusLabel(s string) string {
+	if l, ok := statusLabels[s]; ok {
+		return l
+	}
+	return s
+}
+
 var readingStates = []string{"to-read", "reading", "read", "abandoned", "archived", "unreviewed"}
 var libraryStates = []string{"hold", "ready", "borrowed", "returned", "cancelled", "available"}
 
@@ -125,6 +137,11 @@ type Plan struct {
 	// Advances previews books already in the library that move forward to
 	// Reading or Read because Goodreads says so, by new status.
 	Advances map[string]int `json:"advances,omitempty"`
+	// Added previews how many new books an import adds, and Moves names the
+	// queued books it moves to Reading or Read. Plans stored before these
+	// existed decode with both empty.
+	Added int        `json:"added,omitempty"`
+	Moves []bookMove `json:"moves,omitempty"`
 	// Skipped previews how many import rows match deleted books.
 	Skipped int `json:"skipped,omitempty"`
 	// Rated counts new books that will start with their Goodreads rating as
@@ -154,7 +171,7 @@ type Plan struct {
 
 func score(b Book, p Preferences, today time.Time) (float64, []string) {
 	total := float64(b.Interest * 10)
-	reasons := []string{fmt.Sprintf("Interest %d/5", b.Interest)}
+	reasons := []string{fmt.Sprintf("Want-to-read %d/5", b.Interest)}
 	best := 0
 	today = time.Date(today.Year(), today.Month(), today.Day(), 0, 0, 0, 0, time.UTC)
 	for _, l := range b.Loans {

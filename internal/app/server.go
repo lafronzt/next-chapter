@@ -159,7 +159,7 @@ func (a *App) Handler() http.Handler {
 	endpoints := map[string]func(http.ResponseWriter, *http.Request) error{
 		"GET /{$}": a.index, "GET /login": a.login, "POST /login": a.login, "POST /logout": a.logout,
 		"GET /books/new": a.newBook, "POST /books/new": a.newBook, "GET /books/{id}": a.editBook, "POST /books/{id}": a.editBook,
-		"POST /books/{id}/action": a.bookAction, "POST /books/{id}/status": a.bookStatus, "GET /books/{id}/finish": a.finishBook, "POST /books/{id}/finish": a.finishBook, "POST /books/{id}/loan": a.loan,
+		"GET /place": a.place, "POST /place": a.placeDecision, "POST /books/{id}/action": a.bookAction, "POST /books/{id}/status": a.bookStatus, "GET /books/{id}/finish": a.finishBook, "POST /books/{id}/finish": a.finishBook, "POST /books/{id}/loan": a.loan,
 		"GET /books/{id}/delete": a.deleteBook, "POST /books/{id}/delete": a.deleteBook, "GET /books/{id}/merge": a.mergeBook, "POST /books/{id}/merge": a.mergeBook,
 		"POST /suggest": a.suggest, "GET /plans/{id}": a.plan, "POST /plans/{id}": a.plan, "POST /plans/{id}/ai": a.planAI, "POST /undo": a.undo,
 		"GET /imports": a.importPage, "POST /imports": a.importPage, "POST /imports/restore": a.restoreUpload, "GET /examples/{name}": a.example,
