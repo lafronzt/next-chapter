@@ -133,9 +133,6 @@ const readingOrder = " ORDER BY l.finished_at IS NULL, l.finished_at DESC, l.id 
 func bookReadings(q queryer, bookID int64) ([]readingEntry, error) {
 	return queryReadings(q, "WHERE l.book_id=?"+readingOrder, bookID)
 }
-func pageReadings(q queryer, limit, offset int) ([]readingEntry, error) {
-	return queryReadings(q, readingOrder+" LIMIT ? OFFSET ?", limit, offset)
-}
 
 // loadReadingLog returns every reading in insertion order, for the export.
 func loadReadingLog(q queryer) ([]readingEntry, error) {

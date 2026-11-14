@@ -58,10 +58,10 @@ func (p placement) Done() int { return p.Placed + p.Kept + len(p.Skipped) }
 // placeSlot is the proposed spot for a book: the books around it in the
 // suggested order, and why it fits there.
 type placeSlot struct {
-	Position            int
-	Above, Below        []Suggestion
-	Reasons             []string
-	Unplaceable, Placed bool
+	Position     int
+	Above, Below []Suggestion
+	Reasons      []string
+	Unplaceable  bool
 }
 
 // nextUnplaced returns the first queued book waiting for placement, in queue
