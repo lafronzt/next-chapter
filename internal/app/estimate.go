@@ -30,6 +30,7 @@ type ratedBook struct {
 	Rating                      float64
 	Year                        string // finish year, or ""
 	Review                      string
+	Description                 string // the stored book description; plain text, untrusted
 }
 
 // estimateLowConfidence is how many rated books an estimate needs before it is
@@ -164,7 +165,7 @@ func plural(n int, one, many string) string {
 
 // loadRatedBooks returns each rated book once, with its latest rated reading.
 func loadRatedBooks(q queryer) ([]ratedBook, error) {
-	rows, err := q.Query(`SELECT b.id,b.title,b.author,b.tags,b.series,b.pages,l.rating,COALESCE(substr(l.finished_at,1,4),''),COALESCE(l.review,'')
+	rows, err := q.Query(`SELECT b.id,b.title,b.author,b.tags,b.series,b.pages,l.rating,COALESCE(substr(l.finished_at,1,4),''),COALESCE(l.review,''),b.description
 FROM reading_log l JOIN books b ON b.id=l.book_id
 WHERE l.id=(SELECT x.id FROM reading_log x WHERE x.book_id=l.book_id AND x.rating IS NOT NULL ORDER BY x.finished_at IS NULL, x.finished_at DESC, x.id DESC LIMIT 1)
 ORDER BY b.id`)
@@ -175,7 +176,7 @@ ORDER BY b.id`)
 	result := []ratedBook{}
 	for rows.Next() {
 		var h ratedBook
-		if err = rows.Scan(&h.ID, &h.Title, &h.Author, &h.Tags, &h.Series, &h.Pages, &h.Rating, &h.Year, &h.Review); err != nil {
+		if err = rows.Scan(&h.ID, &h.Title, &h.Author, &h.Tags, &h.Series, &h.Pages, &h.Rating, &h.Year, &h.Review, &h.Description); err != nil {
 			return nil, err
 		}
 		result = append(result, h)
@@ -193,11 +194,14 @@ func estimateFingerprint(c Book, history []ratedBook) string {
 		Pages                       *int
 		Rating                      float64
 		Year                        string
+		// Sent to the AI, so a changed description makes an estimate stale.
+		// Omitted when empty, so existing fingerprints stay valid.
+		Description string `json:",omitempty"`
 	}
 	rows := []row{}
 	for _, h := range history {
 		if h.ID != c.ID {
-			rows = append(rows, row{h.ID, h.Title, h.Author, h.Tags, h.Series, h.Pages, h.Rating, h.Year})
+			rows = append(rows, row{h.ID, h.Title, h.Author, h.Tags, h.Series, h.Pages, h.Rating, h.Year, truncate(h.Description, maxHistoryDescription)})
 		}
 	}
 	fields := map[string]any{"title": c.Title, "author": c.Author, "tags": c.Tags, "series": c.Series, "pages": c.Pages, "avg": c.AvgRating, "history": rows}
@@ -362,7 +366,10 @@ const (
 	estimateSampleSize = 40
 	estimateEnds       = 10 // highest- and lowest-rated books sent
 	maxReviewSent      = 1000
-	maxEstimateReason  = 240
+	// maxHistoryDescription cuts the description of each rated book; the
+	// sample holds up to 40, so this keeps the request small.
+	maxHistoryDescription = 400
+	maxEstimateReason     = 240
 )
 
 type estimateRow struct {
@@ -374,6 +381,9 @@ type estimateRow struct {
 	Rating   float64 `json:"your_rating"`
 	Finished string  `json:"finished_year,omitempty"`
 	Review   string  `json:"your_review,omitempty"`
+	// Description is the stored description of a rated book, cut to
+	// maxHistoryDescription characters. Untrusted text, only inside <library_data>.
+	Description string `json:"description,omitempty"`
 }
 type estimateCandidate struct {
 	Title     string   `json:"title"`
@@ -482,7 +492,7 @@ func buildEstimatePayload(c Book, history []ratedBook, base ratingBaseline, revi
 		p.Stats.AverageRating = math.Round(sum/float64(p.Stats.RatedBooks)*100) / 100
 	}
 	for _, h := range sampleHistory(c, history) {
-		row := estimateRow{Title: h.Title, Author: h.Author, Tags: h.Tags, Pages: h.Pages, Series: h.Series, Rating: h.Rating, Finished: h.Year}
+		row := estimateRow{Title: h.Title, Author: h.Author, Tags: h.Tags, Pages: h.Pages, Series: h.Series, Rating: h.Rating, Finished: h.Year, Description: truncate(h.Description, maxHistoryDescription)}
 		if reviews {
 			row.Review = truncate(h.Review, maxReviewSent)
 		}
@@ -491,7 +501,7 @@ func buildEstimatePayload(c Book, history []ratedBook, base ratingBaseline, revi
 	return p
 }
 
-const estimateTask = `You estimate the star rating (1 to 5) a reader would probably give a book they have not read yet, from their own ratings of books they finished. The data has the candidate book, the reader's rating statistics, a sample of their rated books, and a baseline estimate computed from their averages for the same author, series, and tags. Adjust the baseline only when the sample gives a reason. The Goodreads average is other readers' opinion and only a weak signal. Answer with "estimate" (a number from 1 to 5, one decimal), "confidence" ("low", "medium", or "high"; low when the history says little about this kind of book), and "reasons": one to three short plain-language sentences addressed to the reader as "you", each under 200 characters.`
+const estimateTask = `You estimate the star rating (1 to 5) a reader would probably give a book they have not read yet, from their own ratings of books they finished. The data has the candidate book, the reader's rating statistics, a sample of their rated books, and a baseline estimate computed from their averages for the same author, series, and tags. Books may have a short description; use it to judge themes, tone, and pacing, not as an opinion of the book. Adjust the baseline only when the sample gives a reason. The Goodreads average is other readers' opinion and only a weak signal. Answer with "estimate" (a number from 1 to 5, one decimal), "confidence" ("low", "medium", or "high"; low when the history says little about this kind of book), and "reasons": one to three short plain-language sentences addressed to the reader as "you", each under 200 characters.`
 
 const estimateSchema = `{"type":"object","properties":{"estimate":{"type":"number"},"confidence":{"type":"string","enum":["low","medium","high"]},"reasons":{"type":"array","items":{"type":"string"}}},"required":["estimate","confidence","reasons"],"additionalProperties":false}`
 
