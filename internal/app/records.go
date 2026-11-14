@@ -3,6 +3,7 @@ package app
 import (
 	"database/sql"
 	"errors"
+	"slices"
 	"time"
 )
 
@@ -13,6 +14,11 @@ import (
 // alias returns its target and a deletion tombstone reports tombstoned.
 func lookupBook(q queryer, r Record, aliases bool) (id int64, tombstoned bool, err error) {
 	keys := [][2]string{{"isbn", r.ISBN}, {"identity", identity(r.Title, r.Author)}, {"goodreads_id", r.GoodreadsID}}
+	if r.OriginalTitle != "" {
+		// A book imported before series were read from titles is stored under
+		// the full title; match it too.
+		keys = slices.Insert(keys, 2, [2]string{"identity", identity(r.OriginalTitle, r.Author)})
+	}
 	for _, pair := range keys {
 		if pair[1] == "" {
 			continue
@@ -218,6 +224,22 @@ func importRecords(q queryer, records []Record) (out importResult, err error) {
 					return out, err
 				}
 				out.Changed = out.Changed || changed
+			}
+			// A series read from the title fills a book that has none, and its
+			// number only a book whose series matches; what the reader set stays.
+			if r.Series != "" {
+				changed, err := execChanged(q, "UPDATE books SET series=? WHERE id=? AND series=''", r.Series, id)
+				if err != nil {
+					return out, err
+				}
+				out.Changed = out.Changed || changed
+				if r.SeriesNumber != nil {
+					changed, err = execChanged(q, "UPDATE books SET series_number=? WHERE id=? AND series_number IS NULL AND series=?", *r.SeriesNumber, id, r.Series)
+					if err != nil {
+						return out, err
+					}
+					out.Changed = out.Changed || changed
+				}
 			}
 			// The Goodreads average drifts between polls. Keeping it current is
 			// not a library change: it must not expire previews every hour.
