@@ -2073,6 +2073,10 @@ input[type=checkbox],input[type=radio] {
   }
 }
 
+.lookup-new p {
+  margin:8px 0 0;
+}
+
 .reading-goal {
   margin-bottom:var(--space-6, 24px);
 }

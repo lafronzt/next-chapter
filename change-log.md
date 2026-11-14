@@ -8,6 +8,7 @@
 | Holds | Migration 11 adds `loans.expected_ready`, the reader's own estimate, entered on the library form for the activity "hold". Within 14 days it adds up to 10 points (scaled by library timing) with a reason, and lists on the home screen under Holds arriving. Leaving the hold clears it; restore and merge keep it. |
 | Yearly goal | `Preferences.ReadingGoal` (no schema change), set on the Reading history page. Counts readings finished this year and says ahead, on, or behind an even pace. |
 | Fixes | Radio buttons in the lookup comparison no longer inherit text-input sizing, and its field headings no longer sit on the divider line. A re-import now strips "(Series, #N)" from the title of an already stored, unedited book. |
+| Add-a-book lookup | `POST /books/new/lookup` and a Look up details button on the Add a book form (when book lookup is on) fill the form's empty fields from the databases, for the reader to check before adding; it saves nothing. The form gains an optional ISBN, and a looked-up description keeps its source unless the reader rewrites it. |
 | Tests | `progress_test.go`, `series_title_test.go`. Backups before migrations 11 and 12: `<database>.pre-v11.bak` and `<database>.pre-v12.bak`; rollback is to restore the older one and run the previous release. |
 
 ## Prompt 32 (book details lookup)

@@ -1027,3 +1027,73 @@ func TestLookupLogsOutcomeWithoutLibraryData(t *testing.T) {
 		t.Errorf("%d error lines, want 1 (the failed request):\n%s", n, out)
 	}
 }
+
+func newBookForm(extra url.Values) url.Values {
+	v := url.Values{"title": {"Wind Song"}, "author": {"Ada Lee"}, "isbn": {"978-0-00-000000-2"}, "interest": {"3"}, "reading_status": {"to-read"}}
+	for k, vs := range extra {
+		v[k] = vs
+	}
+	return v
+}
+
+func TestNewBookLookupFillsTheFormAndSavesNothing(t *testing.T) {
+	t.Parallel()
+	f := standardFake(t)
+	a, b := lookupApp(t, f, true)
+	page := b.request("GET", "/books/new", nil).Body.String()
+	if !strings.Contains(page, `formaction="/books/new/lookup"`) || !strings.Contains(page, `name="isbn"`) {
+		t.Fatal("no lookup button on the add form")
+	}
+	// A pages value the reader typed is kept; the empty fields are filled.
+	rr := b.form("/books/new/lookup", newBookForm(url.Values{"pages": {"111"}}))
+	expect(t, rr, 200)
+	body := rr.Body.String()
+	for _, want := range []string{"Filled in ", "Nothing is saved yet", `value="111"`, "A storm &amp; a song.", `name="published_year" value="2011"`, `name="description_source" value="Open Library"`, "sailing, sea stories"} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("form lacks %q:\n%s", want, body)
+		}
+	}
+	if all, _ := loadBooks(a.store.DB); len(all) != 0 {
+		t.Fatalf("a lookup saved %d books", len(all))
+	}
+	// Adding it afterwards keeps the details and where the description came from.
+	got := b.form("/books/new", newBookForm(url.Values{
+		"pages": {"111"}, "published_year": {"2011"}, "description": {"A storm & a song.\n\nSecond paragraph."},
+		"looked_up_description": {"A storm & a song.\n\nSecond paragraph."}, "description_source": {"Open Library"}, "tags": {"sailing, sea stories"},
+	}))
+	expect(t, got, 303)
+	book := bookNamed(t, a, "Wind Song")
+	if book.ISBN != "9780000000002" || book.PublishedYear == nil || *book.PublishedYear != 2011 || book.DescriptionSource != "Open Library" || book.Pages == nil || *book.Pages != 111 {
+		t.Fatalf("%+v", book)
+	}
+	// A description the reader rewrote is theirs, not the database's.
+	expect(t, b.form("/books/new", newBookForm(url.Values{"title": {"Other"}, "isbn": {""}, "description": {"My own words."}, "looked_up_description": {"Their words."}, "description_source": {"Open Library"}})), 303)
+	if o := bookNamed(t, a, "Other"); o.Description != "My own words." || o.DescriptionSource != "" {
+		t.Fatalf("%+v", o)
+	}
+}
+
+func TestNewBookLookupRefusals(t *testing.T) {
+	t.Parallel()
+	f := standardFake(t)
+	// Off: no button, no request, a clear refusal.
+	off, ob := lookupApp(t, f, false)
+	page := ob.request("GET", "/books/new", nil).Body.String()
+	if strings.Contains(page, "/books/new/lookup") || !strings.Contains(page, "Book lookup is off") {
+		t.Fatal("the add form offers a lookup that is off")
+	}
+	before := f.count()
+	expect(t, ob.form("/books/new/lookup", newBookForm(nil)), 400)
+	if f.count() != before {
+		t.Fatal("a request went out while lookup is off")
+	}
+	_ = off
+	// On: a title and author are needed, and a book nobody knows is a note, not a failure.
+	_, b := lookupApp(t, f, true)
+	expect(t, b.form("/books/new/lookup", newBookForm(url.Values{"author": {""}})), 400)
+	rr := b.form("/books/new/lookup", newBookForm(url.Values{"title": {"Unknown Tome"}, "author": {"Nobody"}, "isbn": {""}}))
+	expect(t, rr, 200)
+	if !strings.Contains(rr.Body.String(), "No book database had this book") || !strings.Contains(rr.Body.String(), `value="Unknown Tome"`) {
+		t.Fatalf("%s", rr.Body.String())
+	}
+}

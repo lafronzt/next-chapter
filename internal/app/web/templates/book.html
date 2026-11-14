@@ -6,10 +6,25 @@
     <p>Your want-to-read and preferences help it find the right place.</p>
   </div>
 </header>
+{{with .LookupNote}}<div class="notice" role="status">{{.}}</div>{{end}}
+{{with .LookupError}}<div class="notice error" role="alert">{{.}}</div>{{end}}
 <form class="panel form-grid" method="post">
   {{template "fields" .}}
   <label class="span-2">Title<input name="title" required maxlength="500" value="{{.Book.Title}}" placeholder="The book you can’t stop thinking about"></label>
   <label class="span-2">Author<input name="author" required maxlength="300" value="{{.Book.Author}}"></label>
+  {{if not .Editing}}
+  <label class="span-2">ISBN <span class="muted">optional, helps a lookup find the right edition</span><input name="isbn" inputmode="numeric" maxlength="20" value="{{.Book.ISBN}}"></label>
+  {{if .LookupOn}}
+  <div class="span-2 lookup-new">
+    <button class="button" formaction="/books/new/lookup" formmethod="post">Look up details</button>
+    <p class="muted"><small>Fills in empty fields below from Open Library and Google Books, for you to check before adding. Sends only the title, author, and ISBN; saves nothing yet.</small></p>
+  </div>
+  {{else}}
+  <p class="span-2 muted"><small>Book lookup is off, so nothing is sent anywhere. Turn it on in <a href="/settings?open=privacy#privacy">Preferences</a> to fill in details from a book database before you add a book.</small></p>
+  {{end}}
+  {{with .Book.PublishedYear}}<input type="hidden" name="published_year" value="{{pages .}}">{{end}}
+  {{if .Book.DescriptionSource}}<input type="hidden" name="description_source" value="{{.Book.DescriptionSource}}"><input type="hidden" name="looked_up_description" value="{{.Book.Description}}">{{end}}
+  {{end}}
   <label>Want-to-read <span class="muted">how much it calls to you, 1–5</span><select name="interest">
     <option value="5" {{if eq .Book.Interest 5}}selected{{end}}>5 · Can’t wait</option>
     <option value="4" {{if eq .Book.Interest 4}}selected{{end}}>4 · Very interested</option>

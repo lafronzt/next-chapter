@@ -11,11 +11,24 @@ import (
 
 func (a *App) newBook(w http.ResponseWriter, r *http.Request) error {
 	if r.Method == http.MethodGet {
-		return a.render(w, r, "book.html", page{"Title": "Add a book", "Book": Book{Interest: 3, Status: "to-read"}}, 200)
+		on, err := lookupEnabled(a.store.DB)
+		if err != nil {
+			return err
+		}
+		return a.render(w, r, "book.html", page{"Title": "Add a book", "Book": Book{Interest: 3, Status: "to-read"}, "LookupOn": on}, 200)
 	}
 	b, err := bookFields(r)
 	if err != nil {
 		return err
+	}
+	// Details a lookup filled in before the book was added: the ISBN and year
+	// it carried, and the description's source while the text is still theirs.
+	b.ISBN = cleanISBN(r.FormValue("isbn"))
+	if y, e := strconv.Atoi(r.FormValue("published_year")); e == nil && y > 0 && y <= 9999 {
+		b.PublishedYear = &y
+	}
+	if looked := cleanText(r.FormValue("looked_up_description"), maxDescription); looked != "" && b.Description == looked {
+		b.DescriptionSource = truncate(strings.TrimSpace(r.FormValue("description_source")), 100)
 	}
 	location := "/?notice=saved"
 	err = a.store.Write(func(tx *sql.Tx) error {
