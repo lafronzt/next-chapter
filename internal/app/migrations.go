@@ -18,6 +18,7 @@ var migrations = []migration{
 	{9, "quarter-star ratings", migrateQuarterStars},
 	{10, "book descriptions", migrateDescriptions},
 	{11, "reading progress and expected hold dates", migrateProgressAndHolds},
+	{12, "reading progress as a percentage", migrateProgressPercent},
 }
 
 func migrateBaseline(tx *sql.Tx) error {
@@ -193,5 +194,18 @@ ALTER TABLE books ADD COLUMN description_source TEXT NOT NULL DEFAULT '';`)
 func migrateProgressAndHolds(tx *sql.Tx) error {
 	_, err := tx.Exec(`ALTER TABLE books ADD COLUMN progress_page INTEGER NULL;
 ALTER TABLE loans ADD COLUMN expected_ready TEXT NOT NULL DEFAULT '';`)
+	return err
+}
+
+// progress_percent is how far along the reader is in a book they track as a
+// percentage instead of a page, such as an audiobook. A book has at most one
+// of progress_page and progress_percent. It defaults to empty, so existing
+// books are unchanged.
+//
+// Backup: the migration framework writes <database>.pre-v12.bak before
+// applying this. Rollback: stop the app, put that file back as the database,
+// and run the previous release.
+func migrateProgressPercent(tx *sql.Tx) error {
+	_, err := tx.Exec("ALTER TABLE books ADD COLUMN progress_percent INTEGER NULL CHECK(progress_percent BETWEEN 0 AND 100)")
 	return err
 }

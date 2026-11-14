@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/url"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -69,7 +70,7 @@ func TestSaveReadingProgress(t *testing.T) {
 	path := fmt.Sprintf("/books/%d/progress", id)
 	before := revisionOf(t, a)
 
-	expect(t, b.form(path, url.Values{"page": {"120"}}), 303)
+	expect(t, b.form(path, url.Values{"progress": {"120"}, "unit": {"page"}}), 303)
 	if got := bookNamed(t, a, "Reading"); got.ProgressPage == nil || *got.ProgressPage != 120 {
 		t.Fatalf("%+v", got.ProgressPage)
 	}
@@ -78,14 +79,16 @@ func TestSaveReadingProgress(t *testing.T) {
 		t.Fatal("saving a page changed the library revision")
 	}
 	for _, bad := range []string{"-1", "x", "301", "1.5", "100001"} {
-		expect(t, b.form(path, url.Values{"page": {bad}}), 400)
+		expect(t, b.form(path, url.Values{"progress": {bad}, "unit": {"page"}}), 400)
 	}
+	expect(t, b.form(path, url.Values{"progress": {"5"}}), 400)
+	expect(t, b.form(path, url.Values{"progress": {"5"}, "unit": {"furlongs"}}), 400)
 	if got := bookNamed(t, a, "Reading"); *got.ProgressPage != 120 {
 		t.Fatal("a rejected page changed the saved one")
 	}
 	// A book that is not being read has no page to track.
 	queued := bookNamed(t, a, "Queued").ID
-	expect(t, b.form(fmt.Sprintf("/books/%d/progress", queued), url.Values{"page": {"3"}}), 400)
+	expect(t, b.form(fmt.Sprintf("/books/%d/progress", queued), url.Values{"progress": {"3"}, "unit": {"page"}}), 400)
 
 	body := b.request("GET", "/", nil).Body.String()
 	for _, want := range []string{"page 120 of 300 · 40%", `action="/books/` + fmt.Sprint(id) + `/progress"`} {
@@ -96,16 +99,30 @@ func TestSaveReadingProgress(t *testing.T) {
 	if !strings.Contains(b.request("GET", fmt.Sprintf("/books/%d", id), nil).Body.String(), "page 120 of 300") {
 		t.Fatal("book page lacks progress")
 	}
+	// A percentage replaces the page, and a page replaces the percentage.
+	expect(t, b.form(path, url.Values{"progress": {"101"}, "unit": {"percent"}}), 400)
+	expect(t, b.form(path, url.Values{"progress": {"-5"}, "unit": {"percent"}}), 400)
+	expect(t, b.form(path, url.Values{"progress": {"35"}, "unit": {"percent"}}), 303)
+	if got := bookNamed(t, a, "Reading"); got.ProgressPage != nil || got.ProgressPercent == nil || *got.ProgressPercent != 35 || got.Percent() != 35 || got.ProgressText() != "35%" {
+		t.Fatalf("%v %v", got.ProgressPage, got.ProgressPercent)
+	}
+	if !strings.Contains(b.request("GET", "/", nil).Body.String(), `value="percent" selected`) {
+		t.Fatal("the form does not default to the unit in use")
+	}
+	expect(t, b.form(path, url.Values{"progress": {"50"}, "unit": {"page"}}), 303)
+	if got := bookNamed(t, a, "Reading"); got.ProgressPercent != nil || got.ProgressPage == nil {
+		t.Fatalf("%v %v", got.ProgressPage, got.ProgressPercent)
+	}
 	// Blank clears.
-	expect(t, b.form(path, url.Values{"page": {""}}), 303)
+	expect(t, b.form(path, url.Values{"progress": {""}, "unit": {"page"}}), 303)
 	if bookNamed(t, a, "Reading").ProgressPage != nil {
 		t.Fatal("blank did not clear")
 	}
 	// Finishing clears it.
-	expect(t, b.form(path, url.Values{"page": {"299"}}), 303)
+	expect(t, b.form(path, url.Values{"progress": {"80"}, "unit": {"percent"}}), 303)
 	expect(t, b.form(fmt.Sprintf("/books/%d/finish", id), url.Values{"finished_at": {"2026-10-01"}}), 303)
-	if got := bookNamed(t, a, "Reading"); got.Status != "read" || got.ProgressPage != nil {
-		t.Fatalf("%+v %v", got.Status, got.ProgressPage)
+	if got := bookNamed(t, a, "Reading"); got.Status != "read" || got.ProgressPage != nil || got.ProgressPercent != nil {
+		t.Fatalf("%+v %v %v", got.Status, got.ProgressPage, got.ProgressPercent)
 	}
 }
 
@@ -116,6 +133,41 @@ func revisionOf(t *testing.T, a *App) int64 {
 		t.Fatal(err)
 	}
 	return n
+}
+
+func TestPercentPaceAndHelpers(t *testing.T) {
+	t.Parallel()
+	for _, c := range []struct {
+		left, days int
+		want       string
+	}{
+		{0, 3, ""},
+		{60, 5, "60% left · about 12% a day to finish in time"},
+		{61, 5, "61% left · about 13% a day to finish in time"},
+		{40, 0, "40% left"},
+	} {
+		if got := percentPaceText(c.left, c.days); got != c.want {
+			t.Errorf("percentPaceText(%d,%d) = %q, want %q", c.left, c.days, got, c.want)
+		}
+	}
+	audio := Book{Pages: intp(300), ProgressPercent: intp(25)}
+	if audio.Percent() != 25 || !audio.HasProgress() || audio.ProgressUnit() != "percent" || audio.ProgressValue() != "25" {
+		t.Fatalf("%+v", audio)
+	}
+	if _, ok := audio.PagesLeft(); ok {
+		t.Fatal("a percent-tracked book has no pages left")
+	}
+	d := dueSoon{Book: audio, Days: 5}
+	if d.Pace() != "75% left · about 15% a day to finish in time" {
+		t.Fatalf("%q", d.Pace())
+	}
+	// No page count: percent is the way to enter progress.
+	if (Book{}).ProgressUnit() != "percent" || (Book{Pages: intp(200)}).ProgressUnit() != "page" || (Book{ProgressPage: intp(3)}).ProgressUnit() != "page" {
+		t.Fatal("default unit")
+	}
+	if (Book{ProgressPage: intp(3)}).HasProgress() {
+		t.Fatal("a page without a page count has no bar")
+	}
 }
 
 func TestDueSoonShowsPace(t *testing.T) {
@@ -273,7 +325,8 @@ func TestMigrateProgressAndHoldsFromVersionTen(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = migrateFile(path, migrations); err != nil {
+	// Version 11 first, as a database that ran that release would be.
+	if err = migrateFile(path, migrations[:11]); err != nil {
 		t.Fatal(err)
 	}
 	if v, _ := versionOf(t, path); v != 11 {
@@ -283,6 +336,19 @@ func TestMigrateProgressAndHoldsFromVersionTen(t *testing.T) {
 		t.Fatal("existing rows changed")
 	}
 	if b := backups(t, path); len(b) != 1 || b[0] != path+".pre-v11.bak" {
+		t.Fatalf("backups %v", b)
+	}
+	// Then the percentage column, which keeps the rows as they were.
+	if err = migrateFile(path, migrations); err != nil {
+		t.Fatal(err)
+	}
+	if v, _ := versionOf(t, path); v != 12 {
+		t.Fatal(v)
+	}
+	if n := scalar[int](t, path, "SELECT count(*) FROM books WHERE title='Old' AND progress_page IS NULL AND progress_percent IS NULL"); n != 1 {
+		t.Fatal("existing rows changed")
+	}
+	if b := backups(t, path); !slices.Contains(b, path+".pre-v12.bak") {
 		t.Fatalf("backups %v", b)
 	}
 }

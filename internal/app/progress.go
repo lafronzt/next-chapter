@@ -38,17 +38,48 @@ func daysUntil(day string, today time.Time) (int, bool) {
 	return int(d.Sub(midnight(today)).Hours() / 24), true
 }
 
-// ProgressValue is the page reached, for a form field ("" when not tracked).
-func (b Book) ProgressValue() string {
-	if b.ProgressPage == nil {
-		return ""
-	}
-	return strconv.Itoa(*b.ProgressPage)
+// HasProgress reports whether there is progress to show as a bar: a percent,
+// or a page in a book whose page count is known.
+func (b Book) HasProgress() bool {
+	return b.ProgressPercent != nil || (b.ProgressPage != nil && b.Pages != nil && *b.Pages > 0)
 }
 
-// PagesLeft is how many pages remain, and false when the page count is unknown.
+// ProgressUnit is how the reader tracks this book: "percent" when they have
+// entered a percentage, or when the book has no page count to enter pages
+// against, and "page" otherwise.
+func (b Book) ProgressUnit() string {
+	if b.ProgressPercent != nil || (b.ProgressPage == nil && (b.Pages == nil || *b.Pages <= 0)) {
+		return "percent"
+	}
+	return "page"
+}
+
+// ProgressValue is the saved number for a form field ("" when not tracked).
+func (b Book) ProgressValue() string {
+	switch {
+	case b.ProgressPercent != nil:
+		return strconv.Itoa(*b.ProgressPercent)
+	case b.ProgressPage != nil:
+		return strconv.Itoa(*b.ProgressPage)
+	}
+	return ""
+}
+
+// Percent is how far through the book the reader is, 0 to 100.
+func (b Book) Percent() int {
+	switch {
+	case b.ProgressPercent != nil:
+		return *b.ProgressPercent
+	case b.ProgressPage != nil && b.Pages != nil && *b.Pages > 0:
+		return min(100, *b.ProgressPage*100 / *b.Pages)
+	}
+	return 0
+}
+
+// PagesLeft is how many pages remain, and false when the page count is
+// unknown or the reader tracks this book in percent.
 func (b Book) PagesLeft() (int, bool) {
-	if b.Pages == nil || *b.Pages <= 0 {
+	if b.Pages == nil || *b.Pages <= 0 || b.ProgressPercent != nil {
 		return 0, false
 	}
 	read := 0
@@ -58,17 +89,11 @@ func (b Book) PagesLeft() (int, bool) {
 	return *b.Pages - read, true
 }
 
-// Percent is how far through the book the reader is, 0 to 100.
-func (b Book) Percent() int {
-	if b.Pages == nil || *b.Pages <= 0 || b.ProgressPage == nil {
-		return 0
-	}
-	return min(100, *b.ProgressPage*100 / *b.Pages)
-}
-
 // ProgressText says where the reader is, or "" when there is nothing to say.
 func (b Book) ProgressText() string {
 	switch {
+	case b.ProgressPercent != nil:
+		return fmt.Sprintf("%d%%", *b.ProgressPercent)
 	case b.ProgressPage == nil:
 		return ""
 	case b.Pages != nil && *b.Pages > 0:
@@ -91,8 +116,25 @@ func paceText(left, days int) string {
 	return fmt.Sprintf("%d %s left · about %d a day to finish in time", left, plural(left, "page", "pages"), per)
 }
 
-// Pace is paceText for a loan coming due; "" when the page count is unknown.
+// percentPaceText is paceText for a book tracked in percent, such as an
+// audiobook: how much is left and the share to get through each day.
+func percentPaceText(left, days int) string {
+	switch {
+	case left <= 0:
+		return ""
+	case days <= 0:
+		return fmt.Sprintf("%d%% left", left)
+	}
+	return fmt.Sprintf("%d%% left · about %d%% a day to finish in time", left, (left+days-1)/days)
+}
+
+// Pace says what is left to read before a loan is due: in percent when the
+// reader tracks the book that way, otherwise in pages. It is "" when neither
+// is known.
 func (d dueSoon) Pace() string {
+	if d.Book.ProgressPercent != nil {
+		return percentPaceText(100-*d.Book.ProgressPercent, d.Days)
+	}
 	left, ok := d.Book.PagesLeft()
 	if !ok {
 		return ""
@@ -164,22 +206,36 @@ ORDER BY l.expected_ready,l.book_id`, limit)
 	return out, nil
 }
 
-// bookProgress saves the page a reader has reached in a book they are
-// reading. A blank page clears it. It changes only that number: it never
-// moves a book, finishes one, or invalidates a preview or Undo.
+// bookProgress saves how far the reader is in a book they are reading, as a
+// page or, for an audiobook or any book without a page count, a percentage.
+// Saving one clears the other, and a blank clears both. It changes only that
+// number: it never moves a book, finishes one, or invalidates a preview or Undo.
 func (a *App) bookProgress(w http.ResponseWriter, r *http.Request) error {
 	id, err := requestID(r)
 	if err != nil {
 		return err
 	}
-	raw := strings.TrimSpace(r.FormValue("page"))
-	var page *int
+	unit := r.FormValue("unit")
+	if unit != "page" && unit != "percent" {
+		return bad("Choose whether you are entering a page or a percentage.")
+	}
+	raw := strings.TrimSpace(r.FormValue("progress"))
+	var value *int
 	if raw != "" {
 		n, e := strconv.Atoi(raw)
-		if e != nil || n < 0 || n > maxProgressPage {
-			return bad("Enter the page you are on as a whole number, or leave it blank.")
+		limit := maxProgressPage
+		if unit == "percent" {
+			limit = 100
 		}
-		page = &n
+		switch {
+		case e != nil || n < 0:
+			return bad("Enter your progress as a whole number, or leave it blank.")
+		case n > limit && unit == "percent":
+			return bad("A percentage can be at most 100.")
+		case n > limit:
+			return bad(fmt.Sprintf("Enter a page up to %d.", limit))
+		}
+		value = &n
 	}
 	err = a.store.Write(func(tx *sql.Tx) error {
 		b, err := getBook(tx, id)
@@ -187,12 +243,18 @@ func (a *App) bookProgress(w http.ResponseWriter, r *http.Request) error {
 			return err
 		}
 		if b.Status != "reading" {
-			return bad("Only a book you are reading has a page to track. Start it first.")
+			return bad("Only a book you are reading has progress to track. Start it first.")
 		}
-		if page != nil && b.Pages != nil && *b.Pages > 0 && *page > *b.Pages {
-			return bad(fmt.Sprintf("This book has %d pages. Enter a page up to %d.", *b.Pages, *b.Pages))
+		var page, percent *int
+		if unit == "page" {
+			if value != nil && b.Pages != nil && *b.Pages > 0 && *value > *b.Pages {
+				return bad(fmt.Sprintf("This book has %d pages. Enter a page up to %d.", *b.Pages, *b.Pages))
+			}
+			page = value
+		} else {
+			percent = value
 		}
-		_, err = tx.Exec("UPDATE books SET progress_page=? WHERE id=?", page, id)
+		_, err = tx.Exec("UPDATE books SET progress_page=?,progress_percent=? WHERE id=?", page, percent, id)
 		return err
 	})
 	if err != nil {
