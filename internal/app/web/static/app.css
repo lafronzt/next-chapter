@@ -19,6 +19,9 @@ body {
   background:var(--paper);
   color:var(--ink);
   font:14px/1.6 var(--sans);
+  /* Keep content clear of a notch or rounded corners when launched from the
+     home screen (the page opts in with viewport-fit=cover). */
+  padding:env(safe-area-inset-top) env(safe-area-inset-right) 0 env(safe-area-inset-left);
 }
 
 a {
@@ -197,6 +200,10 @@ button:disabled {
   background:#718c55;
   border-radius:50%;
   margin-right:7px;
+}
+
+.tabbar {
+  display:none;
 }
 
 main {
@@ -1191,6 +1198,88 @@ input[type=checkbox] {
     border-right:0;
     border-bottom:1px solid var(--line);
   }
+  /* The bottom tab bar replaces the link list, topline, and footer copy.
+     display:none keeps one navigation landmark exposed at a time. */
+  .tabbar {
+    display:flex;
+    position:fixed;
+    inset:auto 0 0 0;
+    z-index:20;
+    background:var(--sidebar);
+    border-top:1px solid var(--line);
+    padding:0 0 env(safe-area-inset-bottom);
+  }
+  .tabbar>a,.tabbar summary {
+    flex:1;
+    min-height:48px;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    gap:1px;
+    font-size:11px;
+    line-height:1.2;
+    cursor:pointer;
+    list-style:none;
+    position:relative;
+  }
+  .tabbar summary::-webkit-details-marker {
+    display:none;
+  }
+  .tabbar .active,.tabbar [aria-current] {
+    color:var(--accent);
+    font-weight:650;
+  }
+  .tabbar .tab-add {
+    background:var(--green);
+    color:#fff;
+    border-radius:24px;
+    margin:4px 6px;
+    min-height:40px;
+    max-width:76px;
+  }
+  .tabbar .nav-count {
+    position:absolute;
+    top:2px;
+    right:12%;
+    background:var(--accent);
+    color:#fff;
+    border-radius:9px;
+    padding:0 5px;
+    font-size:10px;
+  }
+  .tab-more {
+    flex:1;
+    display:flex;
+  }
+  .tab-more summary {
+    width:100%;
+  }
+  .more-panel {
+    position:absolute;
+    inset:auto 8px calc(56px + env(safe-area-inset-bottom)) 8px;
+    background:var(--paper);
+    border:1px solid var(--line);
+    border-radius:12px;
+    padding:6px;
+    box-shadow:0 8px 24px rgba(0,0,0,.18);
+  }
+  .more-panel a,.more-panel .text-button {
+    display:flex;
+    align-items:center;
+    min-height:48px;
+    padding:0 14px;
+    width:100%;
+    font-size:15px;
+  }
+  .tabbar a:focus-visible,.tabbar summary:focus-visible {
+    outline:2px solid var(--accent);
+    outline-offset:-3px;
+  }
+  /* Do not cover form fields while the keyboard is up. */
+  body:has(input:focus,select:focus,textarea:focus) .tabbar {
+    display:none;
+  }
   .brand {
     font-size:22px;
   }
@@ -1370,6 +1459,12 @@ input[type=checkbox] {
     gap:12px;
     flex-wrap:wrap;
   }
+  .sidebar nav,.sidebar-bottom,.topline,main>footer {
+    display:none;
+  }
+  main {
+    padding-bottom:calc(76px + env(safe-area-inset-bottom));
+  }
 }
 
 .pager {
@@ -1543,4 +1638,304 @@ input[type=checkbox] {
 }
 @keyframes ai-spin {
   to { transform:rotate(360deg); }
+}
+
+/* Queue row action sheet */
+.mini-actions button:not(.text-button) {
+  min-width:44px;
+  min-height:44px;
+  font-size:18px;
+}
+
+.row-more {
+  position:relative;
+}
+
+.row-more summary {
+  list-style:none;
+  min-width:44px;
+  min-height:44px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  border:1px solid #c9cfbd;
+  border-radius:6px;
+  cursor:pointer;
+  font-size:18px;
+  color:#69785e;
+}
+
+.row-more summary::-webkit-details-marker {
+  display:none;
+}
+
+.row-more summary:focus-visible,.sheet-button:focus-visible {
+  outline:2px solid var(--accent);
+  outline-offset:2px;
+}
+
+.sheet {
+  position:absolute;
+  right:0;
+  top:calc(100% + 6px);
+  z-index:10;
+  width:300px;
+  background:var(--paper);
+  border:1px solid var(--line);
+  border-radius:12px;
+  padding:8px;
+  box-shadow:0 8px 24px rgba(0,0,0,.18);
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+}
+
+.sheet form {
+  display:contents;
+}
+
+.sheet .move-to {
+  display:flex;
+  padding:6px 10px;
+  font-size:13px;
+}
+
+.sheet-button {
+  display:flex;
+  flex-direction:column;
+  align-items:flex-start;
+  width:100%;
+  min-height:44px;
+  padding:8px 12px;
+  background:none;
+  border:1px solid var(--line);
+  border-radius:8px;
+  font-size:14px;
+  color:var(--ink);
+  text-align:left;
+  cursor:pointer;
+}
+
+.sheet-button small {
+  font-size:12px;
+  color:var(--muted);
+  white-space:normal;
+}
+
+.sheet-note {
+  margin:0;
+  padding:2px 10px;
+  font-size:12px;
+  color:var(--muted);
+}
+
+@media(max-width:760px) {
+  .book-actions {
+    justify-content:flex-end;
+    gap:10px;
+  }
+  .row-more[open] .sheet {
+    position:fixed;
+    inset:auto 0 0 0;
+    top:auto;
+    width:auto;
+    max-height:70vh;
+    overflow-y:auto;
+    z-index:30;
+    border-radius:16px 16px 0 0;
+    padding:12px 12px calc(12px + env(safe-area-inset-bottom));
+  }
+  .book-title,.book-info h2,.author {
+    overflow-wrap:anywhere;
+  }
+  .book-row {
+    max-width:100%;
+  }
+  .triage {
+    display:flex;
+    flex-direction:column;
+    width:100%;
+    gap:8px;
+  }
+  .triage .button {
+    width:100%;
+    min-height:44px;
+  }
+}
+
+/* Quarter-star rating input */
+.rating-input {
+  border:0;
+  padding:0;
+  margin:0;
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+  min-width:0;
+}
+
+.rating-input legend {
+  padding:0;
+  margin-bottom:6px;
+  font-weight:600;
+}
+
+.rating-group {
+  display:flex;
+  gap:4px;
+}
+
+.rating-input label {
+  position:relative;
+  display:block;
+}
+
+.rating-input input {
+  position:absolute;
+  opacity:0;
+  inset:0;
+  margin:0;
+  width:100%;
+  height:100%;
+  cursor:pointer;
+}
+
+.rating-input label>span {
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  min-width:48px;
+  min-height:44px;
+  padding:0 10px;
+  border:1px solid var(--line);
+  border-radius:8px;
+  background:var(--paper);
+  font-size:15px;
+}
+
+.rating-input label>span.whole {
+  min-width:64px;
+  font-size:20px;
+  color:var(--accent);
+}
+
+.rating-input input:checked+span {
+  background:var(--green);
+  border-color:var(--green);
+  color:#fff;
+}
+
+.rating-input input:focus-visible+span {
+  outline:3px solid var(--accent);
+  outline-offset:2px;
+}
+
+.rating-unrated {
+  align-self:flex-start;
+}
+
+.star-part {
+  position:relative;
+  display:inline-block;
+}
+
+.star-part::before {
+  content:"★";
+  position:absolute;
+  left:0;
+  top:0;
+  overflow:hidden;
+}
+
+.star-part.q1::before {
+  width:25%;
+}
+
+.star-part.q2::before {
+  width:50%;
+}
+
+.star-part.q3::before {
+  width:75%;
+}
+
+/* Home: next up, reading now, due soon */
+.next-up {
+  display:flex;
+  gap:28px;
+  align-items:center;
+  padding:24px;
+  margin-bottom:28px;
+  border:1px solid var(--line);
+  border-radius:14px;
+  background:var(--sidebar);
+}
+
+.next-up .book-cover {
+  width:110px;
+  min-height:160px;
+}
+
+.next-up h2 {
+  font:32px/1.15 var(--serif);
+  margin:4px 0;
+  overflow-wrap:anywhere;
+}
+
+.next-up form {
+  margin-top:16px;
+}
+
+.home-strip {
+  margin-bottom:28px;
+}
+
+.home-strip h2 {
+  font:22px/1.2 var(--serif);
+  margin:0 0 10px;
+}
+
+.home-strip ul {
+  list-style:none;
+  margin:0;
+  padding:0;
+}
+
+.home-strip li {
+  display:flex;
+  flex-wrap:wrap;
+  gap:10px 16px;
+  align-items:center;
+  justify-content:space-between;
+  padding:12px 0;
+  border-bottom:1px solid var(--line);
+}
+
+.strip-title {
+  overflow-wrap:anywhere;
+}
+
+.strip-title a {
+  font-weight:600;
+}
+
+.strip-actions {
+  display:flex;
+  gap:8px;
+  flex-wrap:wrap;
+}
+
+.strip-days {
+  color:var(--muted);
+}
+
+@media(max-width:760px) {
+  .next-up {
+    flex-direction:column;
+    align-items:flex-start;
+    gap:16px;
+  }
+  .next-up .button.primary,.strip-actions .button {
+    min-height:44px;
+  }
 }

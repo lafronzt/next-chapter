@@ -2,7 +2,15 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#294f46" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#1b2f2a" media="(prefers-color-scheme: dark)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Next Chapter">
+  <link rel="manifest" href="/static/manifest.webmanifest">
+  <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
   <title>{{with .Title}}{{.}} – {{end}}Next Chapter</title>
   <link rel="stylesheet" href="/static/app.css">
   <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
@@ -46,6 +54,22 @@
 {{define "bottom"}}
   <footer>Built for the joy of reading. <span>No algorithms you can’t understand.</span></footer>
 </main>
+<nav class="tabbar" aria-label="Main">
+  <a href="/" {{if eq .Tab "queue"}}class="active" aria-current="{{if .NavPage}}page{{else}}true{{end}}"{{end}}><span aria-hidden="true">≡</span> Queue</a>
+  <a href="/?view=unreviewed" {{if eq .Tab "unreviewed"}}class="active" aria-current="{{if .NavPage}}page{{else}}true{{end}}"{{end}}><span aria-hidden="true">✉</span> To review{{if .UnreviewedCount}}<strong class="nav-count">{{.UnreviewedCount}}<span class="sr-only"> waiting</span></strong>{{end}}</a>
+  <a class="tab-add" href="/books/new" {{if eq .Tab "add"}}aria-current="page"{{end}}><span aria-hidden="true">＋</span> Add<span class="sr-only"> a book</span></a>
+  <a href="/reading" {{if eq .Tab "reading"}}class="active" aria-current="{{if .NavPage}}page{{else}}true{{end}}"{{end}}><span aria-hidden="true">✓</span> Reading</a>
+  <details class="tab-more">
+    <summary {{if eq .Tab "more"}}class="active"{{end}}><span aria-hidden="true">⋯</span> More</summary>
+    <div class="more-panel">
+      <a href="/?view=all" {{if eq .Nav "all"}}aria-current="{{if .NavPage}}page{{else}}true{{end}}"{{end}}>All books</a>
+      <a href="/history" {{if eq .Nav "history"}}aria-current="{{if .NavPage}}page{{else}}true{{end}}"{{end}}>Library history</a>
+      <a href="/imports" {{if eq .Nav "imports"}}aria-current="{{if .NavPage}}page{{else}}true{{end}}"{{end}}>Import books</a>
+      <a href="/settings" {{if eq .Nav "settings"}}aria-current="{{if .NavPage}}page{{else}}true{{end}}"{{end}}>Preferences</a>
+      {{if .Authenticated}}<form method="post" action="/logout">{{template "csrf" .}}<button class="text-button">Sign out</button></form>{{end}}
+    </div>
+  </details>
+</nav>
 </body>
 </html>
 {{end}}
@@ -76,4 +100,17 @@
   {{if .Next}}<a class="button small" href="{{.Next}}" rel="next"><span>Next page <span aria-hidden="true">→</span></span></a>{{else}}<span></span>{{end}}
 </nav>
 {{end}}
+{{end}}
+
+{{/* rating-input takes the current *float64 rating (nil for none) and submits a "rating" of 0.25 to 5, or "" for unrated. */}}
+{{define "rating-input"}}{{$cur := .}}
+<fieldset class="rating-input">
+  <legend>Your rating <span class="muted">currently {{if $cur}}{{ratingText (deref $cur)}} out of 5{{else}}unrated{{end}}</span></legend>
+  <label class="rating-unrated"><input type="radio" name="rating" value="" {{if not $cur}}checked{{end}}><span>Unrated</span></label>
+  {{range $g := ratingGroups}}
+  <div class="rating-group">
+    {{range $n := $g}}<label><input type="radio" name="rating" value="{{$n}}" {{if rated $cur $n}}checked{{end}}><span class="{{if isWhole $n}}whole{{end}}"><span aria-hidden="true">{{ratingShort $n}}</span><span class="sr-only">{{$n}} out of 5</span></span></label>{{end}}
+  </div>
+  {{end}}
+</fieldset>
 {{end}}

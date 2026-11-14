@@ -27,6 +27,7 @@ func (a *App) render(w http.ResponseWriter, r *http.Request, name string, data p
 	if _, ok := data["Nav"]; !ok {
 		data["Nav"], data["NavPage"] = navCurrent(r.URL.Path, data)
 	}
+	data["Tab"] = tabCurrent(r.URL.Path, data)
 	if a.config.Demo || s.Session.Authenticated {
 		var waiting int
 		if err := a.store.DB.QueryRow("SELECT count(*) FROM books WHERE reading_status='unreviewed'").Scan(&waiting); err != nil {
@@ -61,7 +62,7 @@ func (a *App) render(w http.ResponseWriter, r *http.Request, name string, data p
 }
 
 // notices are the confirmations a redirect can request with ?notice=.
-var notices = map[string]string{"triaged": "Sorted. Only reading status changed; books you want to read wait at the end of your queue for placement.", "saved": "Saved to your library.", "ordered": "Your new order is saved. You can undo it until your next library change.", "undone": "Previous order restored.", "imported": "Import complete. Existing reading status and queue order were preserved.", "loan": "Library event recorded. Reading status stays the same.", "signedout": "Signed out on every device. Sign in again to continue.", "deleted": "Book deleted. Future imports will skip it.", "merged": "Books merged. Future imports of the merged book will update this one.", "restored": "Library restored from your JSON export.", "reading": "Reading history saved. Your queue is unchanged.", "ai-on": "AI assistance is on. Nothing is sent until you ask for a suggestion and confirm what gets shared.", "ai-off": "AI assistance is off. Nothing will be sent to the AI provider.", "estimated": "The AI’s estimate is saved next to the baseline. Your library did not change.", "ai-tested": "The AI provider answered the test prompt. No library data was sent."}
+var notices = map[string]string{"started": "Started. Nothing else in your queue moved.", "stopped": "Set aside. You can bring it back from its book page.", "finished": "Marked finished and logged in your reading history. Your queue is unchanged.", "triaged": "Sorted. Only reading status changed; books you want to read wait at the end of your queue for placement.", "saved": "Saved to your library.", "ordered": "Your new order is saved. You can undo it until your next library change.", "undone": "Previous order restored.", "imported": "Import complete. Existing reading status and queue order were preserved.", "loan": "Library event recorded. Reading status stays the same.", "signedout": "Signed out on every device. Sign in again to continue.", "deleted": "Book deleted. Future imports will skip it.", "merged": "Books merged. Future imports of the merged book will update this one.", "restored": "Library restored from your JSON export.", "reading": "Reading history saved. Your queue is unchanged.", "ai-on": "AI assistance is on. Nothing is sent until you ask for a suggestion and confirm what gets shared.", "ai-off": "AI assistance is off. Nothing will be sent to the AI provider.", "estimated": "The AI’s estimate is saved next to the baseline. Your library did not change.", "ai-tested": "The AI provider answered the test prompt. No library data was sent."}
 
 func (a *App) fail(w http.ResponseWriter, r *http.Request, err error) {
 	var h httpError
@@ -147,15 +148,48 @@ func templateFuncs() template.FuncMap {
 			}
 			return out
 		},
-		"rated": func(r *float64, n float64) bool { return r != nil && *r == n },
-		// stars shows a 0.25-5 rating as whole stars (rounded to the nearest
-		// one) beside the exact value; the text alternative is for screen readers.
+		// ratingGroups is the quarter-star values grouped by the whole star
+		// that ends each group: [0.25 0.5 0.75 1], [1.25 ... 2], and so on.
+		"ratingGroups": func() [][]float64 {
+			out := [][]float64{}
+			for star := 1; star <= 5; star++ {
+				g := []float64{}
+				for q := 3; q >= 0; q-- {
+					g = append(g, float64(star)-float64(q)/4)
+				}
+				out = append(out, g)
+			}
+			return out
+		},
+		"noRating":   func() *float64 { return nil },
+		"ratingText": ratingText,
+		"isWhole":    func(n float64) bool { return n == math.Floor(n) },
+		"rated":      func(r *float64, n float64) bool { return r != nil && *r == n },
+		"ratingShort": func(n float64) string {
+			switch frac := n - math.Floor(n); frac {
+			case 0:
+				return strconv.Itoa(int(n)) + "★"
+			case 0.25:
+				return "¼"
+			case 0.5:
+				return "½"
+			}
+			return "¾"
+		},
+		// stars shows a 0.25-5 rating as whole stars plus a partly filled star
+		// for the fraction, beside the exact value; the text alternative is for
+		// screen readers.
 		"stars": func(n *float64) template.HTML {
 			if n == nil {
 				return ""
 			}
-			whole := int(math.Round(*n))
-			return template.HTML(fmt.Sprintf(`<span aria-hidden="true">%s%s %s</span><span class="sr-only">%s out of 5</span>`, strings.Repeat("★", whole), strings.Repeat("☆", 5-whole), ratingText(*n), ratingText(*n)))
+			full := int(math.Floor(*n))
+			part, empty := "", 5-full
+			if frac := int(math.Round((*n - float64(full)) * 4)); frac > 0 && full < 5 {
+				part = fmt.Sprintf(`<span class="star-part q%d">☆</span>`, frac)
+				empty--
+			}
+			return template.HTML(fmt.Sprintf(`<span aria-hidden="true">%s%s%s %s</span><span class="sr-only">%s out of 5</span>`, strings.Repeat("★", full), part, strings.Repeat("☆", empty), ratingText(*n), ratingText(*n)))
 		},
 		"version": func() string { return Version },
 		"star":    func(f float64) string { return fmt.Sprintf("%.1f★", f) },
@@ -208,6 +242,23 @@ func navCurrent(path string, data page) (key string, exact bool) {
 		return "queue", false
 	}
 	return "", false
+}
+
+// tabCurrent names the phone tab bar's current tab: queue, unreviewed, add,
+// reading, or more (the pages behind the More panel). Empty for pages outside
+// every section.
+func tabCurrent(path string, data page) string {
+	if path == "/books/new" {
+		return "add"
+	}
+	key, _ := data["Nav"].(string)
+	switch key {
+	case "queue", "unreviewed", "reading":
+		return key
+	case "all", "history", "imports", "settings":
+		return "more"
+	}
+	return ""
 }
 
 // pageTitle names a list page, adding the page number after the first.

@@ -247,7 +247,7 @@ func TestSkipLinkAndMarkupStayCSPSafe(t *testing.T) {
 		if csp := rr.Header().Get("Content-Security-Policy"); csp != "default-src 'self'; style-src 'self'; script-src 'self'; img-src 'self' data:; frame-ancestors 'none'; form-action 'self'; base-uri 'self'" {
 			t.Errorf("%s: CSP changed: %s", path, csp)
 		}
-		if !strings.Contains(body, `<meta name="viewport" content="width=device-width,initial-scale=1">`) || strings.Contains(body, "user-scalable") {
+		if !strings.Contains(body, `<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">`) || strings.Contains(body, "user-scalable") {
 			t.Errorf("%s: viewport", path)
 		}
 	}
@@ -258,6 +258,80 @@ func TestSkipLinkAndMarkupStayCSPSafe(t *testing.T) {
 	for _, rule := range []string{"@media (prefers-reduced-motion:reduce)", ".skip-link:focus", ".sr-only {"} {
 		if !strings.Contains(string(css), rule) {
 			t.Errorf("stylesheet lacks %s", rule)
+		}
+	}
+}
+
+var tabbarPattern = regexp.MustCompile(`(?s)<nav class="tabbar" aria-label="Main">(.*?)</nav>`)
+
+func TestTabBarMarksCurrentTab(t *testing.T) {
+	t.Parallel()
+	_, b, _ := a11yLibrary(t)
+	cases := map[string]string{
+		"/":                 `<a href="/" class="active" aria-current="page">`,
+		"/?view=unreviewed": `<a href="/?view=unreviewed" class="active" aria-current="page">`,
+		"/reading":          `<a href="/reading" class="active" aria-current="page">`,
+		"/books/new":        `<a class="tab-add" href="/books/new" aria-current="page">`,
+		"/settings":         `<summary class="active">`,
+	}
+	for path, want := range cases {
+		body := b.request("GET", path, nil).Body.String()
+		m := tabbarPattern.FindStringSubmatch(body)
+		if m == nil {
+			t.Fatalf("%s: no tab bar", path)
+		}
+		if strings.Count(m[1], `aria-current="page"`)+strings.Count(m[1], `class="active"`) < 1 || !strings.Contains(m[1], want) {
+			t.Errorf("%s: missing %s", path, want)
+		}
+		if path == "/books/new" && strings.Contains(m[1], `<a href="/" class="active"`) {
+			t.Errorf("%s: Queue also marked current", path)
+		}
+	}
+	body := b.request("GET", "/", nil).Body.String()
+	m := tabbarPattern.FindStringSubmatch(body)
+	if !strings.Contains(m[1], `nav-count">1<span class="sr-only"> waiting`) {
+		t.Errorf("To review count missing: %s", m[1])
+	}
+}
+
+func TestNavLandmarksAreDistinctAndCoverEveryDestination(t *testing.T) {
+	t.Parallel()
+	_, b, _ := a11yLibrary(t)
+	body := b.request("GET", "/", nil).Body.String()
+	if !strings.Contains(body, `aria-label="Main navigation"`) || !strings.Contains(body, `<nav class="tabbar" aria-label="Main">`) {
+		t.Fatal("navigation landmarks need distinct labels")
+	}
+	all := body
+	for _, dest := range []string{`href="/"`, `href="/?view=unreviewed"`, `href="/?view=all"`, `href="/reading"`, `href="/history"`, `href="/imports"`, `href="/settings"`, `href="/books/new"`} {
+		if !strings.Contains(tabbarPattern.FindStringSubmatch(all)[1], dest) {
+			t.Errorf("tab bar lacks %s", dest)
+		}
+	}
+}
+
+func TestQueueRowSheetKeepsActionsAndExplainsDisabledOnes(t *testing.T) {
+	t.Parallel()
+	_, b, _ := a11yLibrary(t)
+	body := b.request("GET", "/", nil).Body.String()
+	for _, want := range []string{
+		`<summary aria-label="More actions: Piranesi">`,
+		`aria-label="Move Piranesi up"`,
+		`aria-label="Predict my rating: Piranesi"`,
+		`aria-label="Edit book: Piranesi"`,
+		// Disabled reasons are visible text in the sheet, not only titles.
+		`Can’t move up: Pinned`,
+		`Can’t move down: Already last in your queue.`,
+		`Pinned books stay in place. Unpin it to move it.</p>`,
+		`<small>Pinned books keep their place.</small>`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("missing %s", want)
+		}
+	}
+	// The sheet's forms still post to the same handlers.
+	for _, action := range []string{`action="/suggest"`, `action="/books/1/action"`, `action="/books/2/estimate"`} {
+		if !strings.Contains(body, action) {
+			t.Errorf("missing form %s", action)
 		}
 	}
 }
