@@ -9,11 +9,11 @@ import (
 
 // bookColumns are the books columns scanBook reads, in order. Queries alias
 // the table as b.
-const bookColumns = "b.id,b.title,b.author,b.identity,b.isbn,b.goodreads_id,b.pages,b.tags,b.interest,b.reading_status,b.position,b.pinned,b.needs_placement,b.moved_by_hand,b.series,b.series_number,b.published_year,b.avg_rating,b.added_at,b.source,b.description,b.description_source"
+const bookColumns = "b.id,b.title,b.author,b.identity,b.isbn,b.goodreads_id,b.pages,b.progress_page,b.tags,b.interest,b.reading_status,b.position,b.pinned,b.needs_placement,b.moved_by_hand,b.series,b.series_number,b.published_year,b.avg_rating,b.added_at,b.source,b.description,b.description_source"
 
 func scanBook(rows *sql.Rows, extra ...any) (Book, error) {
 	b := Book{Loans: []Loan{}}
-	dest := append([]any{&b.ID, &b.Title, &b.Author, &b.Identity, &b.ISBN, &b.GoodreadsID, &b.Pages, &b.Tags, &b.Interest, &b.Status, &b.Position, &b.Pinned, &b.NeedsPlacement, &b.MovedByHand, &b.Series, &b.SeriesNumber, &b.PublishedYear, &b.AvgRating, &b.AddedAt, &b.Source, &b.Description, &b.DescriptionSource}, extra...)
+	dest := append([]any{&b.ID, &b.Title, &b.Author, &b.Identity, &b.ISBN, &b.GoodreadsID, &b.Pages, &b.ProgressPage, &b.Tags, &b.Interest, &b.Status, &b.Position, &b.Pinned, &b.NeedsPlacement, &b.MovedByHand, &b.Series, &b.SeriesNumber, &b.PublishedYear, &b.AvgRating, &b.AddedAt, &b.Source, &b.Description, &b.DescriptionSource}, extra...)
 	return b, rows.Scan(dest...)
 }
 
@@ -60,14 +60,14 @@ func attachLoans(q queryer, books []Book) error {
 		ids[i] = b.ID
 		lookup[b.ID] = i
 	}
-	rows, err := q.Query("SELECT book_id,source,format,status,due_date,observed_at FROM loans WHERE book_id IN (SELECT value FROM json_each(?)) ORDER BY observed_at DESC", jsonIDs(ids))
+	rows, err := q.Query("SELECT book_id,source,format,status,due_date,observed_at,expected_ready FROM loans WHERE book_id IN (SELECT value FROM json_each(?)) ORDER BY observed_at DESC", jsonIDs(ids))
 	if err != nil {
 		return err
 	}
 	defer rows.Close()
 	for rows.Next() {
 		var l Loan
-		if err = rows.Scan(&l.BookID, &l.Source, &l.Format, &l.Status, &l.DueDate, &l.ObservedAt); err != nil {
+		if err = rows.Scan(&l.BookID, &l.Source, &l.Format, &l.Status, &l.DueDate, &l.ObservedAt, &l.ExpectedReady); err != nil {
 			return err
 		}
 		i := lookup[l.BookID]

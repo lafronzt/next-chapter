@@ -9,9 +9,14 @@ Next Chapter is a **single-reader web app** with two ways to organize your list:
 
 Every suggestion has a preview and reasons. Pinned books keep their positions. You decide whether to apply a suggestion, and can undo it until another library change occurs. No AI service, API key, or subscription is required, and [book lookup](#book-details-lookup-optional) is off unless you switch it on; [AI assistance](#ai-assistance-optional) is off unless you connect a hosted model with your own key or a model on your own hardware, and switch it on.
 
-![Next Chapter with example books](docs/preview.png)
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/preview-dark.png">
+    <img alt="Next Chapter's home screen: the next book up, a book being read with its page progress, a library loan due soon with the pages a day needed, and a hold arriving" src="docs/preview.png" width="900">
+  </picture>
+</p>
 
-## What works in v0.2
+## What it does
 
 - Add and edit books; move them manually, one place at a time or straight to a queue number (type 3 to make it #3; the books in between shift by one); pin positions; mark reading, finished, abandoned, or archived. A manual move never crosses a pinned book.
 - Separate views for Up next, Reading, Finished, To review, Set aside (abandoned), Archived, and All books. Lists show 50 books per page (`per_page` up to 200); queue numbers always count from the top of the whole queue, and a page past the end shows the last page.
@@ -24,6 +29,9 @@ Every suggestion has a preview and reasons. Pinned books keep their positions. Y
 - Phone-friendly: a bottom tab bar, a per-row action sheet in the queue, and a quarter-star rating control. On a phone, use your browser's Add to Home Screen to open it like an app (no offline mode and no service worker).
 - Delete a book, or merge a duplicate into the entry you keep, each after a confirmation preview. Re-imports never bring them back.
 - Explainable placement and full-queue reordering, with preview, stale-preview protection, and undo. With AI assistance on, a suggestion can also show an AI-suggested order beside the usual one. Every AI request shows what it shares (and, if you want, the exact prompt) before it is sent, and runs in the background while you keep using the app.
+- **Reading progress**: save the page you are on for a book you are reading. Home shows how far along you are, and Due soon shows pages left and the pages a day needed to finish before a loan is due. Progress never moves a book.
+- **Expected holds**: enter when you expect a library hold to be ready. As that date nears, the book is lifted a little in suggestions (with a reason), and home lists holds arriving soon. The date is your own estimate; nothing is read from Libby.
+- **Yearly reading goal**: set a target on Reading history and see whether you are ahead, on, or behind pace. It only measures.
 - Goodreads CSV imports that keep your `to-read` shelf order and are safe to repeat: export again from Goodreads whenever you want to bring in new books.
 - **Estimated ratings**: “what might I give this?” for an unread book, from your own ratings, with an optional AI second opinion and a running check of how accurate past estimates were.
 - A **Reading history** of finished books, with finish dates, your ratings, books per year, and favorite shelves, from your Goodreads read shelf and readings you log yourself.
@@ -35,6 +43,29 @@ Every suggestion has a preview and reasons. Pinned books keep their positions. Y
 - Password login, CSRF protection, local SQLite persistence, JSON export and restore, and consistent SQLite backups.
 - Docker, Compose, Kubernetes manifests, automated tests, and tagged multi-platform image publishing.
 
+## A look around
+
+Every screenshot here uses made-up example data. Light and dark themes follow your system.
+
+**Your queue explains itself.** Each book can show one short reason for its place, and pinned or hand-placed books say so. Reasons only explain; they never reorder.
+
+![The reading queue, with a library hold, a pinned book, and a reason under each title](docs/queue.png)
+
+**Suggestions are a preview, not a decision.** Rethinking the queue shows every book's old and new place with its reasons. Nothing moves until you apply it, and you can undo it until your next library change.
+
+![A suggested order with each book's old and new place and its reasons](docs/suggestion.png)
+
+**Your reading life, and a goal that only measures.** Finished books from Goodreads and the readings you log, with a yearly goal that tells you plainly whether you are ahead, on, or behind pace.
+
+![Reading history with a yearly goal, rating breakdown, and books per year](docs/reading-history.png)
+
+**Phone friendly.** A bottom tab bar and larger touch targets. Use your browser's Add to Home Screen to open it like an app.
+
+<p>
+  <img alt="Home screen on a phone, light theme" src="docs/mobile.png" width="280">
+  <img alt="Home screen on a phone, dark theme" src="docs/mobile-dark.png" width="280">
+</p>
+
 ## Integration boundaries
 
 **This app owns the ordered queue. It does not write order, reading status, ratings, reviews, or reading history back to Goodreads.** Goodreads stopped issuing public API keys; this project does not depend on that API or request a Goodreads password.
@@ -43,7 +74,7 @@ Goodreads turned off its public shelf feeds in 2026, so CSV import is the only G
 
 Importing makes no network requests: the file you upload is the only input, and nothing is sent to Goodreads. The one optional exception is [book lookup](#book-details-lookup-optional), which is off by default and runs only when you press its button.
 
-Libby supports exporting timeline activity but does not provide a direct Goodreads integration. Export column names and activity labels can vary. The parser accepts common variants and rejects unsupported rows with an actionable error; normalize those rows to the provided sample CSV before importing. There is no authenticated Libby connection in v0.2.
+Libby supports exporting timeline activity but does not provide a direct Goodreads integration. Export column names and activity labels can vary. The parser accepts common variants and rejects unsupported rows with an actionable error; normalize those rows to the provided sample CSV before importing. There is no authenticated Libby connection.
 
 **NYPL physical history is not a live connection.** The `examples/nypl.csv` format is an app-defined template, not an official NYPL export. Capture current checkouts and holds from your account, or reconstruct records from receipts you already have. NYPL says physical loan records are normally deleted soon after return, so old history cannot be assumed recoverable. An event disappearing from a snapshot is never inferred to be a return or cancellation. No automatic NYPL account or email scraping is included.
 
@@ -150,11 +181,12 @@ Each queued book starts with `want-to-read × 10` points (10–50). Additional p
 | Already borrowed | 15 |
 | Available | 5 |
 | Loan / pickup deadline within 7 days, including overdue | +20 |
+| Hold you expect to be ready within 14 days (your own estimate) | 10 |
 | Exact mood tag match, case-insensitive | 15 |
 | Preferred length match (≤250 or ≥400 pages) | 10 |
 | Saved estimated rating, only if turned on in Preferences | −10 to +10 |
 
-Only the strongest library signal is used per book; multiple formats do not stack. Library points are multiplied by the selected timing weight (0, 0.5, 1, or 2). All dates used for ranking use UTC. Holds with no pickup date get no timing boost because a request does not imply availability.
+Only the strongest library signal is used per book; multiple formats do not stack. Library points are multiplied by the selected timing weight (0, 0.5, 1, or 2). All dates used for ranking use UTC. A hold counts only if you entered a date you expect it to be ready, and only within 14 days of it; a request alone does not imply availability, so a hold with no date gets no boost.
 
 Full-queue suggestions sort by score while respecting pins and earlier queued books in the same series. Equal scores preserve existing order. Series metadata is supplied by the reader; the Goodreads export does not reliably provide it. Insertion finds the earliest lower-scoring book, then the closest feasible slot that preserves the other books' order, pin slots, and the candidate's series dependencies. Impossible constraints produce a clear error instead of silently moving pins. Manual moves are intentional overrides of ranking; pin crossings must be unpinned first. **Move to #** takes a queue number counted from the top of the whole queue (on every page): the book lands there, the books between its old and new place shift by one, and everything else keeps its order. A number outside 1 to the queue length, or a move that would cross or displace a pinned book, is refused with a message and changes nothing.
 
@@ -293,7 +325,7 @@ A Goodreads or library import gives a title, an author, and little else. **Book 
 - **What is sent, and to whom:** the book's **title, author, and ISBN** (when it has one) to [Open Library](https://openlibrary.org/developers/api) and [Google Books](https://developers.google.com/books/docs/v1/using), and to ISBNdb if the operator set a key. Never your ratings, reviews, tags, reading history, or any other book. The requests carry a `NextChapter/<version>` User-Agent and no cookies. Those services see your server's IP address and can log the request.
 - **You choose, field by field.** A single-book lookup shows each field with your value and theirs. A field you have not filled is filled with theirs unless you pick **Leave empty**. For a field you have filled, the default is **Keep mine**; you can instead pick **Use theirs** (replaces yours) or, for the description and tags, **Merge both** (their description is added after yours, and tags are joined without repeats). Nothing is saved until you press Save, and nothing you did not choose is replaced. An import preview has one choice for every value a book already has (keep mine, use theirs, or merge), where "mine" is your library or your file; empty fields are always filled. Nothing is saved until you press Import, and importing again changes nothing more. A lookup never moves a book in your queue. Pages, tags, and series it fills are the same fields suggestions read, so a later suggestion can read them; pressing the button never reorders anything.
 - **Untrusted text.** Database text can contain anything. It is stored as plain text with markup removed, cut at 2,000 characters, shown escaped, and sent to an AI only inside `<library_data>`. With [AI assistance](#ai-assistance-optional) on, a stored description (up to 1,000 characters) is part of the candidate in an estimate and shows in the exact-prompt preview; adding or changing one makes a saved AI estimate for that book stale. It does not change the reader-history fingerprint.
-- **Limits.** Databases can be wrong, out of date, or missing a book. Open Library's series data is sparse, so series usually stays empty. If two books match a title and author, nothing is filled; add an ISBN. Redirects are not followed, replies over 1 MB are refused, and each request times out after 8 seconds.
+- **Limits.** Databases can be wrong, out of date, or missing a book. Open Library's series data is sparse, so series usually stays empty. Open Library is asked first and wins where the databases disagree, unless the operator set `GOOGLE_BOOKS_API_KEY`, in which case Google Books goes first. If two books match a title and author, nothing is filled; add an ISBN. Redirects are not followed, replies over 1 MB are refused, and each request times out after 8 seconds.
 - **Optional keys (never required):**
 
   | Variable | Meaning |
@@ -331,7 +363,9 @@ Books on your Goodreads `read` shelf become **Reading history**: one entry per f
 - **Your edits win.** After you change a reading's date or rating in the app, imports leave it alone. You can delete readings you logged yourself. A reading from Goodreads can be edited but not deleted, because the next import would add it again (deleting the book removes its readings).
 - A finished book that is not in your library yet is added as Finished, and each import logs the readings Goodreads reports (the export keeps only your latest `Date Read` per book).
 - **Reviews stay out by default.** Only the length of your Goodreads review (`My Review`) is stored. To keep the text in this library, turn on **Keep my Goodreads review text** in Preferences; turning it off again deletes the stored text. Without it, review text is not kept even in a pending import preview.
-- Not available from Goodreads, and so not here: reading progress and start dates, dates of earlier re-reads (Goodreads keeps only the latest `Date Read`; `Read Count` is not a list of dates), private notes, and anything on a private profile. This app does not scrape Goodreads, ask for your Goodreads password or cookies, or use unofficial APIs.
+- Not available from Goodreads, and so not imported: reading progress and start dates (you can track the page you are on in the app yourself), dates of earlier re-reads (Goodreads keeps only the latest `Date Read`; `Read Count` is not a list of dates), private notes, and anything on a private profile. This app does not scrape Goodreads, ask for your Goodreads password or cookies, or use unofficial APIs.
+
+- **A yearly goal** (optional) sits at the top of the page: set a number of books and it counts readings with a finish date this year, then says whether you are ahead, on, or behind an even pace. It only measures, and never changes your queue.
 
 ### Deleting and merging books
 
@@ -426,6 +460,7 @@ The application uses Go’s HTTP server, escaped HTML templates, plain CSS, and 
 - `internal/app/migrations.go`, `migrate.go`: ordered schema migrations and the runner that applies them after a pre-migration backup.
 - `internal/app/store.go`, `books.go`, `listing.go`: transactions, book and event queries, paged lists.
 - `internal/app/records.go`: matching imported records and event reconciliation.
+- `internal/app/progress.go`: page progress and pace, expected hold dates, and the yearly reading goal.
 - `internal/app/plans.go`: compact storage for previews.
 - `internal/app/merge.go`: deleting and merging books, aliases that stop re-imports from recreating them.
 - `internal/app/estimate.go`, `handlers_estimate.go`: estimated ratings, the deterministic baseline, the optional AI estimate, and accuracy tracking.

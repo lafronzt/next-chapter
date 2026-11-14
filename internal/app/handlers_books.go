@@ -300,6 +300,10 @@ func (a *App) loan(w http.ResponseWriter, r *http.Request) error {
 			return bad("Enter a valid due date.")
 		}
 	}
+	expected := strings.TrimSpace(r.FormValue("expected_ready"))
+	if expected != "" && !validFinishDate(expected) {
+		return bad("Enter the date you expect the hold to be ready as a calendar date, or leave it blank.")
+	}
 	err = a.store.Write(func(tx *sql.Tx) error {
 		if err := current(tx, r); err != nil {
 			return err
@@ -312,6 +316,13 @@ func (a *App) loan(w http.ResponseWriter, r *http.Request) error {
 		event := &Event{Source: source, Format: format, Status: status, Activity: status, At: canonicalTime(time.Now()), DueDate: due}
 		if _, err = importRecords(tx, []Record{{Book: b, Event: event}}); err != nil {
 			return err
+		}
+		// The estimate belongs to a hold the reader is waiting on, so it is
+		// saved only while the newest state is a hold.
+		if status == "hold" && expected != "" {
+			if _, err = tx.Exec("UPDATE loans SET expected_ready=? WHERE book_id=? AND source=? AND format=? AND status='hold'", expected, id, source, format); err != nil {
+				return err
+			}
 		}
 		return bump(tx)
 	})

@@ -55,3 +55,7 @@ Schema changes must include an explicit migration and backup/rollback instructio
 3. Add tests that upgrade a database from the previous version with data intact. Use the internal `migrate(db, list, path)` with an injected list to cover failure cases.
 4. Check that JSON restore (`internal/app/restore.go`) still reads exports from the new schema, then raise `maxRestoreSchema`. `TestRestoreSchemaVersionIsReviewed` fails until you do.
 5. Document user-visible effects and rollback in the README. Before a pending migration runs on an existing database, the runner writes `<db>.pre-v<N>.bak`. To roll back, stop the app, restore that file over the database, delete stray `-wal`/`-shm` files, and run the previous image. An older image refuses to open a newer schema.
+
+## Screenshots
+
+Images in `docs/` use synthetic example books only: never a real library, export, or account. Retake them in light and dark when the interface changes.

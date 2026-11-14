@@ -8,13 +8,15 @@ import (
 )
 
 type Book struct {
-	ID             int64    `json:"id"`
-	Title          string   `json:"title"`
-	Author         string   `json:"author"`
-	Identity       string   `json:"identity"`
-	ISBN           string   `json:"isbn"`
-	GoodreadsID    string   `json:"goodreads_id"`
-	Pages          *int     `json:"pages"`
+	ID          int64  `json:"id"`
+	Title       string `json:"title"`
+	Author      string `json:"author"`
+	Identity    string `json:"identity"`
+	ISBN        string `json:"isbn"`
+	GoodreadsID string `json:"goodreads_id"`
+	Pages       *int   `json:"pages"`
+	// ProgressPage is the page reached while reading; nil when not tracked.
+	ProgressPage   *int     `json:"progress_page,omitempty"`
 	Tags           string   `json:"tags"`
 	Interest       int      `json:"interest"`
 	Status         string   `json:"reading_status"`
@@ -46,6 +48,8 @@ type Loan struct {
 	Status     string `json:"status"`
 	DueDate    string `json:"due_date"`
 	ObservedAt string `json:"observed_at"`
+	// ExpectedReady is the reader's own estimate of when a hold will be ready.
+	ExpectedReady string `json:"expected_ready,omitempty"`
 }
 
 type Event struct {
@@ -111,6 +115,8 @@ type Preferences struct {
 	// default; nothing is looked up unless the reader asks for one book or one
 	// import, and then only title, author, and ISBN are sent.
 	BookLookup bool `json:"book_lookup,omitempty"`
+	// ReadingGoal is the number of books to finish this year; 0 means no goal.
+	ReadingGoal int `json:"reading_goal,omitempty"`
 }
 
 var defaultPreferences = Preferences{LibraryWeight: 1, Length: "any"}
@@ -221,6 +227,14 @@ func score(b Book, p Preferences, today time.Time) (float64, []string) {
 						reasons = append(reasons, "Deadline within 7 days")
 					}
 				}
+			}
+		}
+		if l.Status == "hold" {
+			// A hold the reader expects soon lifts a book a little, less than
+			// a copy that is ready. Without an expected date it counts for nothing.
+			if days, ok := daysUntil(l.ExpectedReady, today); ok && days <= holdSoonDays {
+				bonus = 10
+				reasons = append(reasons, holdText(days))
 			}
 		}
 		if bonus > best {

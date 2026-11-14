@@ -35,6 +35,7 @@ func (a *App) saveSettings(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	prefs := form
+	prefs.ReadingGoal = stored.ReadingGoal
 	switch section {
 	case "ranking":
 		prefs = stored

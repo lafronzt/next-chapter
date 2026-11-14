@@ -33,7 +33,16 @@
   <ul>
     {{range .Reading}}
     <li>
-      <span class="strip-title"><a href="/books/{{.ID}}">{{.Title}}</a> <span class="muted">{{.Author}}</span></span>
+      <div class="strip-title"><a href="/books/{{.ID}}">{{.Title}}</a> <span class="muted">{{.Author}}</span>
+        {{if .Pages}}<meter class="progress-meter" min="0" max="{{.Pages}}" value="{{.ProgressValue}}" aria-label="Progress in {{.Title}}"></meter>{{end}}
+        {{with .ProgressText}}<span class="muted progress-text">{{.}}</span>{{end}}
+        <form class="progress-form" method="post" action="/books/{{.ID}}/progress">
+          {{template "fields" $}}
+          <input type="hidden" name="return" value="{{$.Pager.Self}}">
+          <label>Page <input type="number" name="page" min="0" {{if .Pages}}max="{{.Pages}}"{{end}} inputmode="numeric" value="{{.ProgressValue}}" aria-label="Page you are on in {{.Title}}"></label>
+          <button class="button small"><span>Save page</span></button>
+        </form>
+      </div>
       <span class="strip-actions">
         <a class="button small" href="/books/{{.ID}}/finish" aria-label="Finished {{.Title}}"><span>Finished</span></a>
         <form method="post" action="/books/{{.ID}}/status">
@@ -54,10 +63,24 @@
     {{range .Due}}
     <li>
       <span class="strip-title"><a href="/books/{{.Book.ID}}">{{.Book.Title}}</a> <span class="muted">{{upper .Loan.Source}} · {{.Loan.DueDate}}</span></span>
-      <span class="strip-days">{{.DaysText}}</span>
+      <span class="strip-days">{{.DaysText}}{{with .Pace}}<small class="muted"> · {{.}}</small>{{end}}</span>
     </li>
     {{end}}
   </ul>
+</section>
+{{end}}
+{{if .Holds}}
+<section class="home-strip" aria-labelledby="holds-title">
+  <h2 id="holds-title">Holds arriving</h2>
+  <ul>
+    {{range .Holds}}
+    <li>
+      <span class="strip-title"><a href="/books/{{.Book.ID}}">{{.Book.Title}}</a> <span class="muted">{{upper .Loan.Source}} · {{.Loan.Format}} · {{.Loan.ExpectedReady}}</span></span>
+      <span class="strip-days">{{.Text}}</span>
+    </li>
+    {{end}}
+  </ul>
+  <p class="muted"><small>These dates are your own estimates. A hold lifts a book in a suggestion only a little, and never moves it on its own.</small></p>
 </section>
 {{end}}
 {{end}}

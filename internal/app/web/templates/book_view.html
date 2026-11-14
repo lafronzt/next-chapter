@@ -11,6 +11,18 @@
     <p class="author">{{.Book.Author}}{{if .Book.Pages}}<span> · {{pages .Book.Pages}} pages</span>{{end}}{{with .Book.Series}}<span> · {{.}}{{with $.Book.SeriesNumber}} #{{seriesNumber .}}{{end}}</span>{{end}}</p>
     <p class="book-meta">{{pips .Book.Interest}}{{if .Book.Tags}}<span> · {{.Book.Tags}}</span>{{end}}</p>
     <p><span class="badge">{{status .Book.Status}}</span>{{if .Book.Pinned}} <span class="badge pin"><span aria-hidden="true">◆</span> Pinned</span>{{end}}</p>
+    {{if eq .Book.Status "reading"}}
+    <div class="progress-block">
+      {{if .Book.Pages}}<meter class="progress-meter" min="0" max="{{.Book.Pages}}" value="{{.Book.ProgressValue}}" aria-label="Progress in {{.Book.Title}}"></meter>{{end}}
+      {{with .Book.ProgressText}}<p class="muted">{{.}}</p>{{end}}
+      <form class="progress-form" method="post" action="/books/{{.Book.ID}}/progress">
+        {{template "fields" .}}
+        <input type="hidden" name="back" value="book">
+        <label>Page <input type="number" name="page" min="0" {{if .Book.Pages}}max="{{.Book.Pages}}"{{end}} inputmode="numeric" value="{{.Book.ProgressValue}}"></label>
+        <button class="button small"><span>Save page</span></button>
+      </form>
+    </div>
+    {{end}}
     <div class="button-row primary-action">
       {{if eq .Book.Status "to-read"}}
       <form method="post" action="/books/{{.Book.ID}}/status">
@@ -77,7 +89,7 @@
   <h2>Library</h2>
 </section>
 {{range .Book.Loans}}
-<p class="notice" role="status">{{upper .Source}} · {{.Format}} · {{.Status}}{{if .DueDate}} · Deadline {{.DueDate}}{{end}}</p>
+<p class="notice" role="status">{{upper .Source}} · {{.Format}} · {{.Status}}{{if .DueDate}} · Deadline {{.DueDate}}{{end}}{{if .ExpectedReady}} · Hold expected {{.ExpectedReady}}{{end}}</p>
 {{end}}
 {{if .Events}}
 <div class="panel">

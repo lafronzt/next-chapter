@@ -494,7 +494,8 @@ func (s isbndb) Lookup(ctx context.Context, q LookupQuery) (BookDetails, error) 
 
 // --- the finder ---
 
-// Finder asks each source in order and merges what they found.
+// Finder asks each source in order and merges what they found; earlier
+// sources win where they disagree.
 type Finder struct{ sources []BookSource }
 
 // lookupHosts are the base URLs of the databases. Production uses the
@@ -508,10 +509,15 @@ func newFinder(cfg LookupConfig, hosts lookupHosts, client *http.Client) *Finder
 		}
 		return def
 	}
-	f := &Finder{sources: []BookSource{
-		openLibrary{newLookupHTTP(client, pick(hosts.OpenLibrary, openLibraryHost))},
-		googleBooks{newLookupHTTP(client, pick(hosts.GoogleBooks, googleBooksHost)), cfg.GoogleBooksKey},
-	}}
+	open := openLibrary{newLookupHTTP(client, pick(hosts.OpenLibrary, openLibraryHost))}
+	google := googleBooks{newLookupHTTP(client, pick(hosts.GoogleBooks, googleBooksHost)), cfg.GoogleBooksKey}
+	// Source order decides whose description, series, and tags win, and who
+	// wins a tie on pages and year. An operator who set a Google Books key
+	// has chosen it, so it goes first; otherwise Open Library does.
+	f := &Finder{sources: []BookSource{open, google}}
+	if cfg.GoogleBooksKey != "" {
+		f.sources = []BookSource{google, open}
+	}
 	if cfg.ISBNdbKey != "" {
 		h := newLookupHTTP(client, pick(hosts.ISBNdb, isbndbHost))
 		h.header = http.Header{"Authorization": {cfg.ISBNdbKey}}

@@ -17,6 +17,7 @@ var migrations = []migration{
 	{8, "books moved by hand", migrateMovedByHand},
 	{9, "quarter-star ratings", migrateQuarterStars},
 	{10, "book descriptions", migrateDescriptions},
+	{11, "reading progress and expected hold dates", migrateProgressAndHolds},
 }
 
 func migrateBaseline(tx *sql.Tx) error {
@@ -176,5 +177,21 @@ CREATE INDEX reading_log_finished ON reading_log(finished_at, id);`)
 func migrateDescriptions(tx *sql.Tx) error {
 	_, err := tx.Exec(`ALTER TABLE books ADD COLUMN description TEXT NOT NULL DEFAULT '';
 ALTER TABLE books ADD COLUMN description_source TEXT NOT NULL DEFAULT '';`)
+	return err
+}
+
+// progress_page is the page the reader has reached in a book they are
+// reading, and expected_ready the reader's own estimate (YYYY-MM-DD) of when
+// a library hold will be ready. Both are optional and default to empty, so
+// existing books and loans are unchanged. The yearly reading goal lives in the
+// preferences, not in the schema.
+//
+// Backup: the migration framework writes <database>.pre-v11.bak before
+// applying this. Rollback: stop the app, put that file back as the database,
+// and run the previous release; export from the older release after rolling
+// back, because this release's exports carry fields the older one ignores.
+func migrateProgressAndHolds(tx *sql.Tx) error {
+	_, err := tx.Exec(`ALTER TABLE books ADD COLUMN progress_page INTEGER NULL;
+ALTER TABLE loans ADD COLUMN expected_ready TEXT NOT NULL DEFAULT '';`)
 	return err
 }

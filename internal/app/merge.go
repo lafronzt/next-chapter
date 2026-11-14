@@ -246,6 +246,26 @@ func mergeBooks(q queryer, sourceID, targetID int64, apply bool) (mergePreview, 
 // rebuildLoans recomputes the target's current loans from its merged events in
 // import order, using the same newest-wins rule as imports.
 func rebuildLoans(q queryer, sourceID, targetID int64) error {
+	// Remember hold dates the reader entered; events do not carry them.
+	type heldDate struct{ source, format, day string }
+	var held []heldDate
+	hrows, err := q.Query("SELECT source,format,expected_ready FROM loans WHERE book_id IN (?,?) AND expected_ready!='' ORDER BY observed_at", sourceID, targetID)
+	if err != nil {
+		return err
+	}
+	for hrows.Next() {
+		var h heldDate
+		if err = hrows.Scan(&h.source, &h.format, &h.day); err != nil {
+			hrows.Close()
+			return err
+		}
+		held = append(held, h)
+	}
+	err = hrows.Err()
+	hrows.Close()
+	if err != nil {
+		return err
+	}
 	if _, err := q.Exec("DELETE FROM loans WHERE book_id IN (?,?)", sourceID, targetID); err != nil {
 		return err
 	}
@@ -269,6 +289,11 @@ func rebuildLoans(q queryer, sourceID, targetID int64) error {
 	}
 	for _, e := range events {
 		if _, err = upsertLoan(q, targetID, e.Source, e); err != nil {
+			return err
+		}
+	}
+	for _, h := range held {
+		if _, err = q.Exec("UPDATE loans SET expected_ready=? WHERE book_id=? AND source=? AND format=? AND status='hold'", h.day, targetID, h.source, h.format); err != nil {
 			return err
 		}
 	}

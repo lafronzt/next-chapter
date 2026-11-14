@@ -1,5 +1,15 @@
 # Change log
 
+## Reading workflow (progress, holds, yearly goal)
+
+| Change | Detail |
+|---|---|
+| Progress | Migration 11 adds `books.progress_page`. `POST /books/{id}/progress` saves the page for a book being read; Reading now and the book page show it, and Due soon shows pages left and pages a day to finish in time. It never bumps the revision, so previews and Undo stay valid. Finishing clears it. |
+| Holds | Migration 11 adds `loans.expected_ready`, the reader's own estimate, entered on the library form for the activity "hold". Within 14 days it adds up to 10 points (scaled by library timing) with a reason, and lists on the home screen under Holds arriving. Leaving the hold clears it; restore and merge keep it. |
+| Yearly goal | `Preferences.ReadingGoal` (no schema change), set on the Reading history page. Counts readings finished this year and says ahead, on, or behind an even pace. |
+| Fixes | Radio buttons in the lookup comparison no longer inherit text-input sizing, and its field headings no longer sit on the divider line. A re-import now strips "(Series, #N)" from the title of an already stored, unedited book. |
+| Tests | `progress_test.go`, `series_title_test.go`. Backup before migration 11: `<database>.pre-v11.bak`; rollback is to restore it and run the previous release. |
+
 ## Prompt 32 (book details lookup)
 
 | Prompt | Change |
