@@ -148,15 +148,48 @@ func templateFuncs() template.FuncMap {
 			}
 			return out
 		},
-		"rated": func(r *float64, n float64) bool { return r != nil && *r == n },
-		// stars shows a 0.25-5 rating as whole stars (rounded to the nearest
-		// one) beside the exact value; the text alternative is for screen readers.
+		// ratingGroups is the quarter-star values grouped by the whole star
+		// that ends each group: [0.25 0.5 0.75 1], [1.25 ... 2], and so on.
+		"ratingGroups": func() [][]float64 {
+			out := [][]float64{}
+			for star := 1; star <= 5; star++ {
+				g := []float64{}
+				for q := 3; q >= 0; q-- {
+					g = append(g, float64(star)-float64(q)/4)
+				}
+				out = append(out, g)
+			}
+			return out
+		},
+		"noRating":   func() *float64 { return nil },
+		"ratingText": ratingText,
+		"isWhole":    func(n float64) bool { return n == math.Floor(n) },
+		"rated":      func(r *float64, n float64) bool { return r != nil && *r == n },
+		"ratingShort": func(n float64) string {
+			switch frac := n - math.Floor(n); frac {
+			case 0:
+				return strconv.Itoa(int(n)) + "★"
+			case 0.25:
+				return "¼"
+			case 0.5:
+				return "½"
+			}
+			return "¾"
+		},
+		// stars shows a 0.25-5 rating as whole stars plus a partly filled star
+		// for the fraction, beside the exact value; the text alternative is for
+		// screen readers.
 		"stars": func(n *float64) template.HTML {
 			if n == nil {
 				return ""
 			}
-			whole := int(math.Round(*n))
-			return template.HTML(fmt.Sprintf(`<span aria-hidden="true">%s%s %s</span><span class="sr-only">%s out of 5</span>`, strings.Repeat("★", whole), strings.Repeat("☆", 5-whole), ratingText(*n), ratingText(*n)))
+			full := int(math.Floor(*n))
+			part, empty := "", 5-full
+			if frac := int(math.Round((*n - float64(full)) * 4)); frac > 0 && full < 5 {
+				part = fmt.Sprintf(`<span class="star-part q%d">☆</span>`, frac)
+				empty--
+			}
+			return template.HTML(fmt.Sprintf(`<span aria-hidden="true">%s%s%s %s</span><span class="sr-only">%s out of 5</span>`, strings.Repeat("★", full), part, strings.Repeat("☆", empty), ratingText(*n), ratingText(*n)))
 		},
 		"version": func() string { return Version },
 		"star":    func(f float64) string { return fmt.Sprintf("%.1f★", f) },

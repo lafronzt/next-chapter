@@ -1759,3 +1759,99 @@ input[type=checkbox] {
     min-height:44px;
   }
 }
+
+/* Quarter-star rating input */
+.rating-input {
+  border:0;
+  padding:0;
+  margin:0;
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+  min-width:0;
+}
+
+.rating-input legend {
+  padding:0;
+  margin-bottom:6px;
+  font-weight:600;
+}
+
+.rating-group {
+  display:flex;
+  gap:4px;
+}
+
+.rating-input label {
+  position:relative;
+  display:block;
+}
+
+.rating-input input {
+  position:absolute;
+  opacity:0;
+  inset:0;
+  margin:0;
+  width:100%;
+  height:100%;
+  cursor:pointer;
+}
+
+.rating-input label>span {
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  min-width:48px;
+  min-height:44px;
+  padding:0 10px;
+  border:1px solid var(--line);
+  border-radius:8px;
+  background:var(--paper);
+  font-size:15px;
+}
+
+.rating-input label>span.whole {
+  min-width:64px;
+  font-size:20px;
+  color:var(--accent);
+}
+
+.rating-input input:checked+span {
+  background:var(--green);
+  border-color:var(--green);
+  color:#fff;
+}
+
+.rating-input input:focus-visible+span {
+  outline:3px solid var(--accent);
+  outline-offset:2px;
+}
+
+.rating-unrated {
+  align-self:flex-start;
+}
+
+.star-part {
+  position:relative;
+  display:inline-block;
+}
+
+.star-part::before {
+  content:"★";
+  position:absolute;
+  left:0;
+  top:0;
+  overflow:hidden;
+}
+
+.star-part.q1::before {
+  width:25%;
+}
+
+.star-part.q2::before {
+  width:50%;
+}
+
+.star-part.q3::before {
+  width:75%;
+}

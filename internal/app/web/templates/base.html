@@ -93,3 +93,16 @@
 </nav>
 {{end}}
 {{end}}
+
+{{/* rating-input takes the current *float64 rating (nil for none) and submits a "rating" of 0.25 to 5, or "" for unrated. */}}
+{{define "rating-input"}}{{$cur := .}}
+<fieldset class="rating-input">
+  <legend>Your rating <span class="muted">currently {{if $cur}}{{ratingText (deref $cur)}} out of 5{{else}}unrated{{end}}</span></legend>
+  <label class="rating-unrated"><input type="radio" name="rating" value="" {{if not $cur}}checked{{end}}><span>Unrated</span></label>
+  {{range $g := ratingGroups}}
+  <div class="rating-group">
+    {{range $n := $g}}<label><input type="radio" name="rating" value="{{$n}}" {{if rated $cur $n}}checked{{end}}><span class="{{if isWhole $n}}whole{{end}}"><span aria-hidden="true">{{ratingShort $n}}</span><span class="sr-only">{{$n}} out of 5</span></span></label>{{end}}
+  </div>
+  {{end}}
+</fieldset>
+{{end}}
