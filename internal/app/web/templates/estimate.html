@@ -49,7 +49,8 @@
 {{with .Payload}}
 <section class="section-heading" id="shared">
   <h2>What gets shared</h2>
-  <p>Asking the AI sends exactly this to {{$.AI.Provider}} ({{$.AI.Model}}{{with $.AI.Endpoint}} at {{.}}{{end}}), once, and saves its answer next to the baseline. Never sent: ISBNs, Goodreads IDs, library loans or accounts, or anything about you beyond these books.</p>
+  {{if not $.AI.Available}}<p>Nothing is sent from this app. To get an AI estimate, you can copy the prompt below into your own AI and paste its reply back. It contains exactly this, and the AI you use sees it.</p>{{else}}
+  <p>Asking the AI sends exactly this to {{$.AI.Provider}} ({{$.AI.Model}}{{with $.AI.Endpoint}} at {{.}}{{end}}), once, and saves its answer next to the baseline. Never sent: ISBNs, Goodreads IDs, library loans or accounts, or anything about you beyond these books.</p>{{end}}
 </section>
 <div class="panel shared">
   <h3>The book</h3>
@@ -66,9 +67,9 @@
       </tbody>
     </table>
   </div>
-  {{template "prompt" $.Prompt}}
+  {{if $.AI.Available}}{{template "prompt" $.Prompt}}{{end}}
 </div>
-<form class="apply-bar" method="post" action="/books/{{$.Book.ID}}/estimate/ai">
+{{if $.AI.Available}}<form class="apply-bar" method="post" action="/books/{{$.Book.ID}}/estimate/ai">
   {{template "csrf" $}}
   <input type="hidden" name="fingerprint" value="{{$.Inputs.Fingerprint}}">
   <div>
@@ -79,7 +80,8 @@
   <div class="button-row">
     <button class="button primary"><span>Send and estimate <span aria-hidden="true">→</span></span></button>
   </div>
-</form>
+</form>{{end}}
+{{template "manual" $}}
 {{end}}
 {{end}}
 {{template "bottom" .}}

@@ -173,7 +173,7 @@ func (a *App) Handler() http.Handler {
 		"GET /history": a.history, "GET /reading": a.readingHistory, "POST /books/{id}/readings": a.addReading, "POST /readings/{rid}": a.editReading, "GET /export.json": a.export, "GET /backup.sqlite3": a.backup, "POST /demo": a.demo,
 		"POST /ai/settings": a.aiSettings, "POST /ai/test": a.aiTest, "GET /ai/jobs/{id}": a.aiJobPage,
 		"POST /books/{id}/lookup": a.lookupDetails, "GET /lookups/{plan}": a.lookupPage, "POST /lookups/{plan}": a.lookupPage, "POST /plans/{id}/lookup": a.lookupImport,
-		"GET /books/{id}/estimate": a.estimate, "POST /books/{id}/estimate": a.predict, "POST /books/{id}/estimate/ai": a.predictAI,
+		"GET /books/{id}/estimate": a.estimate, "POST /books/{id}/estimate": a.predict, "POST /books/{id}/estimate/ai": a.predictAI, "POST /books/{id}/estimate/paste": a.pasteEstimate, "POST /plans/{id}/paste": a.pastePlan,
 	}
 	for pattern, handler := range endpoints {
 		mux.HandleFunc(pattern, func(w http.ResponseWriter, r *http.Request) {

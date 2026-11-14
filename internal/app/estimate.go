@@ -597,20 +597,7 @@ func (a *App) estimateAI(ctx context.Context, bookID int64, fingerprint string, 
 // saved in a short write that first checks the inputs did not change
 // meanwhile.
 func (a *App) prepareEstimateAI(bookID int64, fingerprint string, reviews bool) (string, func(context.Context) error, error) {
-	ei, err := loadEstimateInputs(a.store.DB, bookID)
-	if err != nil {
-		return "", nil, err
-	}
-	if ei.Rated {
-		return "", nil, bad("You have already rated this book.")
-	}
-	if ei.Baseline.Rated == 0 {
-		return "", nil, bad("Rate a few finished books first; an estimate needs your own ratings.")
-	}
-	if ei.Fingerprint != fingerprint {
-		return "", nil, conflict("Your reading history or this book changed since the preview. Check what gets shared again.")
-	}
-	req, err := estimateRequest(buildEstimatePayload(ei.Book, ei.History, ei.Baseline, reviews && ei.KeepReviews))
+	ei, req, save, err := a.prepareEstimate(bookID, fingerprint, reviews)
 	if err != nil {
 		return "", nil, err
 	}
@@ -619,8 +606,37 @@ func (a *App) prepareEstimateAI(bookID int64, fingerprint string, reviews bool) 
 		if err != nil {
 			return err
 		}
+		return save(resp.Text, a.config.AI.Model)
+	}
+	return ei.Book.Title, send, nil
+}
+
+// prepareEstimate checks an estimate request against the preview and returns
+// the request plus save, which validates an answer's text, wherever it came
+// from, and saves it as the book's AI estimate if the inputs have not
+// changed meanwhile. model labels who answered.
+func (a *App) prepareEstimate(bookID int64, fingerprint string, reviews bool) (estimateInputs, AIRequest, func(text, model string) error, error) {
+	ei, err := loadEstimateInputs(a.store.DB, bookID)
+	if err != nil {
+		return ei, AIRequest{}, nil, err
+	}
+	if ei.Rated {
+		return ei, AIRequest{}, nil, bad("You have already rated this book.")
+	}
+	if ei.Baseline.Rated == 0 {
+		return ei, AIRequest{}, nil, bad("Rate a few finished books first; an estimate needs your own ratings.")
+	}
+	if ei.Fingerprint != fingerprint {
+		return ei, AIRequest{}, nil, conflict("Your reading history or this book changed since the preview. Check what gets shared again.")
+	}
+	req, err := estimateRequest(buildEstimatePayload(ei.Book, ei.History, ei.Baseline, reviews && ei.KeepReviews))
+	if err != nil {
+		return ei, req, nil, err
+	}
+	save := func(text, model string) error {
 		var answer estimateAnswer
-		if err = decodeAnswer(resp.Text, &answer); err == nil {
+		err := decodeAnswer(text, &answer)
+		if err == nil {
 			err = checkEstimateAnswer(&answer)
 		}
 		if err != nil {
@@ -632,11 +648,11 @@ func (a *App) prepareEstimateAI(bookID int64, fingerprint string, reviews bool) 
 				return err
 			}
 			if now.Fingerprint != fingerprint {
-				return conflict("Your reading history changed while the AI was answering, so its estimate was not saved. Try again.")
+				return conflict("Your reading history changed while the answer was coming back, so the estimate was not saved. Try again.")
 			}
 			return saveAIEstimate(tx, ratingEstimate{BookID: bookID, Fingerprint: fingerprint, Baseline: ei.Baseline.Estimate, AI: &answer.Estimate,
-				Confidence: answer.Confidence, Reasons: answer.Reasons, Model: a.config.AI.Model, CreatedAt: canonicalTime(a.now())})
+				Confidence: answer.Confidence, Reasons: answer.Reasons, Model: model, CreatedAt: canonicalTime(a.now())})
 		})
 	}
-	return ei.Book.Title, send, nil
+	return ei, req, save, nil
 }

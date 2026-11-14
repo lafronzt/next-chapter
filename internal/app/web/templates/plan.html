@@ -122,7 +122,7 @@
   <a href="?show=rules" {{if not .ShowAI}}class="selected" aria-current="page"{{end}}>Use my usual ranking</a>
   <a href="?show=ai" {{if .ShowAI}}class="selected" aria-current="page"{{end}}>Use AI suggestion</a>
 </nav>
-<p class="muted ai-meta"><small>AI suggestion from {{.Plan.AIModel}} · {{.Plan.AIInputTokens}} input and {{.Plan.AIOutputTokens}} output tokens.{{with .Plan.Intent}} Your note: “{{.}}”.{{end}} Pins and series order are enforced by this app, not the AI. Reasons marked AI are AI-generated.</small></p>
+<p class="muted ai-meta"><small>AI suggestion from {{.Plan.AIModel}}{{if .Plan.AIInputTokens}} · {{end}}{{if .Plan.AIInputTokens}}{{.Plan.AIInputTokens}} input and {{.Plan.AIOutputTokens}} output tokens.{{end}}{{with .Plan.Intent}} Your note: “{{.}}”.{{end}} Pins and series order are enforced by this app, not the AI. Reasons marked AI are AI-generated.</small></p>
 {{end}}
 <div class="panel preview-list">
   {{range .Shown}}
@@ -143,11 +143,11 @@
 </div>
 {{with .Shared}}
 <section class="section-heading" id="ask-ai">
-  <h2>Ask the AI for a second opinion?</h2>
+  <h2>{{if $.AI.Available}}Ask the AI for a second opinion?{{else}}Get an AI second opinion with your own AI{{end}}</h2>
   <p>It can weigh things the usual ranking cannot, like variety, pacing, and your note. Its order is shown beside this one, pins and series order still win, and nothing changes until you apply one.</p>
 </section>
 <div class="panel shared">
-  <h3>What gets shared with {{$.AI.Provider}} ({{$.AI.Model}}{{with $.AI.Endpoint}} at {{.}}{{end}})</h3>
+  <h3>{{if $.AI.Available}}What gets shared with {{$.AI.Provider}} ({{$.AI.Model}}{{with $.AI.Endpoint}} at {{.}}{{end}}){{else}}What the prompt contains{{end}}</h3>
   <p>{{if eq .Task "place"}}The book to place, {{len .Books}} books around its usual place{{else}}{{len .Books}} of the {{.QueueSize}} books in your queue (the highest-ranked, plus pinned books and books you moved by hand){{end}}{{if .Recent}}, and your {{len .Recent}} most recently finished {{if eq (len .Recent) 1}}book{{else}}books{{end}}{{end}}. Books are numbered for this request only; no database IDs, ISBNs, Goodreads IDs, or library accounts are sent. Library status says only “borrowed” or “ready for pickup” and the days until the deadline.</p>
   {{with .Note}}<p><strong>Your note:</strong> “{{.}}”</p>{{end}}
   {{with .Candidate}}<p><strong>To place:</strong> {{.Title}} · {{.Author}}{{with .Tags}} · {{.}}{{end}}{{with .Pages}} · {{pages .}} pages{{end}}{{with .Series}} · {{.}}{{end}} · {{pips .Interest}}{{with .Estimate}} · estimated {{star (deref .)}}{{end}}</p>{{end}}
@@ -163,13 +163,14 @@
   <h3>Recently finished</h3>
   <ul class="ai-sharing">{{range .Recent}}<li>{{.Title}} · {{.Author}}{{with .Tags}} · {{.}}{{end}}{{with .Rating}} · {{.}}★{{end}}{{with .Finished}} · {{.}}{{end}}</li>{{end}}</ul>
   {{end}}
-  {{template "prompt" $.Prompt}}
+  {{if $.AI.Available}}{{template "prompt" $.Prompt}}
   <form method="post" action="/plans/{{$.PlanID}}/ai">
     {{template "csrf" $}}
     <input type="hidden" name="fingerprint" value="{{$.SharedFingerprint}}">
     <p class="muted"><small>One request ({{$.AI.Usage.Requests}} of {{$.AI.Cap}} used this month). The answer is checked before it is shown.</small></p>
     <button class="button"><span>Send and suggest <span aria-hidden="true">↗</span></span></button>
-  </form>
+  </form>{{end}}
+  {{template "manual" $}}
 </div>
 {{end}}
 {{end}}

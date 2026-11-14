@@ -303,7 +303,7 @@ func TestEstimateWithAIOff(t *testing.T) {
 	}
 	expect(t, b.request("POST", fmt.Sprintf("/books/%d/estimate", id), nil), 303)
 	page := b.request("GET", fmt.Sprintf("/books/%d/estimate", id), nil).Body.String()
-	if strings.Contains(page, "What gets shared") || !strings.Contains(page, "Turn on AI assistance") || !strings.Contains(page, "Based on 12 rated books") {
+	if strings.Contains(page, "Send and estimate") || !strings.Contains(page, "Use your own AI") || !strings.Contains(page, "Turn on AI assistance") || !strings.Contains(page, "Based on 12 rated books") {
 		t.Fatal("AI-off estimate page is wrong")
 	}
 	in, _ := loadEstimateInputs(a.store.DB, id)
