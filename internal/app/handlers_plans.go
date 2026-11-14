@@ -164,7 +164,11 @@ func applyPlan(tx *sql.Tx, id string, useAI bool) (string, error) {
 			if err = recordLastImport(tx, p.Source, result); err != nil {
 				return err
 			}
-			location = fmt.Sprintf("/?notice=imported&moved=%d&advanced=%d", result.upgradedTotal(), result.advancedTotal())
+			var needs int
+			if err = tx.QueryRow("SELECT count(*) FROM books WHERE reading_status='to-read' AND needs_placement=1").Scan(&needs); err != nil {
+				return err
+			}
+			location = fmt.Sprintf("/?notice=imported&added=%d&needs=%d&moved=%d&advanced=%d", result.Added, needs, result.upgradedTotal(), result.advancedTotal())
 			if result.Skipped > 0 {
 				location += fmt.Sprintf("&skipped=%d", result.Skipped)
 			}
@@ -269,12 +273,23 @@ func (a *App) undo(w http.ResponseWriter, r *http.Request) error {
 		if rev != now {
 			return conflict("Undo expired after another library change.")
 		}
-		var previous []undoBook
-		if err = json.Unmarshal([]byte(raw), &previous); err != nil {
-			return err
-		}
-		for i, b := range previous {
-			if _, err = tx.Exec("UPDATE books SET position=?,needs_placement=?,moved_by_hand=? WHERE id=?", i, b.NeedsPlacement, b.MovedByHand, b.ID); err != nil {
+		if strings.HasPrefix(raw, "[") {
+			// A suggested order: the queue's order, as it was.
+			var previous []undoBook
+			if err = json.Unmarshal([]byte(raw), &previous); err != nil {
+				return err
+			}
+			for i, b := range previous {
+				if _, err = tx.Exec("UPDATE books SET position=?,needs_placement=?,moved_by_hand=? WHERE id=?", i, b.NeedsPlacement, b.MovedByHand, b.ID); err != nil {
+					return err
+				}
+			}
+		} else {
+			var snap undoSnapshot
+			if err = json.Unmarshal([]byte(raw), &snap); err != nil {
+				return err
+			}
+			if err = restoreStates(tx, snap.Books); err != nil {
 				return err
 			}
 		}

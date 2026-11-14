@@ -208,7 +208,7 @@ func TestUpgradeSurfacedInPreviewNoticeAndSync(t *testing.T) {
 	}
 	rr = b.request("POST", planURL, nil)
 	expect(t, rr, 303)
-	if loc := rr.Header().Get("Location"); loc != "/?notice=imported&moved=2&advanced=0" {
+	if loc := rr.Header().Get("Location"); loc != "/?notice=imported&added=0&needs=1&moved=2&advanced=0" {
 		t.Fatal(loc)
 	}
 	rr = b.request("GET", rr.Header().Get("Location"), nil)
@@ -223,7 +223,7 @@ func TestUpgradeSurfacedInPreviewNoticeAndSync(t *testing.T) {
 		t.Fatal("repeat preview promised a move")
 	}
 	rr = b.request("POST", planURL, nil)
-	if loc := rr.Header().Get("Location"); loc != "/?notice=imported&moved=0&advanced=0" {
+	if loc := rr.Header().Get("Location"); loc != "/?notice=imported&added=0&needs=1&moved=0&advanced=0" {
 		t.Fatal(loc)
 	}
 	if now, _ := revision(a.store.DB); fmt.Sprint(now) != rev {

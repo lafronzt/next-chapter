@@ -137,3 +137,19 @@ func TestMain(m *testing.M) {
 	passwordIterations = 1000
 	os.Exit(m.Run())
 }
+
+var noticeParam = regexp.MustCompile(`(\?|&)n=[^&#]*&?`)
+
+// dropNotice removes the signed notice parameter from a redirect location.
+func dropNotice(loc string) string {
+	out := noticeParam.ReplaceAllStringFunc(loc, func(m string) string {
+		if strings.HasPrefix(m, "?") && strings.HasSuffix(m, "&") {
+			return "?"
+		}
+		if strings.HasSuffix(m, "&") {
+			return m[:1]
+		}
+		return ""
+	})
+	return strings.Replace(strings.Replace(out, "?#", "#", 1), "?&", "?", 1)
+}

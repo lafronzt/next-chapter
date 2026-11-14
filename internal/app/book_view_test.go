@@ -79,7 +79,7 @@ func TestViewPageActionsMatchTheRowButtons(t *testing.T) {
 	idA := bookNamed(t, a, "A").ID
 	rr := b.form(fmt.Sprintf("/books/%d/status", idA), url.Values{"action": {"start"}, "back": {"book"}})
 	expect(t, rr, 303)
-	if got := rr.Header().Get("Location"); got != fmt.Sprintf("/books/%d?notice=started", idA) {
+	if got := rr.Header().Get("Location"); !strings.HasPrefix(got, fmt.Sprintf("/books/%d?n=start.%d.0.", idA, idA)) {
 		t.Fatal(got)
 	}
 	_, after := queueTitles(t, a)

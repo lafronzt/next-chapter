@@ -106,6 +106,10 @@ func (a *App) bookStatus(w http.ResponseWriter, r *http.Request) error {
 		if err != nil {
 			return err
 		}
+		before, err := snapshotBooks(tx, "id=?", id)
+		if err != nil {
+			return err
+		}
 		switch {
 		case action == "start" && b.Status == "to-read":
 			err = setStatus(tx, b, "reading")
@@ -121,21 +125,18 @@ func (a *App) bookStatus(w http.ResponseWriter, r *http.Request) error {
 		if err != nil {
 			return err
 		}
-		return bump(tx)
+		if err = bump(tx); err != nil {
+			return err
+		}
+		return recordUndo(tx, noticeText(action, b.Title, 0), before)
 	})
 	if err != nil {
 		return err
 	}
-	notice := map[string]string{"start": "started", "stop": "stopped", "requeue": "requeued"}[action]
 	if r.FormValue("back") == "book" {
-		return redirect(w, r, fmt.Sprintf("/books/%d?notice=%s", id, notice))
+		return redirect(w, r, a.withNotice(fmt.Sprintf("/books/%d", id), action, id, 0))
 	}
-	dest := listReturn(r)
-	sep := "?"
-	if dest != "/" {
-		sep = "&"
-	}
-	return redirect(w, r, dest+sep+"notice="+notice)
+	return redirect(w, r, a.withNotice(listReturn(r), action, id, 0))
 }
 
 // finishBook shows and saves the Finished form: a finish date (today by

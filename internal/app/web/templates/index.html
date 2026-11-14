@@ -128,7 +128,7 @@
 {{if .CanUndo}}
 <form class="undo" method="post" action="/undo">
   {{template "fields" .}}
-  <button class="text-button"><span aria-hidden="true">↶</span> Undo the last suggested order</button>
+  <button class="text-button"><span aria-hidden="true">↶</span> Undo {{.UndoLabel}}</button>
 </form>
 {{end}}
 {{if eq .View "queue"}}<p class="queue-legend muted"><small><span aria-hidden="true">◆</span> Pinned and <span aria-hidden="true">✎</span> hand-placed books stay where you put them. Every other book follows your ranking. The note under a title says why it is where it is; it never moves anything.</small></p>{{end}}
@@ -215,17 +215,18 @@
     <h2>Nothing waiting for review.</h2>
     <p>Books from Libby or NYPL imports land here until you decide whether you want to read them.</p>
     <div class="button-row">
-      <a class="button" href="/imports">Import library activity</a>
+      <a class="button primary" href="/imports">Import library activity</a>
     </div>
   </section>
   {{else}}
   <section class="empty">
     <div class="empty-mark" aria-hidden="true">✧</div>
     <h2>{{if .Query}}No matching books.{{else}}Your next chapter starts here.{{end}}</h2>
-    <p>{{if .Query}}Try another title, author, or tag.{{else}}Add a book you’re excited about, or bring your shelves over from Goodreads.{{end}}</p>
+    <p>{{if .Query}}Nothing matches “{{.Query}}”. Clear the search to see the whole list.{{else if eq .View "queue"}}Bring your shelves over from a Goodreads CSV, or add a book you’re excited about.{{else}}Nothing is here yet.{{end}}</p>
     <div class="button-row">
-      <a class="button primary" href="/books/new">Add your first book</a>
-      <a class="button" href="/imports">Import a reading list</a>
+      {{if .Query}}<a class="button primary" href="/?view={{.View}}">Clear the search</a>
+      {{else}}<a class="button primary" href="/imports">Import your Goodreads CSV</a>
+      <a class="button" href="/books/new">Add a book</a>{{end}}
       {{if and .Demo (not .Stats.Books)}}
       <form action="/demo" method="post">
         {{template "fields" .}}

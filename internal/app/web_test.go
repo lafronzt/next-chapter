@@ -424,7 +424,7 @@ func TestBookActions(t *testing.T) {
 	}
 	rr := act("B", "up")
 	expect(t, rr, 303)
-	if order() != "BACD" || !strings.HasPrefix(rr.Header().Get("Location"), "/?page=1&view=all#book-") {
+	if order() != "BACD" || !strings.Contains(rr.Header().Get("Location"), "page=1&view=all#book-") {
 		t.Fatal(order(), rr.Header())
 	}
 	expect(t, act("B", "down"), 303)
@@ -562,7 +562,7 @@ func TestSuggestAndUndoErrors(t *testing.T) {
 	expect(t, rr, 303)
 	expect(t, b.form(rr.Header().Get("Location"), nil), 303)
 	// Any later change expires the undo snapshot.
-	expect(t, b.form(fmt.Sprintf("/books/%d/action", bookNamed(t, a, "A").ID), url.Values{"action": {"pin"}}), 303)
+	expect(t, b.form(fmt.Sprintf("/books/%d/edit", bookNamed(t, a, "A").ID), bookForm("A2", "to-read")), 303)
 	rr = b.form("/undo", nil)
 	expect(t, rr, 409)
 	if !strings.Contains(rr.Body.String(), "Undo expired") {

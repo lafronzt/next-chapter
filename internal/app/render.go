@@ -50,6 +50,10 @@ func (a *App) render(w http.ResponseWriter, r *http.Request, name string, data p
 		skipped, _ := strconv.Atoi(q.Get("skipped"))
 		data["Notice"] = fmt.Sprintf("Placement done: %d placed in a new spot, %d kept where they were, %d left for later.", placed, kept, skipped)
 	}
+	if added, err := strconv.Atoi(r.URL.Query().Get("added")); err == nil && notice == "imported" {
+		needs, _ := strconv.Atoi(r.URL.Query().Get("needs"))
+		data["Notice"] = fmt.Sprintf("Import complete: %d %s added, %d %s a spot. Existing reading status and queue order were preserved.", added, plural(added, "book", "books"), needs, plural(needs, "needs", "need"))
+	}
 	if moved, _ := strconv.Atoi(r.URL.Query().Get("moved")); notice == "imported" && moved > 0 {
 		data["Notice"] = fmt.Sprintf("Import complete. %d library-only books moved out of To review to match Goodreads; other books kept their reading status and queue order.", moved)
 	}
@@ -58,6 +62,10 @@ func (a *App) render(w http.ResponseWriter, r *http.Request, name string, data p
 	}
 	if skipped, _ := strconv.Atoi(r.URL.Query().Get("skipped")); notice == "imported" && skipped > 0 {
 		data["Notice"] = fmt.Sprintf("%s Skipped %d rows for books you deleted.", data["Notice"], skipped)
+	}
+	if v := r.URL.Query().Get("n"); v != "" && (a.config.Demo || s.Session.Authenticated) {
+		text, undo := a.resolveNotice(a.store.DB, v, s.Revision)
+		data["Notice"], data["NoticeUndo"] = text, undo
 	}
 	var buf bytes.Buffer
 	if err := a.templates.ExecuteTemplate(&buf, name, data); err != nil {

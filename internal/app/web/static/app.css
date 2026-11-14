@@ -2342,3 +2342,15 @@ input[type=checkbox] {
 .reading-stats .panel h2:not(:first-child) {
   margin-top:var(--space-5);
 }
+
+/* Undo inside a notice */
+.notice-undo {
+  display:inline;
+  margin-left:var(--space-3);
+}
+
+.notice-undo .text-button {
+  font-size:var(--text-sm);
+  text-decoration:underline;
+  min-height:44px;
+}

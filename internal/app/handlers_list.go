@@ -79,8 +79,7 @@ func (a *App) index(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
-	var undoRev int64
-	err = a.store.DB.QueryRow("SELECT revision FROM undo_queue WHERE id=1").Scan(&undoRev)
+	undoRev, undoLabel, err := readUndo(a.store.DB)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return err
 	}
@@ -93,7 +92,7 @@ func (a *App) index(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
-	data := page{"AI": ai, "Title": pageTitle(title, pages), "Items": items, "Pager": pages, "Stats": stats, "View": view.Key, "ViewInfo": view, "Views": views, "Query": query, "CanUndo": canUndo, "Status": status, "Sort": sortKey, "SortOptions": sortOptions, "ReadingStates": readingStates}
+	data := page{"AI": ai, "Title": pageTitle(title, pages), "Items": items, "Pager": pages, "Stats": stats, "View": view.Key, "ViewInfo": view, "Views": views, "Query": query, "CanUndo": canUndo, "UndoLabel": undoLabel, "Status": status, "Sort": sortKey, "SortOptions": sortOptions, "ReadingStates": readingStates}
 	if view.Key == "queue" && query == "" && pages.Page == 1 {
 		home, err := loadHome(a.store.DB, time.Now())
 		if err != nil {

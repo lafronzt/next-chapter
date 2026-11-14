@@ -119,7 +119,7 @@ func TestMoveToQueuePositionAcrossPages(t *testing.T) {
 	}
 	rr := b.request("POST", fmt.Sprintf("/books/%d/action", bookIDs(t, a)["Book 055"]), url.Values{"action": {"move"}, "position": {"51"}, "return": {"/?page=2"}})
 	expect(t, rr, 303)
-	if got := rr.Header().Get("Location"); got != fmt.Sprintf("/?page=2#book-%d", bookIDs(t, a)["Book 055"]) {
+	if got := rr.Header().Get("Location"); dropNotice(got) != fmt.Sprintf("/?page=2#book-%d", bookIDs(t, a)["Book 055"]) {
 		t.Fatal(got)
 	}
 	titles, _ := queueTitles(t, a)
