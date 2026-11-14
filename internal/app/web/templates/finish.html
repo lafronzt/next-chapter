@@ -1,0 +1,18 @@
+{{template "top" .}}
+<header class="page-heading">
+  <div>
+    <div class="eyebrow">FINISHED</div>
+    <h1>{{.Book.Title}}</h1>
+    <p>{{.Book.Author}}. Saving this marks the book read and adds one reading to your history. Your queue order and interest are unchanged.</p>
+  </div>
+</header>
+<form class="panel form-grid" method="post" action="/books/{{.Book.ID}}/finish">
+  {{template "fields" .}}
+  <label>Finished<input type="date" name="finished_at" value="{{.Today}}" required></label>
+  {{template "rating-input" noRating}}
+  <div class="span-2 button-row">
+    <button class="button primary">Mark finished</button>
+    <a class="button" href="/"><span>Cancel</span></a>
+  </div>
+</form>
+{{template "bottom" .}}

@@ -7,6 +7,60 @@
   </div>
   <a class="button primary" href="/books/new"><span><span aria-hidden="true">＋</span> Add a book</span></a>
 </header>
+{{with .Home}}
+{{with .Next}}
+<section class="next-up" aria-labelledby="next-up-title">
+  <a href="/books/{{.ID}}" class="book-cover cover-{{cover .ID}}" aria-hidden="true" tabindex="-1">
+    <span class="cover-line"></span>
+    <span class="cover-title">{{.Title}}</span>
+    <span class="cover-author">{{.Author}}</span>
+  </a>
+  <div class="next-up-body">
+    <div class="eyebrow">NEXT UP</div>
+    <h2 id="next-up-title"><a href="/books/{{.ID}}">{{.Title}}</a></h2>
+    <p class="author">{{.Author}}{{if .Pages}}<span> · {{pages .Pages}} pages</span>{{end}}</p>
+    <form method="post" action="/books/{{.ID}}/status">
+      {{template "fields" $}}
+      <input type="hidden" name="return" value="{{$.Pager.Self}}">
+      <button class="button primary" name="action" value="start" aria-label="Start reading {{.Title}}">Start reading</button>
+    </form>
+  </div>
+</section>
+{{end}}
+{{if .Reading}}
+<section class="home-strip" aria-labelledby="reading-now-title">
+  <h2 id="reading-now-title">Reading now</h2>
+  <ul>
+    {{range .Reading}}
+    <li>
+      <span class="strip-title"><a href="/books/{{.ID}}">{{.Title}}</a> <span class="muted">{{.Author}}</span></span>
+      <span class="strip-actions">
+        <a class="button small" href="/books/{{.ID}}/finish" aria-label="Finished {{.Title}}"><span>Finished</span></a>
+        <form method="post" action="/books/{{.ID}}/status">
+          {{template "fields" $}}
+          <input type="hidden" name="return" value="{{$.Pager.Self}}">
+          <button class="button small" name="action" value="stop" aria-label="Stop reading {{.Title}}"><span>Stop reading</span></button>
+        </form>
+      </span>
+    </li>
+    {{end}}
+  </ul>
+</section>
+{{end}}
+{{if .Due}}
+<section class="home-strip" aria-labelledby="due-soon-title">
+  <h2 id="due-soon-title">Due soon</h2>
+  <ul>
+    {{range .Due}}
+    <li>
+      <span class="strip-title"><a href="/books/{{.Book.ID}}">{{.Book.Title}}</a> <span class="muted">{{upper .Loan.Source}} · {{.Loan.DueDate}}</span></span>
+      <span class="strip-days">{{.DaysText}}</span>
+    </li>
+    {{end}}
+  </ul>
+</section>
+{{end}}
+{{end}}
 <section class="stats" aria-label="Library overview">
   <div><span class="stat-number">{{.Stats.Queue}}</span><span>books in your queue</span></div>
   <div><span class="stat-number">{{.Stats.Pending}}</span><span>waiting for their place</span></div>

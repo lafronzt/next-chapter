@@ -1855,3 +1855,84 @@ input[type=checkbox] {
 .star-part.q3::before {
   width:75%;
 }
+
+/* Home: next up, reading now, due soon */
+.next-up {
+  display:flex;
+  gap:28px;
+  align-items:center;
+  padding:24px;
+  margin-bottom:28px;
+  border:1px solid var(--line);
+  border-radius:14px;
+  background:var(--sidebar);
+}
+
+.next-up .book-cover {
+  width:110px;
+  min-height:160px;
+}
+
+.next-up h2 {
+  font:32px/1.15 var(--serif);
+  margin:4px 0;
+  overflow-wrap:anywhere;
+}
+
+.next-up form {
+  margin-top:16px;
+}
+
+.home-strip {
+  margin-bottom:28px;
+}
+
+.home-strip h2 {
+  font:22px/1.2 var(--serif);
+  margin:0 0 10px;
+}
+
+.home-strip ul {
+  list-style:none;
+  margin:0;
+  padding:0;
+}
+
+.home-strip li {
+  display:flex;
+  flex-wrap:wrap;
+  gap:10px 16px;
+  align-items:center;
+  justify-content:space-between;
+  padding:12px 0;
+  border-bottom:1px solid var(--line);
+}
+
+.strip-title {
+  overflow-wrap:anywhere;
+}
+
+.strip-title a {
+  font-weight:600;
+}
+
+.strip-actions {
+  display:flex;
+  gap:8px;
+  flex-wrap:wrap;
+}
+
+.strip-days {
+  color:var(--muted);
+}
+
+@media(max-width:760px) {
+  .next-up {
+    flex-direction:column;
+    align-items:flex-start;
+    gap:16px;
+  }
+  .next-up .button.primary,.strip-actions .button {
+    min-height:44px;
+  }
+}
