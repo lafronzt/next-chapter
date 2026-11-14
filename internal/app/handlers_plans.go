@@ -120,8 +120,25 @@ func (a *App) plan(w http.ResponseWriter, r *http.Request) error {
 		}
 		return a.render(w, r, "plan.html", data, 200)
 	}
-	location := "/?notice=ordered"
+	var location string
 	err := a.store.Write(func(tx *sql.Tx) error {
+		var err error
+		location, err = applyPlan(tx, id, r.FormValue("use") == "ai")
+		return err
+	})
+	if err != nil {
+		return err
+	}
+	return redirect(w, r, location)
+}
+
+// applyPlan applies a stored plan inside tx: the one path import, triage,
+// restore, and reorder/insert previews all take, so Undo and the revision
+// check behave the same wherever a plan is applied. It returns where to send
+// the reader.
+func applyPlan(tx *sql.Tx, id string, useAI bool) (string, error) {
+	location := "/?notice=ordered"
+	err := func() error {
 		kind, p, rev, err := readPlan(tx, id)
 		if err != nil {
 			return err
@@ -195,7 +212,7 @@ func (a *App) plan(w http.ResponseWriter, r *http.Request) error {
 				return err
 			}
 			rows := p.Rows
-			if r.FormValue("use") == "ai" {
+			if useAI {
 				if len(p.AIRows) == 0 {
 					return bad("This preview has no AI suggestion to apply.")
 				}
@@ -230,12 +247,11 @@ func (a *App) plan(w http.ResponseWriter, r *http.Request) error {
 		}
 		_, err = tx.Exec("DELETE FROM plans WHERE id=?", id)
 		return err
-	})
-	if err != nil {
-		return err
-	}
-	return redirect(w, r, location)
+
+	}()
+	return location, err
 }
+
 func (a *App) undo(w http.ResponseWriter, r *http.Request) error {
 	err := a.store.Write(func(tx *sql.Tx) error {
 		if err := current(tx, r); err != nil {

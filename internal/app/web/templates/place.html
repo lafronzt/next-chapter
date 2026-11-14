@@ -1,0 +1,44 @@
+{{template "top" .}}
+<a class="back" href="/"><span aria-hidden="true">←</span> Back to my queue</a>
+<header class="page-heading">
+  <div>
+    <div class="eyebrow">PLACE A BOOK · {{.Number}} OF {{.Progress.Total}}</div>
+    <h1>Where should this one go?</h1>
+    <p>Nothing moves until you choose. Pinned books and series order stay where they are.</p>
+  </div>
+</header>
+<section class="next-up place-card" aria-labelledby="place-title">
+  <div class="book-cover cover-{{cover .Book.ID}}" aria-hidden="true">
+    <span class="cover-line"></span>
+    <span class="cover-title">{{.Book.Title}}</span>
+    <span class="cover-author">{{.Book.Author}}</span>
+  </div>
+  <div class="next-up-body">
+    <h2 id="place-title">{{.Book.Title}}</h2>
+    <p class="author">{{.Book.Author}}{{if .Book.Pages}}<span> · {{pages .Book.Pages}} pages</span>{{end}}</p>
+    <p class="book-meta">{{pips .Book.Interest}}{{if .Book.Estimate}}<span> · estimated {{star (deref .Book.Estimate)}}</span>{{end}}{{if .Book.Tags}}<span> · {{.Book.Tags}}</span>{{end}}</p>
+  </div>
+</section>
+{{if .Slot.Unplaceable}}
+<div class="notice" role="status">This book cannot be given a suggested spot right now (for example, it is pinned). You can keep it where it is or decide later.</div>
+{{else}}
+<section class="panel" aria-labelledby="slot-title">
+  <h2 id="slot-title">Suggested spot: number {{.Slot.Position}}</h2>
+  <ol class="slot-list" start="{{if .Slot.Above}}{{(index .Slot.Above 0).New}}{{else}}{{.Slot.Position}}{{end}}">
+    {{range .Slot.Above}}<li class="neighbor"><span class="sr-only">Above: </span>{{.Title}} <span class="muted">{{.Author}}</span></li>{{end}}
+    <li class="candidate"><strong>{{.Book.Title}}</strong> <span class="badge new">this book</span></li>
+    {{range .Slot.Below}}<li class="neighbor"><span class="sr-only">Below: </span>{{.Title}} <span class="muted">{{.Author}}</span></li>{{end}}
+  </ol>
+  {{if .Slot.Reasons}}<div class="reasons">{{range .Slot.Reasons}}<span>{{.}}</span>{{end}}</div>{{end}}
+</section>
+{{end}}
+<form class="place-actions" method="post" action="/place">
+  {{template "fields" .}}
+  <input type="hidden" name="candidate_id" value="{{.Book.ID}}">
+  {{range $k, $v := .Carry}}{{range $v}}<input type="hidden" name="{{$k}}" value="{{.}}">{{end}}{{end}}
+  {{if not .Slot.Unplaceable}}<button class="button primary" name="action" value="here"><span>Put it here</span></button>{{end}}
+  <button class="button" name="action" value="keep"><span>Keep it at the end</span></button>
+  <button class="button" name="action" value="later"><span>Decide later</span></button>
+</form>
+<p class="muted"><small>Putting it here can be undone from your queue until your next library change. Deciding later changes nothing and the book stays marked Needs placement.</small></p>
+{{template "bottom" .}}

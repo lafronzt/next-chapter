@@ -42,6 +42,13 @@ func (a *App) render(w http.ResponseWriter, r *http.Request, name string, data p
 	}
 	notice := r.URL.Query().Get("notice")
 	data["Notice"] = notices[notice]
+	if notice == "placement" {
+		q := r.URL.Query()
+		placed, _ := strconv.Atoi(q.Get("placed"))
+		kept, _ := strconv.Atoi(q.Get("kept"))
+		skipped, _ := strconv.Atoi(q.Get("skipped"))
+		data["Notice"] = fmt.Sprintf("Placement done: %d placed in a new spot, %d kept where they were, %d left for later.", placed, kept, skipped)
+	}
 	if moved, _ := strconv.Atoi(r.URL.Query().Get("moved")); notice == "imported" && moved > 0 {
 		data["Notice"] = fmt.Sprintf("Import complete. %d library-only books moved out of To review to match Goodreads; other books kept their reading status and queue order.", moved)
 	}

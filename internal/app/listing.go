@@ -162,6 +162,7 @@ func placeInQueue(q queryer, queued []*listedBook, search bool) error {
 	}
 	return nil
 }
+
 // placeSorted numbers queued books on a sorted page by their true queue
 // place and turns moves off: a sorted list is not the queue order.
 func placeSorted(q queryer, queued []*listedBook) error {
