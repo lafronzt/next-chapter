@@ -38,6 +38,7 @@ They were first written against the Python/Flask version (commit `c54c785`) and 
 | 29 | [Reading history page](29-reading-history-page.md) | UI (roadmap) | New. Year sections, quarter-star distribution, filters |
 | 30 | [Notices, Undo, empty states](30-specific-notices-undo-and-empty-states.md) | UI (roadmap) | New. Specific notices, undo for moves, pins and status changes |
 | 31 | [Grouped Preferences](31-grouped-preferences.md) | UI (roadmap) | New. Ranking, Privacy, AI sections that save independently |
+| 32 | [Book details lookup and descriptions](32-book-details-lookup-and-descriptions.md) | Feature (roadmap) | New. Open Library / Google Books lookup, `books.description` migration, description in the estimate. Needs 05 and 15. Companion: [external agent prompts](external-agent-book-lookup.md) |
 | 01 | [Insertion ranking performance](01-fix-insertion-performance.md) | Optimization | **Downgraded.** Go is O(n²), not cubic: 313 ms at 2,000 books. Worth doing, not urgent |
 
 **Roadmap track (13 → 14 → 15 → 16):** history sync, then the AI layer, then the two AI features. Build it on the fixes first: at least 05, 02, 06, and 12A. 13 is useful on its own with no AI. 14–16 deliberately relax the README's "no AI provider receives reading data" promise, so they are strictly opt-in, bring-your-own-key, preview-before-send, and propose-only (AI never writes order or ratings directly; the reader confirms through the existing plan flow). Pins and series constraints remain deterministic.
