@@ -472,14 +472,19 @@ INSERT INTO reading_log(book_id,finished_at,rating,source,fingerprint) VALUES(1,
 	}
 }
 
-// The local schema is the hosted one plus length limits, so a self-hosted
-// model cannot ramble, and is still valid JSON.
-func TestEstimateLocalSchemaBoundsReasons(t *testing.T) {
+// The local schema bounds ratings and reason lengths during generation.
+func TestEstimateLocalSchemaBoundsRatingsAndReasons(t *testing.T) {
 	var local, hosted map[string]any
 	if err := json.Unmarshal([]byte(estimateLocalSchema), &local); err != nil {
 		t.Fatal(err)
 	}
 	json.Unmarshal([]byte(estimateSchema), &hosted)
+	estimate := local["properties"].(map[string]any)["estimate"].(map[string]any)
+	if estimate["minimum"] != float64(1) || estimate["maximum"] != float64(5) {
+		t.Fatalf("estimate %v", estimate)
+	}
+	delete(estimate, "minimum")
+	delete(estimate, "maximum")
 	reasons := local["properties"].(map[string]any)["reasons"].(map[string]any)
 	if reasons["maxItems"] != float64(3) || reasons["items"].(map[string]any)["maxLength"] != float64(maxEstimateReason) {
 		t.Fatalf("reasons %v", reasons)
