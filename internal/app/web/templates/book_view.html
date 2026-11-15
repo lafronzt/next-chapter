@@ -53,6 +53,53 @@
     </div>
   </div>
 </section>
+{{if or (eq .Book.Status "reading") .EarlierAttempts}}
+<section class="section-heading" id="progress-history">
+  <h2>Progress updates</h2>
+  <p>The dates you saved progress. They are progress updates, not measured time spent reading.</p>
+</section>
+{{if eq .Book.Status "reading"}}
+{{if .Checkpoints}}
+{{with .Pace}}
+<div class="panel" role="status">
+  <p><strong>{{.Message}}</strong></p>
+  {{with .Finish}}<p>{{.}}</p>{{end}}
+  {{range .Deadline}}<p>{{.}}</p>{{end}}
+</div>
+{{end}}
+<div class="panel stack">
+  {{range .Checkpoints}}
+  <div class="note">
+    <p><time datetime="{{.Day}}">{{day .Day}}</time> · <strong>{{.Text}}</strong></p>
+    <details class="more-details">
+      <summary>Correct or delete this update</summary>
+      <form class="form-grid" method="post" action="/checkpoints/{{.ID}}">
+        {{template "csrf" $}}
+        <input type="hidden" name="version" value="{{.Version}}">
+        <label>Date<input type="date" name="day" value="{{.Day}}" required></label>
+        <label>{{if eq .Unit "percent"}}Percent{{else}}Page{{end}}<input type="number" name="value" min="0" inputmode="numeric" value="{{with .Value}}{{.}}{{end}}" required></label>
+        <p class="span-2 muted"><small>Changing or deleting your newest update also sets your current progress to the newest one left, so the two agree. Older updates leave it alone.</small></p>
+        <div class="span-2 button-row">
+          <button class="button" name="action" value="save">Save update</button>
+          <button class="button danger" name="action" value="delete">Delete update</button>
+        </div>
+      </form>
+    </details>
+  </div>
+  {{end}}
+  {{if gt .CheckpointTotal (len .Checkpoints)}}<p class="muted"><small>Showing the latest {{len .Checkpoints}} of {{.CheckpointTotal}} updates for this reading. Your export has them all.</small></p>{{end}}
+</div>
+{{else if .HistoryOn}}
+<p class="muted">No updates saved for this reading yet. Each progress save above adds one, and pace needs two on different days.</p>
+{{else}}
+<p class="muted">Progress history is off, so only your latest page or percentage is kept. Turn it on in <a href="/settings?open=privacy#privacy">Preferences</a> for dated updates and a rough pace.</p>
+{{end}}
+{{end}}
+{{if .EarlierAttempts}}
+<p class="muted"><small>Earlier readings of this book keep their own updates; pace is never carried over to a new reading.</small></p>
+<ul class="muted">{{range .EarlierAttempts}}<li>{{.Text}}</li>{{end}}</ul>
+{{end}}
+{{end}}
 <section class="section-heading" id="details">
   <h2>Details</h2>
 </section>

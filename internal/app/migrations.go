@@ -21,6 +21,7 @@ var migrations = []migration{
 	{12, "reading progress as a percentage", migrateProgressPercent},
 	{13, "private reading notes", migratePrivateNotes},
 	{14, "ownership flag and saved library views", migrateSavedViews},
+	{15, "reading attempts and dated progress updates", migrateProgressHistory},
 }
 
 func migrateBaseline(tx *sql.Tx) error {
@@ -248,5 +249,33 @@ CREATE TABLE saved_views (
  version INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
 );
 CREATE UNIQUE INDEX saved_views_name ON saved_views(name COLLATE NOCASE);`)
+	return err
+}
+
+// reading_attempts has one row per time a book is read (a reread is a new
+// attempt), with the date it was started (empty when unknown, as for a book
+// already being read before this version) and ended. progress_checkpoints are
+// the dated progress updates saved while the reader keeps progress history
+// (off by default, a preference). A checkpoint with a NULL value records that
+// progress was cleared. Nothing is created for existing books, and no start
+// date or checkpoint is invented for them.
+//
+// Backup: the migration framework writes <database>.pre-v15.bak before
+// applying this. Rollback: stop the app, put that file back as the database,
+// and run the previous release; attempts and updates made since are lost, so
+// download an export first if you want to keep them.
+func migrateProgressHistory(tx *sql.Tx) error {
+	_, err := tx.Exec(`CREATE TABLE reading_attempts (
+ id INTEGER PRIMARY KEY, book_id INTEGER NOT NULL REFERENCES books(id),
+ started_on TEXT NOT NULL DEFAULT '', ended_on TEXT NULL
+);
+CREATE INDEX reading_attempts_book ON reading_attempts(book_id, id);
+CREATE TABLE progress_checkpoints (
+ id INTEGER PRIMARY KEY, attempt_id INTEGER NOT NULL REFERENCES reading_attempts(id),
+ book_id INTEGER NOT NULL REFERENCES books(id), day TEXT NOT NULL,
+ unit TEXT NOT NULL CHECK(unit IN ('page','percent')), value INTEGER NULL CHECK(value IS NULL OR value >= 0),
+ total_pages INTEGER NULL, version INTEGER NOT NULL DEFAULT 1, UNIQUE(attempt_id, day)
+);
+CREATE INDEX progress_checkpoints_book ON progress_checkpoints(book_id, day);`)
 	return err
 }

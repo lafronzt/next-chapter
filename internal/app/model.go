@@ -126,6 +126,9 @@ type Preferences struct {
 	BookLookup bool `json:"book_lookup,omitempty"`
 	// ReadingGoal is the number of books to finish this year; 0 means no goal.
 	ReadingGoal int `json:"reading_goal,omitempty"`
+	// ProgressHistory keeps a dated checkpoint with each progress update. Off
+	// by default: then only the latest value is saved.
+	ProgressHistory bool `json:"progress_history,omitempty"`
 }
 
 var defaultPreferences = Preferences{LibraryWeight: 1, Length: "any"}

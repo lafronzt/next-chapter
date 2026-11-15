@@ -1,6 +1,9 @@
 package app
 
-import "strings"
+import (
+	"strings"
+	"time"
+)
 
 // setAlias records that a book identity now points at target, or, with a nil
 // target, that it was deleted and imports should ignore it.
@@ -99,7 +102,7 @@ func deleteBook(q queryer, id int64) error {
 	if err != nil {
 		return err
 	}
-	for _, statement := range []string{"DELETE FROM events WHERE book_id=?", "DELETE FROM loans WHERE book_id=?", "DELETE FROM reading_log WHERE book_id=?", "DELETE FROM rating_estimates WHERE book_id=?", "DELETE FROM book_notes WHERE book_id=?", "UPDATE book_aliases SET target_book_id=NULL WHERE target_book_id=?"} {
+	for _, statement := range []string{"DELETE FROM events WHERE book_id=?", "DELETE FROM loans WHERE book_id=?", "DELETE FROM reading_log WHERE book_id=?", "DELETE FROM rating_estimates WHERE book_id=?", "DELETE FROM book_notes WHERE book_id=?", "DELETE FROM progress_checkpoints WHERE book_id=?", "DELETE FROM reading_attempts WHERE book_id=?", "UPDATE book_aliases SET target_book_id=NULL WHERE target_book_id=?"} {
 		if _, err = q.Exec(statement, id); err != nil {
 			return err
 		}
@@ -126,11 +129,14 @@ type mergePreview struct {
 	// target had none and takes the source's.
 	// OwnedFilled is true when the merged book is owned and the kept one was
 	// not, so the kept book becomes owned.
-	OwnedFilled              bool
-	MoveNotes                int
-	ReasonKept, ReasonFilled bool
-	ISBNConflict             bool
-	Refusal                  string
+	OwnedFilled bool
+	// MoveAttempts and MoveUpdates count reading attempts and progress
+	// updates that move to the kept book.
+	MoveAttempts, MoveUpdates int
+	MoveNotes                 int
+	ReasonKept, ReasonFilled  bool
+	ISBNConflict              bool
+	Refusal                   string
 }
 
 // mergeBooks folds source into target. The target keeps its title, author,
@@ -222,7 +228,10 @@ func mergeBooks(q queryer, sourceID, targetID int64, apply bool) (mergePreview, 
 	if err = mergeReadings(q, &p, sourceID, targetID, apply); err != nil {
 		return p, err
 	}
-	if err = mergeNotes(q, &p, source, target, apply); err != nil || !apply {
+	if err = mergeNotes(q, &p, source, target, apply); err != nil {
+		return p, err
+	}
+	if err = mergeAttempts(q, &p, source, target, apply); err != nil || !apply {
 		return p, err
 	}
 
@@ -385,5 +394,29 @@ func mergeNotes(q queryer, p *mergePreview, source, target Book, apply bool) err
 	if p.ReasonKept {
 		_, err = q.Exec("INSERT INTO book_notes(book_id,body,created_at,updated_at) VALUES(?,?,?,?)", target.ID, reasonMergeLabel+":\n"+source.Reason, source.AddedAt, source.AddedAt)
 	}
+	return err
+}
+
+// mergeAttempts moves the source's reading attempts and progress updates to
+// the target, keeping each update with its own attempt. Only one attempt can
+// be open for a book that is being read: the source's open attempt is ended
+// when the kept book is not being read, or already has one in progress.
+func mergeAttempts(q queryer, p *mergePreview, source, target Book, apply bool) error {
+	if err := q.QueryRow("SELECT (SELECT count(*) FROM reading_attempts WHERE book_id=?),(SELECT count(*) FROM progress_checkpoints WHERE book_id=?)", source.ID, source.ID).Scan(&p.MoveAttempts, &p.MoveUpdates); err != nil || !apply {
+		return err
+	}
+	open, err := openAttemptID(q, target.ID)
+	if err != nil {
+		return err
+	}
+	if target.Status != "reading" || open != 0 {
+		if _, err = q.Exec("UPDATE reading_attempts SET ended_on=? WHERE book_id=? AND ended_on IS NULL", midnight(time.Now()).Format(time.DateOnly), source.ID); err != nil {
+			return err
+		}
+	}
+	if _, err = q.Exec("UPDATE reading_attempts SET book_id=? WHERE book_id=?", target.ID, source.ID); err != nil {
+		return err
+	}
+	_, err = q.Exec("UPDATE progress_checkpoints SET book_id=? WHERE book_id=?", target.ID, source.ID)
 	return err
 }

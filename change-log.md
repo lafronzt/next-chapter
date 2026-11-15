@@ -1,5 +1,11 @@
 # Change log
 
+## Prompt 37 (reading sessions and pace)
+
+| Prompt | Change |
+|---|---|
+| 37 | Migration 15 adds `reading_attempts` and `progress_checkpoints`; `Preferences.ProgressHistory` (off by default, Privacy section) turns retention on. `progress_history.go`: `noteStatusChange` (called from `setStatus`, the edit form, and Undo's `restoreStates`) opens and ends attempts, `recordCheckpoint` (called by `bookProgress` in the same transaction) stores one update per attempt per day, `estimatePace` works from the newest unbroken same-unit run within the window, and `editCheckpoint` / `clearProgressHistory` correct and clear. Book page shows updates, pace, an approximate finish date, and a due-date comparison. Merge moves attempts and updates, delete removes them, export/restore carry them (`maxRestoreSchema` 15). Progress and updates never bump the revision. Tests in `progress_history_test.go`. Backup before the migration: `<database>.pre-v15.bak`. |
+
 ## Prompt 35 (borrowing calendar)
 
 | Prompt | Change |

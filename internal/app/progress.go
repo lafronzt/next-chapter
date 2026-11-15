@@ -254,8 +254,11 @@ func (a *App) bookProgress(w http.ResponseWriter, r *http.Request) error {
 		} else {
 			percent = value
 		}
-		_, err = tx.Exec("UPDATE books SET progress_page=?,progress_percent=? WHERE id=?", page, percent, id)
-		return err
+		if _, err = tx.Exec("UPDATE books SET progress_page=?,progress_percent=? WHERE id=?", page, percent, id); err != nil {
+			return err
+		}
+		// With progress history on, the same save also stores a dated update.
+		return recordCheckpoint(tx, b, unit, value, midnight(a.now()))
 	})
 	if err != nil {
 		return err

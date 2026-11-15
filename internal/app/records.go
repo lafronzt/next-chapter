@@ -146,7 +146,10 @@ func setStatus(q queryer, old Book, status string) error {
 		// A finished book has no page to resume at.
 		_, err = q.Exec("UPDATE books SET progress_page=NULL,progress_percent=NULL WHERE id=?", old.ID)
 	}
-	return err
+	if err != nil {
+		return err
+	}
+	return noteStatusChange(q, old.ID, old.Status, status, midnight(time.Now()), false)
 }
 
 // previewImport runs an import inside a savepoint and rolls it back, so a

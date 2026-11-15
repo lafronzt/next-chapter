@@ -34,6 +34,10 @@ type exportFile struct {
 	Notes []bookNote `json:"notes"`
 	// SavedViews are the reader's named list filters, from schema version 14.
 	SavedViews []savedViewExport `json:"saved_views"`
+	// ReadingAttempts and ProgressCheckpoints are the optional progress
+	// history, from schema version 15.
+	ReadingAttempts     []readingAttempt     `json:"reading_attempts"`
+	ProgressCheckpoints []progressCheckpoint `json:"progress_checkpoints"`
 }
 
 // savedViewExport is a saved view as exported.
@@ -48,7 +52,7 @@ const (
 	// maxRestoreSchema is the newest export this build can restore. A test
 	// fails when a migration is added, so the restore code is checked against
 	// the new schema before this is raised.
-	maxRestoreSchema = 14
+	maxRestoreSchema = 15
 	maxRestoreUpload = 10_000_000
 	maxRestoreEvents = 100_000
 	maxRestoreAlias  = 20_000
@@ -69,6 +73,8 @@ type restorePlan struct {
 	Readings       int        `json:"readings"`
 	Notes          int        `json:"notes"`
 	SavedViews     int        `json:"saved_views"`
+	Attempts       int        `json:"attempts"`
+	Updates        int        `json:"updates"`
 	AliasesKept    int        `json:"aliases_kept"`
 	HasPreferences bool       `json:"has_preferences"`
 }
@@ -146,6 +152,10 @@ func validateExport(f *exportFile) []string {
 	}
 	if len(f.Notes) > maxRestoreNotes {
 		add("The export has %d notes; restore at most %d.", len(f.Notes), maxRestoreNotes)
+		return problems
+	}
+	if len(f.ReadingAttempts) > maxRestoreAttempts || len(f.ProgressCheckpoints) > maxRestoreCheckpoints {
+		add("The export has %d reading attempts and %d progress updates; restore at most %d and %d.", len(f.ReadingAttempts), len(f.ProgressCheckpoints), maxRestoreAttempts, maxRestoreCheckpoints)
 		return problems
 	}
 	if len(f.SavedViews) > maxRestoreViews {
@@ -304,6 +314,55 @@ func validateExport(f *exportFile) []string {
 		}
 		n.CreatedAt, n.UpdatedAt = created, updated
 	}
+	bookStatus := map[int64]string{}
+	for _, b := range f.Books {
+		bookStatus[b.ID] = b.Status
+	}
+	attemptBook, openAttempts := map[int64]int64{}, map[int64]bool{}
+	for i := range f.ReadingAttempts {
+		x := &f.ReadingAttempts[i]
+		label := fmt.Sprintf("Reading attempt %d", i+1)
+		if !ids[x.BookID] {
+			add("%s refers to a book that is not in the file.", label)
+		}
+		if _, dup := attemptBook[x.ID]; x.ID < 1 || dup {
+			add("%s: the id must be a unique positive number.", label)
+		}
+		attemptBook[x.ID] = x.BookID
+		if (x.StartedOn != "" && !validFinishDate(x.StartedOn)) || (x.EndedOn != nil && !validFinishDate(*x.EndedOn)) {
+			add("%s: dates must be YYYY-MM-DD.", label)
+		}
+		if x.EndedOn == nil {
+			if openAttempts[x.BookID] || bookStatus[x.BookID] != "reading" {
+				add("%s is still open, but its book is not being read or already has an open attempt.", label)
+			}
+			openAttempts[x.BookID] = true
+		}
+	}
+	checkpointIDs, days := map[int64]bool{}, map[string]bool{}
+	for i := range f.ProgressCheckpoints {
+		c := &f.ProgressCheckpoints[i]
+		label := fmt.Sprintf("Progress update %d", i+1)
+		if book, ok := attemptBook[c.AttemptID]; !ok || book != c.BookID {
+			add("%s refers to a reading attempt that is not in the file or belongs to another book.", label)
+		}
+		if c.ID < 1 || checkpointIDs[c.ID] {
+			add("%s: the id must be a unique positive number.", label)
+		}
+		checkpointIDs[c.ID] = true
+		key := fmt.Sprintf("%d|%s", c.AttemptID, c.Day)
+		if !validFinishDate(c.Day) || days[key] {
+			add("%s: the day must be a unique calendar date within its attempt.", label)
+		}
+		days[key] = true
+		limit := maxProgressPage
+		if c.Unit == "percent" {
+			limit = 100
+		}
+		if c.Unit != "page" && c.Unit != "percent" || (c.Value != nil && (*c.Value < 0 || *c.Value > limit)) || (c.TotalPages != nil && (*c.TotalPages < 1 || *c.TotalPages > 99999)) {
+			add("%s: the unit or value is out of range.", label)
+		}
+	}
 	viewNames := map[string]bool{}
 	for i := range f.SavedViews {
 		v := &f.SavedViews[i]
@@ -452,6 +511,27 @@ func restoreExport(q queryer, f exportFile) (restorePlan, error) {
 		}
 		result.Notes++
 	}
+	newAttempt := make(map[int64]int64, len(f.ReadingAttempts))
+	attempts := slices.Clone(f.ReadingAttempts)
+	slices.SortStableFunc(attempts, func(a, b readingAttempt) int { return cmp.Compare(a.ID, b.ID) })
+	for _, x := range attempts {
+		res, err := q.Exec("INSERT INTO reading_attempts(book_id,started_on,ended_on) VALUES(?,?,?)", newID[x.BookID], x.StartedOn, x.EndedOn)
+		if err != nil {
+			return result, err
+		}
+		if newAttempt[x.ID], err = res.LastInsertId(); err != nil {
+			return result, err
+		}
+		result.Attempts++
+	}
+	updates := slices.Clone(f.ProgressCheckpoints)
+	slices.SortStableFunc(updates, func(a, b progressCheckpoint) int { return cmp.Compare(a.ID, b.ID) })
+	for _, c := range updates {
+		if _, err = q.Exec("INSERT INTO progress_checkpoints(attempt_id,book_id,day,unit,value,total_pages) VALUES(?,?,?,?,?,?)", newAttempt[c.AttemptID], newID[c.BookID], c.Day, c.Unit, c.Value, c.TotalPages); err != nil {
+			return result, err
+		}
+		result.Updates++
+	}
 	for _, v := range f.SavedViews {
 		raw, _ := json.Marshal(v.Definition)
 		if _, err = q.Exec("INSERT INTO saved_views(name,definition,created_at,updated_at) VALUES(?,?,?,?)", v.Name, string(raw), v.CreatedAt, v.UpdatedAt); err != nil {
@@ -506,6 +586,12 @@ func exportLibrary(tx *sql.Tx) (exportFile, error) {
 		return f, err
 	}
 	if f.Notes, err = loadAllNotes(tx); err != nil {
+		return f, err
+	}
+	if f.ReadingAttempts, err = loadAllAttempts(tx); err != nil {
+		return f, err
+	}
+	if f.ProgressCheckpoints, err = loadAllCheckpoints(tx); err != nil {
 		return f, err
 	}
 	views, err := loadSavedViews(tx)

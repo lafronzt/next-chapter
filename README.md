@@ -35,6 +35,7 @@ Every suggestion has a preview and reasons. Pinned books keep their positions. Y
 - **Saved library views**: filter All books by exact tag, series, page range (or pages unknown), current borrowing source, format, and status, and ownership, then save the filter and sort under a name. See [Saved views and ownership](#saved-views-and-ownership).
 - **Series dashboard**: the books you already have, grouped by series name, in number order, with the next known unread volume. See [Series dashboard](#series-dashboard).
 - **Borrowing calendar**: due dates, pickup deadlines, and your own hold estimates in one agenda, with an optional one-time `.ics` download. See [Borrowing calendar](#borrowing-calendar).
+- **Progress history and pace** (optional, off by default): dated progress updates for each reading attempt, a rough pace, and an approximate finish date. See [Progress history and pace](#progress-history-and-pace).
 - **Yearly reading goal**: set a target on Reading history and see whether you are ahead, on, or behind pace. It only measures.
 - Goodreads CSV imports that keep your `to-read` shelf order and are safe to repeat: export again from Goodreads whenever you want to bring in new books.
 - **Estimated ratings**: “what might I give this?” for an unread book, from your own ratings, with an optional AI second opinion and a running check of how accurate past estimates were.
@@ -371,6 +372,18 @@ Books on your Goodreads `read` shelf become **Reading history**: one entry per f
 
 - **A yearly goal** (optional) sits at the top of the page: set a number of books and it counts readings with a finish date this year, then says whether you are ahead, on, or behind an even pace. It only measures, and never changes your queue.
 
+### Progress history and pace
+
+Off by default. Turn on **Keep a dated history of my progress updates** under Preferences, Privacy. With it off, saving progress keeps only the latest page or percentage, exactly as before.
+
+- **What is kept.** With it on, each progress save also stores one dated update (the date is the server's local date) for the book's current reading attempt. A second save the same day replaces that day's update, so a day holds its last value. Clearing progress stores a "cleared" mark. Pages and percentages stay distinct. These are progress updates, not measured time spent reading, and the page says so.
+- **Attempts.** Each time a book enters Reading is a new attempt (a reread starts fresh, and one attempt's pace is never reused for another). A book that was already being read before this was turned on gets an attempt only when its first update is saved, with an unknown start; no start date or earlier update is made up. Leaving Reading always ends the open attempt, even while history is off. Undo of a stop reopens that attempt; Undo of a start ends it and keeps its updates.
+- **Corrections.** The book page lists recent updates; each can be corrected (date and value) or deleted, and a stale form is refused. Changing or deleting the newest update of the current reading also sets your current progress to the newest one left, so the two agree; older updates leave the current value alone. Going backward or resetting is allowed and is never read as negative speed.
+- **Pace** uses only the current attempt's newest unbroken run of updates: the same unit, the same page count, never going backward, within the last 28 days, and the newest no more than 14 days old. It needs two updates on different days with progress between them and reports calendar days. Anything else (too few, stale, mixed units, a reset, no progress) says **Not enough recent progress**, and a pace of zero is never extrapolated.
+- **Finish date.** When the pace and what is left share a unit, the page gives an approximate finish date and compares it with the due date of each borrowed loan. It never finishes a book: reaching the last page or 100% changes nothing, and only the Finished form does. There are no streaks, reminders, timers, or queue changes.
+- **Controls.** Turning it off stops new updates and keeps the ones already saved. **Delete saved progress updates** (Preferences) removes every update and every finished attempt, leaving current progress and any reading in progress alone.
+- Updates, attempts, and the setting are in the JSON export and database backup; older exports restore without them. A merge moves the source's attempts and updates to the kept book (ending an open attempt that would conflict), and deleting a book deletes them. Saving them never changes the library revision, so previews and Undo stay valid.
+
 ### Borrowing calendar
 
 **Borrowing calendar** (`/calendar`) lists the library commitments already in your records, for the next 30 days by default (7 to 90 days, with Earlier and Later links; `start=YYYY-MM-DD&days=N`). It is built from your current loans only, not from history, and never contacts a library or any other service.
@@ -440,7 +453,7 @@ The JSON export can also be loaded back, for example to move to a new instance w
 - Restored: books with their status, want-to-read, pins, **Needs placement**, queue positions and order, series, tags, pages, identifiers, added date, and source; reading history (review text only if the restored preferences keep reviews); library events with their fingerprints, so re-importing the same CSV adds no duplicates; current loans, rebuilt from the events with the same newest-wins rule as imports; merge and deletion aliases; ranking preferences; and Goodreads settings.
 - Exports from older versions carry retired Goodreads feed settings; they are accepted and ignored.
 - Not restored: previews, undo, sign-in state, and the session key. Books and events get new ID numbers.
-- Validation is strict and uses the same limits as the forms and CSV imports. Unknown fields, malformed JSON, out-of-range values, duplicate titles or Goodreads IDs, and exports from a newer schema version than this build supports are refused, and nothing is written. The export's `schema_version` is the database schema version it came from; this build restores versions 1 to 14. An export from before version 6 has no reading history, and its Goodreads connection starts following the `read` shelf.
+- Validation is strict and uses the same limits as the forms and CSV imports. Unknown fields, malformed JSON, out-of-range values, duplicate titles or Goodreads IDs, and exports from a newer schema version than this build supports are refused, and nothing is written. The export's `schema_version` is the database schema version it came from; this build restores versions 1 to 15. An export from before version 6 has no reading history, and its Goodreads connection starts following the `read` shelf.
 - The file is limited to 10 MB, 10,000 books, and 100,000 events. A 10,000-book export is typically about 6 MB; a library too large for JSON restore can still use the database backup.
 
 ### Schema upgrades and rollback
@@ -456,6 +469,8 @@ The app refuses to start if the database has a newer schema version than the run
 3. Start the previous image.
 
 Changes made after the upgrade are not in the `.bak`. Export JSON first if you need a record of them.
+
+Schema migration 15 adds the `reading_attempts` and `progress_checkpoints` tables; nothing is created for existing books. Roll back with `next-chapter.sqlite3.pre-v15.bak` as above, or keep later changes and run an older image after `DROP TABLE progress_checkpoints; DROP TABLE reading_attempts; UPDATE meta SET value='14' WHERE key='schema_version';`, which discards attempts and updates only, so export JSON first if you want them. JSON exports from version 15 need this build or newer to restore.
 
 Schema migration 14 adds the `books.owned` column and the `saved_views` table; every existing book starts not owned and there are no views. Roll back with `next-chapter.sqlite3.pre-v14.bak` as above, or keep later changes and run an older image after `DROP TABLE saved_views; ALTER TABLE books DROP COLUMN owned; UPDATE meta SET value='13' WHERE key='schema_version';`, which discards ownership flags and views only, so export JSON first if you want them. JSON exports from version 14 need this build or newer to restore.
 

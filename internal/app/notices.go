@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 	"unicode/utf8"
 )
 
@@ -192,6 +193,13 @@ func readUndo(q queryer) (rev int64, label string, err error) {
 // restoreStates puts books back exactly as a snapshot recorded them.
 func restoreStates(q queryer, books []bookState) error {
 	for _, s := range books {
+		var was string
+		if err := q.QueryRow("SELECT reading_status FROM books WHERE id=?", s.ID).Scan(&was); err != nil {
+			return err
+		}
+		if err := noteStatusChange(q, s.ID, was, s.Status, midnight(time.Now()), true); err != nil {
+			return err
+		}
 		if _, err := q.Exec("UPDATE books SET reading_status=?,position=?,pinned=?,needs_placement=?,moved_by_hand=? WHERE id=?", s.Status, s.Position, s.Pinned, s.NeedsPlacement, s.MovedByHand, s.ID); err != nil {
 			return err
 		}

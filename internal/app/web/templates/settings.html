@@ -52,11 +52,20 @@
     <p class="span-2 muted"><small>Default: off, so only each review’s length is stored. Reviews are personal and can be long. Turning this off deletes review text already kept here, after you confirm.</small></p>
     <label class="checkbox span-2"><input type="checkbox" name="book_lookup" {{if .Prefs.BookLookup}}checked{{end}}> Book lookup: let me ask book databases for a description and missing details</label>
     <p class="span-2 muted"><small>Default: off. When on, a book’s page and an import preview get a “Look up details” button. Nothing is looked up on its own. Each lookup sends only the title, author, and ISBN to Open Library and Google Books (and ISBNdb, if whoever runs this app set a key), never your ratings, reviews, tags, or reading history. Databases can be wrong or missing a book, so you see the result and choose, field by field, whether to keep your value, use theirs, or merge the two.</small></p>
+    <label class="checkbox span-2"><input type="checkbox" name="progress_history" {{if .Prefs.ProgressHistory}}checked{{end}}> Keep a dated history of my progress updates</label>
+    <p class="span-2 muted"><small>Default: off, so saving progress keeps only the latest page or percentage. When on, each save also records the date, shown on the book page as progress updates (not time spent reading) with a rough pace and finish date. Turning it off stops new entries and keeps what is already saved; use the button below to delete it.</small></p>
     <div class="span-2">
       <button class="button primary">Save privacy</button>
     </div>
   </form>
   {{end}}
+  <h3>Saved progress updates</h3>
+  <p>Deletes every dated progress update and finished reading attempt. Each book’s current page or percentage and any reading in progress stay as they are.</p>
+  <form method="post" action="/progress-history/clear" class="button-row">
+    {{template "fields" .}}
+    <input type="hidden" name="confirm" value="yes">
+    <button class="button danger">Delete saved progress updates</button>
+  </form>
   {{if not .Demo}}
   <h3>Signed in somewhere you shouldn’t be?</h3>
   <p>Sign out every browser and device, including this one. Your library is not changed.</p>
