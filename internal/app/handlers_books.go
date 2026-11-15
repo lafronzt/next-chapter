@@ -90,6 +90,9 @@ func (a *App) bookPageData(id int64) (page, error) {
 	if err != nil {
 		return nil, err
 	}
+	if err = attachCorrections(a.store.DB, events); err != nil {
+		return nil, err
+	}
 	total, err := countEvents(a.store.DB, eventFilter{BookID: id})
 	if err != nil {
 		return nil, err

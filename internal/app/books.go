@@ -49,6 +49,12 @@ func jsonIDs(ids []int64) string {
 	return string(raw)
 }
 
+// jsonStrings encodes strings for json_each(?).
+func jsonStrings(values []string) (string, error) {
+	raw, err := json.Marshal(values)
+	return string(raw), err
+}
+
 // attachLoans loads the loans of the given books, newest first.
 func attachLoans(q queryer, books []Book) error {
 	if len(books) == 0 {

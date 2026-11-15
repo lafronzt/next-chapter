@@ -529,7 +529,7 @@ func TestMigrateProgressHistoryFromVersionFourteen(t *testing.T) {
 		t.Fatal(err)
 	}
 	db.Close()
-	if err = migrateFile(path, migrations); err != nil {
+	if err = migrateFile(path, migrations[:15]); err != nil {
 		t.Fatal(err)
 	}
 	if v, _ := versionOf(t, path); v != 15 {

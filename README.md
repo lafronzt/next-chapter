@@ -36,6 +36,7 @@ Every suggestion has a preview and reasons. Pinned books keep their positions. Y
 - **Series dashboard**: the books you already have, grouped by series name, in number order, with the next known unread volume. See [Series dashboard](#series-dashboard).
 - **Borrowing calendar**: due dates, pickup deadlines, and your own hold estimates in one agenda, with an optional one-time `.ics` download. See [Borrowing calendar](#borrowing-calendar).
 - **Progress history and pace** (optional, off by default): dated progress updates for each reading attempt, a rough pace, and an approximate finish date. See [Progress history and pace](#progress-history-and-pace).
+- **Import reconciliation**: record-by-record import details, corrections to library events, and a list of remembered merges and deletions. See [Import details, corrections, and remembered records](#import-details-corrections-and-remembered-records).
 - **Yearly reading goal**: set a target on Reading history and see whether you are ahead, on, or behind pace. It only measures.
 - Goodreads CSV imports that keep your `to-read` shelf order and are safe to repeat: export again from Goodreads whenever you want to bring in new books.
 - **Estimated ratings**: “what might I give this?” for an unread book, from your own ratings, with an optional AI second opinion and a running check of how accurate past estimates were.
@@ -372,6 +373,14 @@ Books on your Goodreads `read` shelf become **Reading history**: one entry per f
 
 - **A yearly goal** (optional) sits at the top of the page: set a number of books and it counts readings with a finish date this year, then says whether you are ahead, on, or behind an even pace. It only measures, and never changes your queue.
 
+### Import details, corrections, and remembered records
+
+**Import details.** An import preview links to **See what happens to each record**, a paginated page (50 a page, filterable by new, matched, with changes, no change, skipped, refused key) that says for every row: new or matched, the key that matched (ISBN, normalized title and author, the original-title fallback, or Goodreads ID, including through a merge alias or a deletion record), what would change, and which of your own values stay. A key shared by more than one book is reported as refused, never guessed, and matching order is unchanged. A record that changes nothing says so. The page is computed by the same function that applies the import, inside a rolled-back savepoint, and is not shown at all once your library has changed since the preview. Nothing is stored beyond the preview itself, and CSV text and review text are not logged.
+
+**Corrections.** Each library event (on **Library history** and on a book's page) has **Correct**. You can edit its library, format, activity, observation date, and due date, void it, or restore the original, always through a preview that shows the event as imported, as it is now, and the book's current loans before and after. The imported event is never changed; your correction is stored beside it by the event's fingerprint (`event_corrections`). Importing the same file again, in any order, neither undoes an edit nor brings a voided event back, and the replay explanation says so. A merge carries corrections with their events, a delete removes them, and export/restore include them. Current loans are always worked out from the corrected events with the usual rule: the newest observation per book, source, and format wins. That means a newer, *different* observation imported later can still replace corrected state. A correction changes library state only, never reading status, ratings, or queue order. Because deadlines and availability feed ranking, confirming one raises the library revision, which expires any suggested-order preview and Undo that are open.
+
+**Remembered merges and deletions.** **Import books → remembered** (`/aliases`) lists every record a merge or deletion left, with the keys actually stored (normalized title and author, ISBN, Goodreads ID; no display title is kept), the book a merge points at, and a note when that book no longer exists. **Preview removing this record** explains what changes: later imports may add the book again, or match it only through a key it still has itself. Confirming removes that one record and raises the revision, so pending import previews must be made again; it does not bring a book back, and there is no bulk clear, automatic merge, or retargeting.
+
 ### Progress history and pace
 
 Off by default. Turn on **Keep a dated history of my progress updates** under Preferences, Privacy. With it off, saving progress keeps only the latest page or percentage, exactly as before.
@@ -453,7 +462,7 @@ The JSON export can also be loaded back, for example to move to a new instance w
 - Restored: books with their status, want-to-read, pins, **Needs placement**, queue positions and order, series, tags, pages, identifiers, added date, and source; reading history (review text only if the restored preferences keep reviews); library events with their fingerprints, so re-importing the same CSV adds no duplicates; current loans, rebuilt from the events with the same newest-wins rule as imports; merge and deletion aliases; ranking preferences; and Goodreads settings.
 - Exports from older versions carry retired Goodreads feed settings; they are accepted and ignored.
 - Not restored: previews, undo, sign-in state, and the session key. Books and events get new ID numbers.
-- Validation is strict and uses the same limits as the forms and CSV imports. Unknown fields, malformed JSON, out-of-range values, duplicate titles or Goodreads IDs, and exports from a newer schema version than this build supports are refused, and nothing is written. The export's `schema_version` is the database schema version it came from; this build restores versions 1 to 15. An export from before version 6 has no reading history, and its Goodreads connection starts following the `read` shelf.
+- Validation is strict and uses the same limits as the forms and CSV imports. Unknown fields, malformed JSON, out-of-range values, duplicate titles or Goodreads IDs, and exports from a newer schema version than this build supports are refused, and nothing is written. The export's `schema_version` is the database schema version it came from; this build restores versions 1 to 16. An export from before version 6 has no reading history, and its Goodreads connection starts following the `read` shelf.
 - The file is limited to 10 MB, 10,000 books, and 100,000 events. A 10,000-book export is typically about 6 MB; a library too large for JSON restore can still use the database backup.
 
 ### Schema upgrades and rollback
@@ -469,6 +478,8 @@ The app refuses to start if the database has a newer schema version than the run
 3. Start the previous image.
 
 Changes made after the upgrade are not in the `.bak`. Export JSON first if you need a record of them.
+
+Schema migration 16 adds the `event_corrections` table for your edits and voids of library events; no existing event or loan changes. Roll back with `next-chapter.sqlite3.pre-v16.bak` as above, or keep later changes and run an older image after `DROP TABLE event_corrections; UPDATE meta SET value='15' WHERE key='schema_version';`, then re-import or re-record the affected library events, because current loans were worked out with the corrections applied. JSON exports from version 16 need this build or newer to restore.
 
 Schema migration 15 adds the `reading_attempts` and `progress_checkpoints` tables; nothing is created for existing books. Roll back with `next-chapter.sqlite3.pre-v15.bak` as above, or keep later changes and run an older image after `DROP TABLE progress_checkpoints; DROP TABLE reading_attempts; UPDATE meta SET value='14' WHERE key='schema_version';`, which discards attempts and updates only, so export JSON first if you want them. JSON exports from version 15 need this build or newer to restore.
 

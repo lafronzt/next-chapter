@@ -72,7 +72,7 @@ func (a *App) suggest(w http.ResponseWriter, r *http.Request) error {
 }
 
 // planTitles name the preview page for each kind of plan.
-var planTitles = map[string]string{"import": "Import preview", "restore": "Restore preview", "lookup": "Book details", "triage": "Confirm sorting", "insert": "Suggested place", "reorder": "Suggested order"}
+var planTitles = map[string]string{"import": "Import preview", "restore": "Restore preview", "lookup": "Book details", "triage": "Confirm sorting", "correction": "Correct a library event", "alias-remove": "Remove a remembered record", "insert": "Suggested place", "reorder": "Suggested order"}
 
 type undoBook struct {
 	ID             int64 `json:"id"`
@@ -217,6 +217,24 @@ func applyPlan(tx *sql.Tx, id string, useAI bool) (string, error) {
 				return err
 			}
 			location = "/?notice=restored"
+		case "correction":
+			// A correction changes library state: availability and deadlines
+			// that ranking reads. The revision bump therefore expires any
+			// suggestion preview and Undo, and never touches queue order,
+			// reading status, or ratings.
+			if location, err = applyCorrectionPlan(tx, &p, time.Now()); err != nil {
+				return err
+			}
+			if err = bump(tx); err != nil {
+				return err
+			}
+		case "alias-remove":
+			if location, err = applyAliasPlan(tx, &p); err != nil {
+				return err
+			}
+			if err = bump(tx); err != nil {
+				return err
+			}
 		case "reorder", "insert":
 			queue, err := queueOrder(tx)
 			if err != nil {

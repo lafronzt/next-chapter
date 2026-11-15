@@ -1,0 +1,47 @@
+{{template "top" .}}
+<a class="back" href="/plans/{{.PlanID}}"><span aria-hidden="true">←</span> Back to the import preview</a>
+<header class="page-heading">
+  <div>
+    <h1>What happens to each record</h1>
+    <p>For every row in this import: whether it adds a book or matches one, which key matched, what would change, and which of your own values stay. This page changes nothing, and it uses the same steps as the import itself.</p>
+  </div>
+</header>
+{{if .Stale}}
+<div class="notice error" role="alert">Your library changed since this preview, so these details could be wrong and are not shown. Choose the file again to make a fresh preview.</div>
+{{else}}
+{{with .Details}}
+<section class="summary-row" aria-label="Totals">
+  <div><span class="stat-number">{{index .Counts "new"}}</span><span>new books</span></div>
+  <div><span class="stat-number">{{index .Counts "matched"}}</span><span>matched</span></div>
+  <div><span class="stat-number">{{index .Counts "changes"}}</span><span>matched with changes</span></div>
+  <div><span class="stat-number">{{index .Counts "noop"}}</span><span>no change</span></div>
+  <div><span class="stat-number">{{index .Counts "skipped"}}</span><span>skipped (deleted)</span></div>
+  <div><span class="stat-number">{{index .Counts "ambiguous"}}</span><span>with a refused key</span></div>
+</section>
+{{end}}
+<nav class="tabs" aria-label="Show">
+  <a href="/plans/{{.PlanID}}/details" {{if not .Filter}}class="selected" aria-current="page"{{end}}>All {{.Records}}</a>
+  {{range .Filters}}<a href="/plans/{{$.PlanID}}/details?show={{.}}" {{if eq $.Filter .}}class="selected" aria-current="page"{{end}}>{{if eq . "new"}}New{{else if eq . "matched"}}Matched{{else if eq . "changes"}}With changes{{else if eq . "noop"}}No change{{else if eq . "skipped"}}Skipped{{else}}Refused key{{end}}</a>{{end}}
+</nav>
+<div class="stack">
+  {{range .Details.Rows}}
+  <article class="panel stack">
+    <p><strong>{{.Title}}</strong> <span class="muted">{{.Author}}</span> <span class="badge">{{if eq .Outcome "new"}}New book{{else if eq .Outcome "skipped"}}Skipped{{else if .NoOp}}No change{{else}}Matched{{end}}</span></p>
+    {{if eq .Outcome "matched"}}
+    <p>Matched {{if .MatchedTitle}}“{{.MatchedTitle}}” {{end}}by <strong>{{.Key}}</strong>, a unique match{{if .Via}} through a {{.Via}}{{end}}.</p>
+    {{else if eq .Outcome "skipped"}}
+    <p>Matched a {{.Via}} by <strong>{{.Key}}</strong>. You deleted this book, so the row is skipped. Adding it by hand brings it back.</p>
+    {{else}}
+    <p class="muted">No existing book matched, so it is added.</p>
+    {{end}}
+    {{range .Ambiguous}}<p class="muted"><small>Not used: {{.}}. A key must identify exactly one book, so it is never guessed.</small></p>{{end}}
+    {{if .Changes}}<p>Would change:</p><ul>{{range .Changes}}<li>{{.}}</li>{{end}}</ul>{{else if .NoOp}}<p class="muted">No change: this record adds nothing that is not already there.</p>{{end}}
+    {{if .Preserved}}<p class="muted"><small>Your own values that stay as they are: {{join .Preserved "; "}}.</small></p>{{end}}
+  </article>
+  {{else}}
+  <p class="muted">No records match this filter.</p>
+  {{end}}
+</div>
+{{template "pager" .Pager}}
+{{end}}
+{{template "bottom" .}}

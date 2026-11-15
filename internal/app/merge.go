@@ -102,7 +102,7 @@ func deleteBook(q queryer, id int64) error {
 	if err != nil {
 		return err
 	}
-	for _, statement := range []string{"DELETE FROM events WHERE book_id=?", "DELETE FROM loans WHERE book_id=?", "DELETE FROM reading_log WHERE book_id=?", "DELETE FROM rating_estimates WHERE book_id=?", "DELETE FROM book_notes WHERE book_id=?", "DELETE FROM progress_checkpoints WHERE book_id=?", "DELETE FROM reading_attempts WHERE book_id=?", "UPDATE book_aliases SET target_book_id=NULL WHERE target_book_id=?"} {
+	for _, statement := range []string{"DELETE FROM events WHERE book_id=?", "DELETE FROM loans WHERE book_id=?", "DELETE FROM reading_log WHERE book_id=?", "DELETE FROM rating_estimates WHERE book_id=?", "DELETE FROM event_corrections WHERE book_id=?", "DELETE FROM book_notes WHERE book_id=?", "DELETE FROM progress_checkpoints WHERE book_id=?", "DELETE FROM reading_attempts WHERE book_id=?", "UPDATE book_aliases SET target_book_id=NULL WHERE target_book_id=?"} {
 		if _, err = q.Exec(statement, id); err != nil {
 			return err
 		}
@@ -133,10 +133,12 @@ type mergePreview struct {
 	// MoveAttempts and MoveUpdates count reading attempts and progress
 	// updates that move to the kept book.
 	MoveAttempts, MoveUpdates int
-	MoveNotes                 int
-	ReasonKept, ReasonFilled  bool
-	ISBNConflict              bool
-	Refusal                   string
+	// MoveCorrections counts corrected or voided library events that move.
+	MoveCorrections          int
+	MoveNotes                int
+	ReasonKept, ReasonFilled bool
+	ISBNConflict             bool
+	Refusal                  string
 }
 
 // mergeBooks folds source into target. The target keeps its title, author,
@@ -187,12 +189,14 @@ func mergeBooks(q queryer, sourceID, targetID int64, apply bool) (mergePreview, 
 		return strings.Join([]string{e.Source, e.Format, e.Status, e.At, e.DueDate}, "\x00")
 	}
 	keys, fingerprints := map[string]bool{}, map[string]bool{}
+	keyOwner := map[string]string{} // event key to the fingerprint of the kept event
 	targetEvents, err := loadEvents(q, targetID, 0)
 	if err != nil {
 		return p, err
 	}
 	for _, e := range targetEvents {
 		keys[key(e)], fingerprints[e.Fingerprint] = true, true
+		keyOwner[key(e)] = e.Fingerprint
 	}
 	sourceEvents, err := loadEvents(q, sourceID, 0)
 	if err != nil {
@@ -212,18 +216,32 @@ func mergeBooks(q queryer, sourceID, targetID int64, apply bool) (mergePreview, 
 		if duplicate {
 			p.Duplicates++
 			if apply {
-				_, err = q.Exec("DELETE FROM events WHERE id=?", e.ID)
+				// A correction on the dropped copy moves to the kept event when
+				// that one has none, so a void or edit is not lost.
+				survivor := keyOwner[key(e)]
+				if survivor == "" {
+					survivor = moved
+				}
+				if err = carryCorrection(q, e.Fingerprint, survivor, targetID); err == nil {
+					_, err = q.Exec("DELETE FROM events WHERE id=?", e.ID)
+				}
 			}
 		} else {
 			p.MoveEvents++
 			keys[key(e)], fingerprints[moved] = true, true
+			keyOwner[key(e)] = moved
 			if apply {
-				_, err = q.Exec("UPDATE events SET book_id=?,fingerprint=? WHERE id=?", targetID, moved, e.ID)
+				if _, err = q.Exec("UPDATE event_corrections SET fingerprint=?,book_id=? WHERE fingerprint=?", moved, targetID, e.Fingerprint); err == nil {
+					_, err = q.Exec("UPDATE events SET book_id=?,fingerprint=? WHERE id=?", targetID, moved, e.ID)
+				}
 			}
 		}
 		if err != nil {
 			return p, err
 		}
+	}
+	if err = q.QueryRow("SELECT count(*) FROM event_corrections WHERE book_id=?", sourceID).Scan(&p.MoveCorrections); err != nil {
+		return p, err
 	}
 	if err = mergeReadings(q, &p, sourceID, targetID, apply); err != nil {
 		return p, err
@@ -296,7 +314,10 @@ func rebuildLoans(q queryer, sourceID, targetID int64) error {
 	if _, err := q.Exec("DELETE FROM loans WHERE book_id IN (?,?)", sourceID, targetID); err != nil {
 		return err
 	}
-	rows, err := q.Query("SELECT source,format,status,at,due_date FROM events WHERE book_id=? ORDER BY id", targetID)
+	// Events with the reader's corrections applied: a voided event is left out
+	// and an edited one is read with its own values.
+	rows, err := q.Query(`SELECT COALESCE(NULLIF(c.source,''),e.source),COALESCE(NULLIF(c.format,''),e.format),COALESCE(NULLIF(c.status,''),e.status),COALESCE(NULLIF(c.at,''),e.at),CASE WHEN c.action='edit' THEN c.due_date ELSE e.due_date END
+FROM events e LEFT JOIN event_corrections c ON c.fingerprint=e.fingerprint WHERE e.book_id=? AND COALESCE(c.action,'')!='void' ORDER BY e.id`, targetID)
 	if err != nil {
 		return err
 	}
@@ -418,5 +439,21 @@ func mergeAttempts(q queryer, p *mergePreview, source, target Book, apply bool) 
 		return err
 	}
 	_, err = q.Exec("UPDATE progress_checkpoints SET book_id=? WHERE book_id=?", target.ID, source.ID)
+	return err
+}
+
+// carryCorrection moves a correction from a dropped duplicate event to the
+// event that stays, unless that event has its own, which wins. Either way the
+// dropped event's correction is gone.
+func carryCorrection(q queryer, from, to string, targetID int64) error {
+	var has int
+	if err := q.QueryRow("SELECT count(*) FROM event_corrections WHERE fingerprint=?", to).Scan(&has); err != nil {
+		return err
+	}
+	if has == 0 {
+		_, err := q.Exec("UPDATE event_corrections SET fingerprint=?,book_id=? WHERE fingerprint=?", to, targetID, from)
+		return err
+	}
+	_, err := q.Exec("DELETE FROM event_corrections WHERE fingerprint=?", from)
 	return err
 }

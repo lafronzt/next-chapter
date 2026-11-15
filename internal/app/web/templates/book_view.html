@@ -176,7 +176,12 @@
 {{if .Events}}
 <div class="panel">
   {{range .Events}}
-  <div class="event"><span><time datetime="{{day .At}}">{{day .At}}</time></span><strong>{{.Activity}}</strong><span>{{upper .Source}} · {{.Format}}</span></div>
+  {{if .Voided}}
+  <div class="event"><span><time datetime="{{day .At}}">{{day .At}}</time></span><strong><s>{{.Activity}}</s></strong><span>Voided by you · <a href="/events/{{.ID}}/correct">Correct</a></span></div>
+  {{else}}
+  {{with .Effective}}<div class="event"><span><time datetime="{{day .At}}">{{day .At}}</time></span><strong>{{.Activity}}</strong><span>{{upper .Source}} · {{.Format}}{{if .DueDate}} · due {{.DueDate}}{{end}}</span></div>{{end}}
+  <p class="muted"><small>{{if .Edited}}Corrected by you. {{end}}<a href="/events/{{.ID}}/correct">Correct this event</a></small></p>
+  {{end}}
   {{end}}
 </div>
 {{if gt .EventTotal (len .Events)}}<p class="muted">Showing the latest {{len .Events}} of {{.EventTotal}} events. Your export includes the complete history.</p>{{end}}

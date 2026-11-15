@@ -73,6 +73,9 @@ type Event struct {
 	Fingerprint string `json:"fingerprint"`
 	Title       string `json:"title,omitempty"`
 	Author      string `json:"author,omitempty"`
+	// Correction is the reader's edit or void of this event, when there is
+	// one. UI loaders fill it; exports carry corrections separately.
+	Correction *eventCorrection `json:"-"`
 }
 
 type Record struct {
@@ -204,6 +207,10 @@ type Plan struct {
 	Status  string  `json:"status,omitempty"`
 	// Restore is a validated JSON export and what restoring it would do.
 	Restore *restorePlan `json:"restore,omitempty"`
+	// Correction is a previewed edit, void, or restore of a library event, and
+	// Alias a previewed removal of a remembered merge or deletion.
+	Correction *correctionPlan `json:"correction,omitempty"`
+	Alias      *aliasPlan      `json:"alias,omitempty"`
 	// Intent is the reader's optional note for an AI suggestion; it lives
 	// only as long as the plan. AIRows is the AI-suggested order, applied
 	// instead of Rows when the reader chooses it; AINotice explains why an AI

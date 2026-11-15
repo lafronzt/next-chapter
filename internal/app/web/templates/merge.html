@@ -32,6 +32,7 @@
     {{if or .MoveNotes .ReasonFilled}}<li>Private notes moved: {{.MoveNotes}}{{if .ReasonFilled}}; “{{.Target.Title}}” had no reason for adding it, so it takes the merged book’s{{end}}.</li>{{end}}
     {{if .ReasonKept}}<li>Both books have a different “why I want to read this”. The merged book’s is kept as a note on “{{.Target.Title}}” so neither is lost.</li>{{end}}
     <li>{{if .Filled}}Filled in from the merged book: {{join .Filled ", "}}.{{else}}No details are copied; the kept book already has them, or the merged book has none.{{end}}</li>
+    {{if .MoveCorrections}}<li>Your corrections to library events move with those events: {{.MoveCorrections}}.</li>{{end}}
     {{if .MoveAttempts}}<li>Reading attempts moved: {{.MoveAttempts}}, with {{.MoveUpdates}} saved progress {{if eq .MoveUpdates 1}}update{{else}}updates{{end}}. Each update stays with its own attempt.</li>{{end}}
     {{if .OwnedFilled}}<li>“{{.Source.Title}}” is marked owned, so “{{.Target.Title}}” becomes owned too.</li>{{end}}
     {{if .ISBNConflict}}<li>The books have different ISBNs: {{.Target.ISBN}} is kept and {{.Source.ISBN}} is dropped. Imports with either ISBN will update the kept book.</li>{{end}}

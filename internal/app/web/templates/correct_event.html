@@ -1,0 +1,30 @@
+{{template "top" .}}
+<a class="back" href="/books/{{.Event.BookID}}#library"><span aria-hidden="true">←</span> Back to {{.Event.Title}}</a>
+<header class="page-heading">
+  <div>
+    <h1>Correct a library event</h1>
+    <p>{{.Event.Title}} · {{.Event.Author}}. Your correction is kept beside the event as it was imported, so importing the same file again neither undoes it nor brings a voided event back. It changes this book’s library state only: never whether it is read, its ratings, or its place in your queue.</p>
+  </div>
+</header>
+<div class="panel stack">
+  <p><strong>As imported:</strong> {{upper .Event.Source}} · {{.Event.Format}} · {{.Event.Status}} · observed {{day .Event.At}}{{if .Event.DueDate}} · due {{.Event.DueDate}}{{end}}</p>
+  {{if .Event.Voided}}<p><span class="badge">Voided by you</span> It is ignored when current loans are worked out.</p>
+  {{else if .Event.Edited}}<p><strong>Corrected by you:</strong> {{upper .Effective.Source}} · {{.Effective.Format}} · {{.Effective.Status}} · observed {{day .Effective.At}}{{if .Effective.DueDate}} · due {{.Effective.DueDate}}{{end}}</p>{{end}}
+  <p class="muted"><small>Current loans for this book now: {{if .Loans}}{{join .Loans " | "}}{{else}}none{{end}}.</small></p>
+</div>
+<form class="panel form-grid" method="post" action="/events/{{.Event.ID}}/correct">
+  {{template "fields" .}}
+  <h2 class="span-2">Edit the values</h2>
+  <label>Library<select name="source">{{range .Sources}}<option value="{{.}}" {{if eq $.Effective.Source .}}selected{{end}}>{{upper .}}</option>{{end}}</select></label>
+  <label>Format<input name="format" maxlength="100" value="{{.Effective.Format}}" required></label>
+  <label>Activity<select name="status">{{range .States}}<option value="{{.}}" {{if eq $.Effective.Status .}}selected{{end}}>{{.}}</option>{{end}}</select></label>
+  <label>Observed on<input type="date" name="date" value="{{day .Effective.At}}" required></label>
+  <label>Due date <span class="muted">blank for none</span><input type="date" name="due_date" value="{{.Effective.DueDate}}"></label>
+  <div class="span-2 button-row">
+    <button class="button primary" name="action" value="edit">Preview this edit</button>
+    <button class="button danger" name="action" value="void">Preview voiding it</button>
+    {{if or .Event.Edited .Event.Voided}}<button class="button" name="action" value="revert">Preview restoring the original</button>{{end}}
+  </div>
+  <p class="span-2 muted"><small>You see the result and confirm before anything changes. A newer, different observation imported later can still replace a corrected state, because the newest observation for each source and format wins.</small></p>
+</form>
+{{template "bottom" .}}

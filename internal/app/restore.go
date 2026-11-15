@@ -38,6 +38,9 @@ type exportFile struct {
 	// history, from schema version 15.
 	ReadingAttempts     []readingAttempt     `json:"reading_attempts"`
 	ProgressCheckpoints []progressCheckpoint `json:"progress_checkpoints"`
+	// EventCorrections are the reader's edits and voids of library events,
+	// from schema version 16. The events themselves are exported as imported.
+	EventCorrections []eventCorrection `json:"event_corrections"`
 }
 
 // savedViewExport is a saved view as exported.
@@ -52,7 +55,7 @@ const (
 	// maxRestoreSchema is the newest export this build can restore. A test
 	// fails when a migration is added, so the restore code is checked against
 	// the new schema before this is raised.
-	maxRestoreSchema = 15
+	maxRestoreSchema = 16
 	maxRestoreUpload = 10_000_000
 	maxRestoreEvents = 100_000
 	maxRestoreAlias  = 20_000
@@ -75,6 +78,7 @@ type restorePlan struct {
 	SavedViews     int        `json:"saved_views"`
 	Attempts       int        `json:"attempts"`
 	Updates        int        `json:"updates"`
+	Corrections    int        `json:"corrections"`
 	AliasesKept    int        `json:"aliases_kept"`
 	HasPreferences bool       `json:"has_preferences"`
 }
@@ -156,6 +160,10 @@ func validateExport(f *exportFile) []string {
 	}
 	if len(f.ReadingAttempts) > maxRestoreAttempts || len(f.ProgressCheckpoints) > maxRestoreCheckpoints {
 		add("The export has %d reading attempts and %d progress updates; restore at most %d and %d.", len(f.ReadingAttempts), len(f.ProgressCheckpoints), maxRestoreAttempts, maxRestoreCheckpoints)
+		return problems
+	}
+	if len(f.EventCorrections) > maxRestoreEvents {
+		add("The export has %d event corrections; restore at most %d.", len(f.EventCorrections), maxRestoreEvents)
 		return problems
 	}
 	if len(f.SavedViews) > maxRestoreViews {
@@ -314,6 +322,40 @@ func validateExport(f *exportFile) []string {
 		}
 		n.CreatedAt, n.UpdatedAt = created, updated
 	}
+	eventBook := map[string]int64{}
+	for _, e := range f.Events {
+		eventBook[e.Fingerprint] = e.BookID
+	}
+	correctedFP := map[string]bool{}
+	for i := range f.EventCorrections {
+		c := &f.EventCorrections[i]
+		label := fmt.Sprintf("Event correction %d", i+1)
+		if book, ok := eventBook[c.Fingerprint]; !ok || book != c.BookID {
+			add("%s refers to a library event that is not in the file or belongs to another book.", label)
+		}
+		if correctedFP[c.Fingerprint] {
+			add("%s: the event already has a correction.", label)
+		}
+		correctedFP[c.Fingerprint] = true
+		switch c.Action {
+		case "void":
+			c.Source, c.Format, c.Status, c.At, c.DueDate = "", "", "", "", ""
+		case "edit":
+			at, err := parseTime(c.At)
+			if !in(c.Source, loanSources) || c.Format == "" || len([]rune(c.Format)) > 100 || !in(c.Status, libraryStates) || err != nil || at == "" || (c.DueDate != "" && !validFinishDate(c.DueDate)) {
+				add("%s: the corrected values are not valid.", label)
+			}
+			c.At = at
+		default:
+			add("%s: the action must be edit or void.", label)
+		}
+		created, err1 := parseTime(c.CreatedAt)
+		updated, err2 := parseTime(c.UpdatedAt)
+		if err1 != nil || err2 != nil || created == "" || updated == "" {
+			add("%s: created_at and updated_at must be dates and times.", label)
+		}
+		c.CreatedAt, c.UpdatedAt = created, updated
+	}
 	bookStatus := map[int64]string{}
 	for _, b := range f.Books {
 		bookStatus[b.ID] = b.Status
@@ -454,6 +496,20 @@ func restoreExport(q queryer, f exportFile) (restorePlan, error) {
 		}
 		result.Events++
 	}
+	correctedBooks := map[int64]bool{}
+	for _, c := range f.EventCorrections {
+		if _, err = q.Exec("INSERT INTO event_corrections(fingerprint,book_id,action,source,format,status,at,due_date,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?)", c.Fingerprint, newID[c.BookID], c.Action, c.Source, c.Format, c.Status, c.At, c.DueDate, c.CreatedAt, c.UpdatedAt); err != nil {
+			return result, err
+		}
+		correctedBooks[newID[c.BookID]] = true
+		result.Corrections++
+	}
+	for id := range correctedBooks {
+		// Current loans follow the corrected events, not the originals.
+		if err = rebuildLoans(q, id, id); err != nil {
+			return result, err
+		}
+	}
 	for _, b := range books {
 		for _, l := range b.Loans {
 			if _, err = q.Exec("UPDATE loans SET expected_ready=? WHERE book_id=? AND source=? AND format=? AND status='hold'", l.ExpectedReady, newID[b.ID], l.Source, l.Format); err != nil {
@@ -586,6 +642,9 @@ func exportLibrary(tx *sql.Tx) (exportFile, error) {
 		return f, err
 	}
 	if f.Notes, err = loadAllNotes(tx); err != nil {
+		return f, err
+	}
+	if f.EventCorrections, err = loadAllCorrections(tx); err != nil {
 		return f, err
 	}
 	if f.ReadingAttempts, err = loadAllAttempts(tx); err != nil {
