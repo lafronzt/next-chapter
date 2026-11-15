@@ -110,7 +110,14 @@ func (a *App) bookPageData(id int64) (page, error) {
 	if err != nil {
 		return nil, err
 	}
+	history := page{}
+	if err = a.progressPageData(history, b); err != nil {
+		return nil, err
+	}
 	data := page{"Title": b.Title, "Book": b, "LookupOn": lookupOn, "Editing": true, "Events": events, "EventTotal": total, "Readings": readings, "Estimate": estimate, "Notes": notes, "MaxNote": maxNote}
+	for k, v := range history {
+		data[k] = v
+	}
 	for _, e := range readings {
 		if e.Rating != nil {
 			data["Rated"] = true
@@ -174,6 +181,9 @@ func (a *App) editBook(w http.ResponseWriter, r *http.Request) error {
 		}
 		pin, needs, position, err := statusChange(tx, old, b.Status)
 		if err != nil {
+			return err
+		}
+		if err = noteStatusChange(tx, id, old.Status, b.Status, midnight(a.now()), false); err != nil {
 			return err
 		}
 		_, err = tx.Exec(`UPDATE books SET title=?,author=?,identity=?,interest=?,reading_status=?,pages=?,tags=?,series=?,series_number=?,description_source=CASE WHEN description=? THEN description_source ELSE '' END,description=?,reason=?,owned=?,pinned=?,needs_placement=?,position=? WHERE id=?`, b.Title, b.Author, identity(b.Title, b.Author), b.Interest, b.Status, b.Pages, b.Tags, b.Series, b.SeriesNumber, b.Description, b.Description, b.Reason, b.Owned, pin, needs, position, id)
