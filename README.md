@@ -34,6 +34,7 @@ Every suggestion has a preview and reasons. Pinned books keep their positions. Y
 - **Private notes**: an optional "why I want to read this" on each book, plus dated notes you write about it, for any reading status. They are plain text (up to 500 characters for the reason, 5,000 for a note, 200 notes a book), stay on your server, and are never imported, looked up, ranked, or sent to an AI. See [Private notes](#private-notes).
 - **Saved library views**: filter All books by exact tag, series, page range (or pages unknown), current borrowing source, format, and status, and ownership, then save the filter and sort under a name. See [Saved views and ownership](#saved-views-and-ownership).
 - **Series dashboard**: the books you already have, grouped by series name, in number order, with the next known unread volume. See [Series dashboard](#series-dashboard).
+- **Borrowing calendar**: due dates, pickup deadlines, and your own hold estimates in one agenda, with an optional one-time `.ics` download. See [Borrowing calendar](#borrowing-calendar).
 - **Yearly reading goal**: set a target on Reading history and see whether you are ahead, on, or behind pace. It only measures.
 - Goodreads CSV imports that keep your `to-read` shelf order and are safe to repeat: export again from Goodreads whenever you want to bring in new books.
 - **Estimated ratings**: “what might I give this?” for an unread book, from your own ratings, with an optional AI second opinion and a running check of how accurate past estimates were.
@@ -369,6 +370,16 @@ Books on your Goodreads `read` shelf become **Reading history**: one entry per f
 - Not available from Goodreads, and so not imported: reading progress and start dates (you can track the page you are on in the app yourself), dates of earlier re-reads (Goodreads keeps only the latest `Date Read`; `Read Count` is not a list of dates), private notes, and anything on a private profile. This app does not scrape Goodreads, ask for your Goodreads password or cookies, or use unofficial APIs.
 
 - **A yearly goal** (optional) sits at the top of the page: set a number of books and it counts readings with a finish date this year, then says whether you are ahead, on, or behind an even pace. It only measures, and never changes your queue.
+
+### Borrowing calendar
+
+**Borrowing calendar** (`/calendar`) lists the library commitments already in your records, for the next 30 days by default (7 to 90 days, with Earlier and Later links; `start=YYYY-MM-DD&days=N`). It is built from your current loans only, not from history, and never contacts a library or any other service.
+
+- **Due back** and **Pickup deadline** are firm deadlines from your records. **Hold expected** is only your own estimate (from the date you entered on the library form) and is labeled that way in words. Each source and format is its own entry.
+- Deadlines that have passed are listed under **Overdue** (a passed estimate says "the estimate has passed" instead). Returned, cancelled, and available loans are not commitments and leave the list as soon as that state is recorded; a missing record is never taken as a return. Loans with no usable date are listed apart as having none recorded.
+- Where you track progress, a borrowed book shows what is left and the amount a day to finish by its deadline. When several borrowed loans are open together, the page says how many, their due-date span, and which fall within three days of each other. Checkout dates are not known, so it never claims every book can be finished.
+- **Download .ics** sends a snapshot of the selected range as all-day events (UTF-8, CRLF, folded lines, escaped text, stable IDs per book, source, format, and type, UTC timestamp, exclusive next-day end). Import it by hand into a calendar app. It is not a subscription: nothing is public, no token or link is created, and later changes here are not pushed to your calendar. A re-import after a deadline changes updates the same event in most apps because the ID stays the same. The file carries no ratings, notes, credentials, or links.
+- Viewing or downloading changes nothing: no queue order, status, library state, revision, or Undo. It needs no schema change.
 
 ### Series dashboard
 

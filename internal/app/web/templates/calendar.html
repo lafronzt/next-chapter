@@ -1,0 +1,63 @@
+{{template "top" .}}
+<header class="page-heading">
+  <div>
+    <h1>Borrowing calendar</h1>
+    <p>Your recorded library commitments: due dates, pickup deadlines, and your own estimates of when holds arrive. It reads your library only. It never contacts a library, moves a book, or marks anything read.</p>
+  </div>
+</header>
+{{range .Notes}}<div class="notice" role="status">{{.}}</div>{{end}}
+<nav class="calendar-nav" aria-label="Date range">
+  <a class="button small" href="{{.Prev}}" rel="prev"><span><span aria-hidden="true">←</span> Earlier</span></a>
+  <strong><time datetime="{{.Cal.Start}}">{{day .Cal.Start}}</time> to <time datetime="{{.Cal.End}}">{{day .Cal.End}}</time></strong>
+  <a class="button small" href="{{.Next}}" rel="next"><span>Later <span aria-hidden="true">→</span></span></a>
+</nav>
+<p class="muted"><small>Show: {{range $i, $n := .Ranges}}{{if $i}} · {{end}}{{if eq $n $.Cal.Days}}<strong>{{$n}} days</strong>{{else}}<a href="/calendar?start={{$.Cal.Start}}&amp;days={{$n}}">{{$n}} days</a>{{end}}{{end}} · <a href="/calendar">From today</a></small></p>
+{{if .Cal.Overdue}}
+<section aria-labelledby="overdue">
+  <h2 id="overdue">Overdue</h2>
+  <p class="muted"><small>Deadlines in your records that have passed. A returned loan leaves this list when a return is recorded; a missing record is never read as a return.</small></p>
+  <div class="panel">
+    {{range .Cal.Overdue}}
+    <div class="event"><span><time datetime="{{.Date}}">{{day .Date}}</time> · {{.When}}</span><strong><a href="/books/{{.Book.ID}}">{{.Book.Title}}</a></strong><span>{{.Label}} · {{upper .Source}} {{.Format}}{{if not .Firm}} · the estimate has passed{{end}}</span></div>
+    {{end}}
+  </div>
+</section>
+{{end}}
+<section aria-labelledby="agenda">
+  <h2 id="agenda">Agenda</h2>
+  {{range .Cal.Agenda}}
+  <h3><time datetime="{{.Date}}">{{day .Date}}</time></h3>
+  <div class="panel">
+    {{range .Entries}}
+    <div class="event"><span>{{.When}}</span><strong><a href="/books/{{.Book.ID}}">{{.Book.Title}}</a></strong><span>{{.Label}} · {{upper .Source}} {{.Format}}</span></div>
+    {{with .Pace}}<p class="muted"><small>{{.}}</small></p>{{end}}
+    {{end}}
+  </div>
+  {{else}}
+  <p class="muted">Nothing is due, expected, or waiting for pickup between these dates.</p>
+  {{end}}
+  {{if .Cal.Truncated}}<p class="muted">Showing the first {{.Max}} entries in this range. Choose a shorter range to see the rest.</p>{{end}}
+</section>
+{{if .Cal.Overlap}}
+<section aria-labelledby="overlap">
+  <h2 id="overlap">Loans open at the same time</h2>
+  <ul>{{range .Cal.Overlap}}<li>{{.}}</li>{{end}}</ul>
+  <p class="muted"><small>Checkout dates are not known, so this says nothing about whether every book can be finished in time. Pace shows where you track progress.</small></p>
+</section>
+{{end}}
+{{if .Cal.Undated}}
+<section aria-labelledby="undated">
+  <h2 id="undated">Current loans with no date recorded</h2>
+  <div class="panel">
+    {{range .Cal.Undated}}
+    <div class="event"><span>No date recorded</span><strong><a href="/books/{{.Book.ID}}">{{.Book.Title}}</a></strong><span>{{upper .Source}} {{.Format}} · {{.Status}}</span></div>
+    {{end}}
+  </div>
+</section>
+{{end}}
+<section aria-labelledby="download">
+  <h2 id="download">Add to a calendar app</h2>
+  <p>Download the {{.Entries}} {{if eq .Entries 1}}entry{{else}}entries{{end}} in this range as a calendar file (.ics) and import it by hand. It is a snapshot taken now: nothing subscribes to it, and later changes here are not sent to your calendar app. Hold arrivals are marked as your estimates.</p>
+  <p><a class="button" href="/calendar.ics?start={{.Cal.Start}}&amp;days={{.Cal.Days}}"><span>Download .ics</span></a></p>
+</section>
+{{template "bottom" .}}
