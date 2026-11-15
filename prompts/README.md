@@ -64,3 +64,18 @@ Do 05 before any prompt that changes the schema (03, 04, 12, and the login table
 - **Positions are global.** `books.position` is assigned `MAX(position)+1` over *all* books at insert, but `reorder()` rewrites only the `to-read` subset as `0..n-1`. So non-queue books can share position numbers with queue books, and ordering relies on `ORDER BY position, id`. Do not assume queue positions are contiguous across the whole table.
 - **`importRecords` is shared** by CSV import, `newBook`, `loan`, and the demo. A change to its insert path affects all of them.
 - **`plan()` dispatches on `kind`** with `if kind == "import" { … } else { reorder }`. A new plan kind must get its own branch or it will be applied as a reorder.
+
+## Additional workflow prompts (33–38)
+
+These prompts extend the implemented Go app. They can be used independently; inspect current code rather than relying on the older status table above. Apply schema migrations using the next available version at implementation time.
+
+| # | Prompt | Scope |
+|---|--------|-------|
+| 33 | [Private reading notes](33-private-reading-notes.md) | Reasons for adding books and dated private notes, excluded from AI |
+| 34 | [Saved library views](34-saved-library-views.md) | Structured filters, local ownership, and reusable saved views |
+| 35 | [Borrowing calendar](35-borrowing-calendar.md) | Current deadlines, estimated holds, and a private calendar download |
+| 36 | [Series dashboard](36-series-dashboard.md) | Local series progress and next known unread volumes |
+| 37 | [Reading sessions and pace](37-reading-sessions-and-pace.md) | Optional dated progress checkpoints and approximate finish dates |
+| 38 | [Import reconciliation and corrections](38-import-reconciliation-and-corrections.md) | Match explanations, durable event corrections, and alias management |
+
+Suggested order: 33 → 34 → 36 → 35 → 37 → 38. Calendar and series views can also be built first without the other additions. Keep 38's three parts as focused implementation steps. These prompts do not authorize external messaging or automatic library-account access.
