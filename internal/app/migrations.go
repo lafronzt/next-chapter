@@ -22,6 +22,7 @@ var migrations = []migration{
 	{13, "private reading notes", migratePrivateNotes},
 	{14, "ownership flag and saved library views", migrateSavedViews},
 	{15, "reading attempts and dated progress updates", migrateProgressHistory},
+	{16, "reader corrections to library events", migrateEventCorrections},
 }
 
 func migrateBaseline(tx *sql.Tx) error {
@@ -277,5 +278,28 @@ CREATE TABLE progress_checkpoints (
  total_pages INTEGER NULL, version INTEGER NOT NULL DEFAULT 1, UNIQUE(attempt_id, day)
 );
 CREATE INDEX progress_checkpoints_book ON progress_checkpoints(book_id, day);`)
+	return err
+}
+
+// event_corrections records the reader's edit or void of a library event,
+// apart from the event itself, which keeps the observation as it was
+// imported. It is keyed by the event's fingerprint, the identity that replays
+// of the same CSV and merges follow, so a replay can neither undo a
+// correction nor bring a voided event back. A void keeps empty values. No
+// existing event is changed.
+//
+// Backup: the migration framework writes <database>.pre-v16.bak before
+// applying this. Rollback: stop the app, put that file back as the database,
+// and run the previous release; corrections made since are lost, so download
+// an export first if you want to keep them.
+func migrateEventCorrections(tx *sql.Tx) error {
+	_, err := tx.Exec(`CREATE TABLE event_corrections (
+ fingerprint TEXT PRIMARY KEY, book_id INTEGER NOT NULL REFERENCES books(id),
+ action TEXT NOT NULL CHECK(action IN ('edit','void')),
+ source TEXT NOT NULL DEFAULT '', format TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT '',
+ at TEXT NOT NULL DEFAULT '', due_date TEXT NOT NULL DEFAULT '',
+ created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+);
+CREATE INDEX event_corrections_book ON event_corrections(book_id);`)
 	return err
 }

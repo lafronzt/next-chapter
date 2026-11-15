@@ -163,7 +163,7 @@ func TestExportJSON(t *testing.T) {
 	if err := json.Unmarshal(rr.Body.Bytes(), &export); err != nil {
 		t.Fatal(err)
 	}
-	if got := slices.Sorted(maps.Keys(export)); !slices.Equal(got, []string{"aliases", "books", "events", "exported_at", "notes", "preferences", "progress_checkpoints", "reading_attempts", "reading_log", "saved_views", "schema_version"}) {
+	if got := slices.Sorted(maps.Keys(export)); !slices.Equal(got, []string{"aliases", "books", "event_corrections", "events", "exported_at", "notes", "preferences", "progress_checkpoints", "reading_attempts", "reading_log", "saved_views", "schema_version"}) {
 		t.Fatalf("top-level keys %v", got)
 	}
 	var meta struct {

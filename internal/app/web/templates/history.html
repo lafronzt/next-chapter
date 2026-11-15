@@ -26,8 +26,14 @@
       <a href="/books/{{.BookID}}"><strong>{{.Title}}</strong></a>
       <p>{{.Author}}</p>
     </div>
-    <span class="badge">{{upper .Source}} · {{.Format}}</span>
-    <span>{{.Activity}}</span>
+    {{if .Voided}}
+    <span class="badge">Voided by you</span>
+    <span><s>{{upper .Source}} · {{.Format}} · {{.Activity}}</s> <a href="/events/{{.ID}}/correct">Correct</a></span>
+    {{else}}
+    {{with .Effective}}<span class="badge">{{upper .Source}} · {{.Format}}</span>
+    <span>{{.Activity}}</span>{{end}}
+    <span>{{if .Edited}}<span class="badge">Corrected by you</span> {{end}}<a href="/events/{{.ID}}/correct">Correct</a></span>
+    {{end}}
   </article>
   {{else}}
   {{if or .Filter.Source .Filter.Status}}

@@ -1,5 +1,14 @@
 # Change log
 
+## Prompt 38 (import reconciliation and corrections)
+
+| Part | Change |
+|---|---|
+| 1 Explain imports | `matchBook` (shared by `lookupBook`) reports the matching key, any alias, and refused ambiguous keys. `importRecordsExplained` is the one import function; `importRecords` calls it without a collector, and the details page calls it with one inside a rolled-back savepoint, so explanations cannot differ from apply. `GET /plans/{id}/details` (`import_details.go`) pages and filters decisions, refuses a stale preview, and stores nothing. |
+| 2 Correct events | Migration 16 adds `event_corrections` (keyed by event fingerprint). `corrections.go`: edit, void, or restore through a `correction` plan with its own apply branch in `applyPlan`; `rebuildLoans` now reads effective events. `importRecords` leaves loans alone for an event that has a correction, so replays neither undo an edit nor recreate a void. Merge re-keys or carries corrections with events, delete removes them, export/restore carry them (`maxRestoreSchema` 16). |
+| 3 Aliases | `aliases.go`: `GET /aliases` lists stored keys and targets; removing one goes through an `alias-remove` plan with its own apply branch that refuses a record that changed. No bulk clear or retargeting. |
+| Tests | `reconcile_test.go`. Backup before migration 16: `<database>.pre-v16.bak`. |
+
 ## Prompt 37 (reading sessions and pace)
 
 | Prompt | Change |

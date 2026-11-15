@@ -1,0 +1,34 @@
+{{template "top" .}}
+<a class="back" href="/imports"><span aria-hidden="true">←</span> Back to Import books</a>
+<header class="page-heading">
+  <div>
+    <h1>Remembered merges and deletions</h1>
+    <p>When you delete a book, imports skip it. When you merge one, imports follow the merge. Each record below holds the keys listed, not a title. Removing one is previewed first, never bulk, and never brings a book back by itself.</p>
+  </div>
+</header>
+<nav class="tabs" aria-label="Show">
+  <a href="/aliases" {{if not .Kind}}class="selected" aria-current="page"{{end}}>All</a>
+  <a href="/aliases?kind=deleted" {{if eq .Kind "deleted"}}class="selected" aria-current="page"{{end}}>Deleted</a>
+  <a href="/aliases?kind=merge" {{if eq .Kind "merge"}}class="selected" aria-current="page"{{end}}>Merged</a>
+</nav>
+<div class="stack">
+  {{range .Aliases}}
+  <article class="panel stack">
+    <p><span class="badge">{{if eq .Kind "merge"}}Merge redirect{{else}}Deleted{{end}}</span> <span class="muted">{{.Stored}}</span></p>
+    {{if eq .Kind "merge"}}
+    <p>{{if .TargetMissing}}Points at a book that no longer exists, so imports skip it.{{else}}Imports that match go to <a href="/books/{{.TargetID}}">{{.TargetTitle}}</a>.{{end}}</p>
+    {{else}}
+    <p>Imports that match are skipped.</p>
+    {{end}}
+    <form method="post" action="/aliases/remove">
+      {{template "fields" $}}
+      <input type="hidden" name="identity" value="{{.Identity}}">
+      <button class="button small">Preview removing this record</button>
+    </form>
+  </article>
+  {{else}}
+  <p class="muted">Nothing is remembered. Deleting or merging a book adds a record here.</p>
+  {{end}}
+</div>
+{{template "pager" .Pager}}
+{{template "bottom" .}}
