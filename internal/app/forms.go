@@ -1,6 +1,7 @@
 package app
 
 import (
+	"fmt"
 	"math"
 	"net/http"
 	"net/url"
@@ -10,7 +11,7 @@ import (
 )
 
 func bookFields(r *http.Request) (Book, error) {
-	b := Book{Title: strings.TrimSpace(r.FormValue("title")), Author: strings.TrimSpace(r.FormValue("author")), Tags: strings.TrimSpace(r.FormValue("tags")), Status: r.FormValue("reading_status"), Series: strings.TrimSpace(r.FormValue("series")), Description: cleanText(r.FormValue("description"), maxDescription), Source: "manual"}
+	b := Book{Title: strings.TrimSpace(r.FormValue("title")), Author: strings.TrimSpace(r.FormValue("author")), Tags: strings.TrimSpace(r.FormValue("tags")), Status: r.FormValue("reading_status"), Series: strings.TrimSpace(r.FormValue("series")), Description: cleanText(r.FormValue("description"), maxDescription), Reason: noteText(r.FormValue("reason")), Source: "manual"}
 	// A non-numeric interest stays 0, which checkBook rejects.
 	b.Interest, _ = strconv.Atoi(r.FormValue("interest"))
 	if raw := r.FormValue("pages"); raw != "" {
@@ -53,6 +54,9 @@ func checkBook(b Book) string {
 	}
 	if len([]rune(b.Description)) > maxDescription || len([]rune(b.DescriptionSource)) > 100 {
 		return "The description is too long."
+	}
+	if len([]rune(b.Reason)) > maxReason {
+		return fmt.Sprintf("Keep why you want to read it under %d characters.", maxReason)
 	}
 	if len([]rune(b.Tags)) > 500 || len([]rune(b.Series)) > 200 {
 		return "Tags or series name are too long."

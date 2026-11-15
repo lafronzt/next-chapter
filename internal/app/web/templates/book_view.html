@@ -73,6 +73,40 @@
   <p class="muted"><small>Book lookup is off, so nothing is sent anywhere. Turn it on in <a href="/settings?open=privacy#privacy">Preferences</a> to fill in a description and missing details from a book database.</small></p>
   {{end}}
 </div>
+<section class="section-heading" id="notes">
+  <h2>Your notes</h2>
+  <p>Private writing for you alone. Notes are never imported, looked up, sent to an AI, or used for ranking, and they never change your reading progress or status.</p>
+</section>
+{{with .Book.Reason}}<div class="panel"><p><strong>Why you wanted to read it</strong></p><p class="note-body">{{.}}</p><p class="muted"><small><a href="/books/{{$.Book.ID}}/edit">Change this</a> on the edit page.</small></p></div>{{end}}
+{{range .Notes}}
+<div class="panel note" id="note-{{.ID}}">
+  <p class="muted"><small><time datetime="{{day .CreatedAt}}">{{day .CreatedAt}}</time>{{with .Where}} · at {{.}}{{end}}{{if .Edited}} · edited {{day .UpdatedAt}}{{end}}</small></p>
+  <p class="note-body">{{.Body}}</p>
+  <details class="more-details">
+    <summary>Edit or delete this note</summary>
+    <form class="form-grid" method="post" action="/notes/{{.ID}}">
+      {{template "csrf" $}}
+      <input type="hidden" name="version" value="{{.Version}}">
+      <label class="span-2">Note <textarea name="body" rows="4" maxlength="{{$.MaxNote}}" required>{{.Body}}</textarea></label>
+      <label>Page <span class="muted">optional</span><input type="number" name="page" min="1" inputmode="numeric" value="{{with .Page}}{{.}}{{end}}"></label>
+      <label>Percent <span class="muted">optional</span><input type="number" name="percent" min="0" max="100" inputmode="numeric" value="{{with .Percent}}{{.}}{{end}}"></label>
+      <div class="span-2 button-row">
+        <button class="button" name="action" value="save">Save note</button>
+        <button class="button danger" name="action" value="delete">Delete note</button>
+      </div>
+    </form>
+  </details>
+</div>
+{{else}}
+<p class="muted">No notes yet. Write down what you notice while you read, or why a book caught your eye.</p>
+{{end}}
+<form class="panel form-grid" method="post" action="/books/{{.Book.ID}}/notes">
+  {{template "csrf" .}}
+  <label class="span-2">New note <span class="muted">plain text, up to {{.MaxNote}} characters</span><textarea name="body" rows="4" maxlength="{{.MaxNote}}" required></textarea></label>
+  <label>Page <span class="muted">optional</span><input type="number" name="page" min="1" inputmode="numeric"></label>
+  <label>Percent <span class="muted">optional</span><input type="number" name="percent" min="0" max="100" inputmode="numeric"></label>
+  <div class="span-2"><button class="button">Add note</button></div>
+</form>
 <section class="section-heading" id="reading">
   <h2>Your readings</h2>
 </section>

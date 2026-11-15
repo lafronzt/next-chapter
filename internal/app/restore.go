@@ -30,13 +30,15 @@ type exportFile struct {
 	Aliases []alias         `json:"aliases"`
 	// ReadingLog is the reading history, from schema version 6.
 	ReadingLog []readingEntry `json:"reading_log"`
+	// Notes are the reader's private notes, from schema version 13.
+	Notes []bookNote `json:"notes"`
 }
 
 const (
 	// maxRestoreSchema is the newest export this build can restore. A test
 	// fails when a migration is added, so the restore code is checked against
 	// the new schema before this is raised.
-	maxRestoreSchema = 12
+	maxRestoreSchema = 13
 	maxRestoreUpload = 10_000_000
 	maxRestoreEvents = 100_000
 	maxRestoreAlias  = 20_000
@@ -55,6 +57,7 @@ type restorePlan struct {
 	Loans          int        `json:"loans"`
 	Aliases        int        `json:"aliases"`
 	Readings       int        `json:"readings"`
+	Notes          int        `json:"notes"`
 	AliasesKept    int        `json:"aliases_kept"`
 	HasPreferences bool       `json:"has_preferences"`
 }
@@ -130,6 +133,10 @@ func validateExport(f *exportFile) []string {
 		add("The export has %d readings; restore at most 100,000.", len(f.ReadingLog))
 		return problems
 	}
+	if len(f.Notes) > maxRestoreNotes {
+		add("The export has %d notes; restore at most %d.", len(f.Notes), maxRestoreNotes)
+		return problems
+	}
 	if len(f.Aliases) > maxRestoreAlias {
 		add("The export has %d aliases; restore at most 20,000.", len(f.Aliases))
 		return problems
@@ -171,6 +178,7 @@ func validateExport(f *exportFile) []string {
 			add("%s: added_at must be a date and time.", label)
 		}
 		b.AddedAt = at
+		b.Reason = noteText(b.Reason)
 		// Loans are rebuilt from events. Only the reader's own hold-date
 		// estimates, which events do not carry, are kept to reapply.
 		kept := []Loan{}
@@ -256,6 +264,31 @@ func validateExport(f *exportFile) []string {
 		readingFingerprints[e.Fingerprint] = true
 		e.Title, e.Author = "", ""
 	}
+	noteIDs, perBook := map[int64]bool{}, map[int64]int{}
+	for i := range f.Notes {
+		n := &f.Notes[i]
+		label := fmt.Sprintf("Note %d", i+1)
+		if !ids[n.BookID] {
+			add("%s refers to a book that is not in the file.", label)
+		}
+		if n.ID < 1 || noteIDs[n.ID] {
+			add("%s: the id must be a unique positive number.", label)
+		}
+		noteIDs[n.ID] = true
+		if perBook[n.BookID]++; perBook[n.BookID] > maxNotesPerBook {
+			add("%s: a book can have at most %d notes.", label, maxNotesPerBook)
+		}
+		n.Body = noteText(n.Body)
+		if message := checkNote(n.Body, n.Page, n.Percent); message != "" {
+			add("%s: %s", label, message)
+		}
+		created, err1 := parseTime(n.CreatedAt)
+		updated, err2 := parseTime(n.UpdatedAt)
+		if err1 != nil || err2 != nil || created == "" || updated == "" {
+			add("%s: created_at and updated_at must be dates and times.", label)
+		}
+		n.CreatedAt, n.UpdatedAt = created, updated
+	}
 	if p := f.Preferences; p != nil {
 		if message := checkPreferences(*p); message != "" {
 			add("Preferences: %s", message)
@@ -287,15 +320,15 @@ func restoreExport(q queryer, f exportFile) (restorePlan, error) {
 	}
 	books := slices.Clone(f.Books)
 	slices.SortStableFunc(books, func(a, b Book) int { return cmp.Or(cmp.Compare(a.Position, b.Position), cmp.Compare(a.ID, b.ID)) })
-	insertBook, err := q.Prepare(`INSERT INTO books(title,author,identity,isbn,goodreads_id,pages,progress_page,progress_percent,tags,interest,reading_status,position,pinned,needs_placement,moved_by_hand,series,series_number,published_year,avg_rating,added_at,source,description,description_source)
-    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+	insertBook, err := q.Prepare(`INSERT INTO books(title,author,identity,isbn,goodreads_id,pages,progress_page,progress_percent,tags,interest,reading_status,position,pinned,needs_placement,moved_by_hand,series,series_number,published_year,avg_rating,added_at,source,description,description_source,reason)
+    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
 	if err != nil {
 		return result, err
 	}
 	defer insertBook.Close()
 	newID := make(map[int64]int64, len(books))
 	for _, b := range books {
-		res, err := insertBook.Exec(b.Title, b.Author, b.Identity, b.ISBN, b.GoodreadsID, b.Pages, b.ProgressPage, b.ProgressPercent, b.Tags, b.Interest, b.Status, b.Position, b.Pinned, b.NeedsPlacement, b.MovedByHand, b.Series, b.SeriesNumber, b.PublishedYear, b.AvgRating, b.AddedAt, b.Source, b.Description, b.DescriptionSource)
+		res, err := insertBook.Exec(b.Title, b.Author, b.Identity, b.ISBN, b.GoodreadsID, b.Pages, b.ProgressPage, b.ProgressPercent, b.Tags, b.Interest, b.Status, b.Position, b.Pinned, b.NeedsPlacement, b.MovedByHand, b.Series, b.SeriesNumber, b.PublishedYear, b.AvgRating, b.AddedAt, b.Source, b.Description, b.DescriptionSource, b.Reason)
 		if err != nil {
 			return result, err
 		}
@@ -374,6 +407,14 @@ func restoreExport(q queryer, f exportFile) (restorePlan, error) {
 		}
 		result.Readings++
 	}
+	notes := slices.Clone(f.Notes)
+	slices.SortStableFunc(notes, func(a, b bookNote) int { return cmp.Compare(a.ID, b.ID) })
+	for _, n := range notes {
+		if _, err = q.Exec("INSERT INTO book_notes(book_id,body,page,percent,created_at,updated_at) VALUES(?,?,?,?,?,?)", newID[n.BookID], n.Body, n.Page, n.Percent, n.CreatedAt, n.UpdatedAt); err != nil {
+			return result, err
+		}
+		result.Notes++
+	}
 	if f.Preferences != nil {
 		if err = setMeta(q, "preferences", *f.Preferences); err != nil {
 			return result, err
@@ -417,6 +458,9 @@ func exportLibrary(tx *sql.Tx) (exportFile, error) {
 	if f.Aliases, err = loadAliases(tx); err != nil {
 		return f, err
 	}
-	f.ReadingLog, err = loadReadingLog(tx)
+	if f.ReadingLog, err = loadReadingLog(tx); err != nil {
+		return f, err
+	}
+	f.Notes, err = loadAllNotes(tx)
 	return f, err
 }

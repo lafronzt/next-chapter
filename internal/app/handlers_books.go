@@ -54,6 +54,9 @@ func (a *App) newBook(w http.ResponseWriter, r *http.Request) error {
 		if err != nil {
 			return err
 		}
+		if _, err = tx.Exec("UPDATE books SET reason=? WHERE id=?", b.Reason, id); err != nil {
+			return err
+		}
 		if err = bump(tx); err != nil {
 			return err
 		}
@@ -103,7 +106,11 @@ func (a *App) bookPageData(id int64) (page, error) {
 	if err != nil {
 		return nil, err
 	}
-	data := page{"Title": b.Title, "Book": b, "LookupOn": lookupOn, "Editing": true, "Events": events, "EventTotal": total, "Readings": readings, "Estimate": estimate}
+	notes, err := loadNotes(a.store.DB, id)
+	if err != nil {
+		return nil, err
+	}
+	data := page{"Title": b.Title, "Book": b, "LookupOn": lookupOn, "Editing": true, "Events": events, "EventTotal": total, "Readings": readings, "Estimate": estimate, "Notes": notes, "MaxNote": maxNote}
 	for _, e := range readings {
 		if e.Rating != nil {
 			data["Rated"] = true
@@ -169,7 +176,7 @@ func (a *App) editBook(w http.ResponseWriter, r *http.Request) error {
 		if err != nil {
 			return err
 		}
-		_, err = tx.Exec(`UPDATE books SET title=?,author=?,identity=?,interest=?,reading_status=?,pages=?,tags=?,series=?,series_number=?,description_source=CASE WHEN description=? THEN description_source ELSE '' END,description=?,pinned=?,needs_placement=?,position=? WHERE id=?`, b.Title, b.Author, identity(b.Title, b.Author), b.Interest, b.Status, b.Pages, b.Tags, b.Series, b.SeriesNumber, b.Description, b.Description, pin, needs, position, id)
+		_, err = tx.Exec(`UPDATE books SET title=?,author=?,identity=?,interest=?,reading_status=?,pages=?,tags=?,series=?,series_number=?,description_source=CASE WHEN description=? THEN description_source ELSE '' END,description=?,reason=?,pinned=?,needs_placement=?,position=? WHERE id=?`, b.Title, b.Author, identity(b.Title, b.Author), b.Interest, b.Status, b.Pages, b.Tags, b.Series, b.SeriesNumber, b.Description, b.Description, b.Reason, pin, needs, position, id)
 		if err != nil {
 			return err
 		}
