@@ -29,7 +29,7 @@ func (a *App) estimate(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	data := page{"Title": "Estimated rating: " + inputs.Book.Title, "Book": inputs.Book, "Inputs": inputs, "Saved": saved, "AI": ai,
-		"Stale": saved != nil && saved.Fingerprint != inputs.Fingerprint}
+		"ReviewLimit": 1000, "Stale": saved != nil && saved.Fingerprint != inputs.Fingerprint}
 	if inputs.Rated {
 		acc, err := loadAccuracy(a.store.DB, id)
 		if err != nil {
@@ -38,7 +38,7 @@ func (a *App) estimate(w http.ResponseWriter, r *http.Request) error {
 		data["Accuracy"] = acc
 	}
 	if !inputs.Rated && inputs.Baseline.Rated > 0 {
-		payload := buildEstimatePayload(inputs.Book, inputs.History, inputs.Baseline, false)
+		payload := a.estimatePayloadForProvider(inputs.Book, inputs.History, inputs.Baseline, false)
 		req, err := estimateRequest(payload)
 		if err != nil {
 			return err
@@ -47,10 +47,14 @@ func (a *App) estimate(w http.ResponseWriter, r *http.Request) error {
 		if inputs.KeepReviews {
 			prompt.Note = "If you also send your review text, the books you reviewed gain a \"your_review\" field with up to 1,000 characters of it."
 		}
+		if a.config.AI.SelfHosted() && inputs.KeepReviews {
+			data["ReviewLimit"] = 240
+			prompt.Note = "If you also send your review text, these sampled books gain a \"your_review\" field with up to 240 characters of it."
+		}
 		data["Payload"], data["Prompt"] = payload, prompt
 		data["Manual"] = manualFor(req, fmt.Sprintf("/books/%d/estimate/paste", id), inputs.Fingerprint)
 		if inputs.KeepReviews {
-			with := buildEstimatePayload(inputs.Book, inputs.History, inputs.Baseline, true)
+			with := a.estimatePayloadForProvider(inputs.Book, inputs.History, inputs.Baseline, true)
 			reviewed := []estimateRow{}
 			for _, row := range with.RatedBooks {
 				if row.Review != "" {

@@ -567,3 +567,98 @@ func TestEstimateLoadsRatedBookDescriptions(t *testing.T) {
 		t.Fatal("the fingerprint ignores a rated book's description")
 	}
 }
+
+func TestLocalEstimatesKeepCompactRelevantHistory(t *testing.T) {
+	for _, provider := range []string{"ollama", "custom", "anthropic"} {
+		t.Run(provider, func(t *testing.T) {
+			a, _ := aiApp(t, provider, func(http.ResponseWriter, *http.Request) { t.Fatal("unexpected request") })
+			candidate := Book{ID: 100, Title: "Target", Author: "Match", Tags: "space", Description: "A journey into space."}
+			history := make([]ratedBook, 50)
+			for i := range history {
+				history[i] = ratedBook{ID: int64(i + 1), Title: fmt.Sprintf("Read %d", i), Author: "Other", Rating: 3, Description: strings.Repeat("d", 400), Review: strings.Repeat("r", 1000)}
+			}
+			history[0].Rating = 1
+			history[1].Rating = 5
+			history[49].Author = "Match"
+			history[49].Tags = "space"
+			base := baselineEstimate(candidate, history)
+			full := buildEstimatePayload(candidate, history, base, true)
+			got := a.estimatePayloadForProvider(candidate, history, base, true)
+			if got.Stats != full.Stats || got.Candidate != full.Candidate {
+				t.Fatal("compaction changed the candidate or full-history statistics")
+			}
+			if provider == "anthropic" {
+				if !reflect.DeepEqual(got, full) {
+					t.Fatal("hosted payload changed")
+				}
+				return
+			}
+			if len(got.RatedBooks) != 8 {
+				t.Fatalf("sent %d history books", len(got.RatedBooks))
+			}
+			seen := map[string]bool{}
+			withoutReviews := a.estimatePayloadForProvider(candidate, history, base, false)
+			for i, row := range got.RatedBooks {
+				seen[row.Title] = true
+				if len(row.Description) > 160 || len(row.Review) > 240 {
+					t.Fatal("unbounded history text")
+				}
+				if withoutReviews.RatedBooks[i].Title != row.Title || withoutReviews.RatedBooks[i].Review != "" {
+					t.Fatal("review opt-in changed selection or leaked reviews")
+				}
+			}
+			if !seen["Read 0"] || !seen["Read 1"] || !seen["Read 49"] {
+				t.Fatalf("missing low, high, or related history: %v", seen)
+			}
+		})
+	}
+}
+
+func TestOllamaEstimatesSendDifferentCandidatesAfterHistory(t *testing.T) {
+	var requests []string
+	a, _ := aiApp(t, "ollama", func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Messages []struct {
+				Content string `json:"content"`
+			} `json:"messages"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatal(err)
+		}
+		requests = append(requests, body.Messages[1].Content)
+		replyFor("ollama", `{"estimate":3,"confidence":"low","reasons":["You have little comparable history."]}`)(w, r)
+	})
+	first := libraryFixture(t, a, 12)
+	addRecords(t, a, []Record{{Book: Book{Title: "Different Candidate", Author: "Different Writer", Tags: "history", Status: "to-read", Source: "manual", Interest: 3}}})
+	var second int64
+	if err := a.store.DB.QueryRow("SELECT id FROM books WHERE title='Different Candidate'").Scan(&second); err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range []int64{first, second} {
+		inputs, err := loadEstimateInputs(a.store.DB, id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := a.estimateAI(context.Background(), id, inputs.Fingerprint, false); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for i, title := range []string{"The Candidate", "Different Candidate"} {
+		text := requests[i]
+		candidateAt := strings.LastIndex(text, `"candidate":`)
+		if candidateAt < strings.Index(text, `"rated_books":`) || !strings.Contains(text[candidateAt:], title) {
+			t.Fatalf("request %d lost its target or placed it before history", i)
+		}
+		inner := strings.TrimSuffix(strings.TrimPrefix(text, "<library_data>\n"), "\n</library_data>")
+		var payload estimatePayload
+		if err := json.Unmarshal([]byte(inner), &payload); err != nil {
+			t.Fatal(err)
+		}
+		if payload.Candidate.Title != title || len(payload.RatedBooks) != 8 {
+			t.Fatalf("wrong candidate or sample: %+v", payload)
+		}
+	}
+	if requests[0] == requests[1] {
+		t.Fatal("different books sent the same prompt")
+	}
+}

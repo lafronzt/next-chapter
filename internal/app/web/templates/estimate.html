@@ -75,7 +75,7 @@
   <div>
     <strong>Send this to the AI?</strong>
     <p>One request ({{$.AI.Usage.Requests}} of {{$.AI.Cap}} used this month). The answer is checked before it is saved, and your library does not change.</p>
-    {{if $.Reviewed}}<label class="checkbox"><input type="checkbox" name="reviews"> Also send my review text (up to 1,000 characters each) for {{len $.Reviewed}} of these books: {{range $i, $r := $.Reviewed}}{{if $i}}, {{end}}{{$r.Title}}{{end}}</label>{{end}}
+    {{if $.Reviewed}}<label class="checkbox"><input type="checkbox" name="reviews"> Also send my review text (up to {{$.ReviewLimit}} characters each) for {{len $.Reviewed}} of these books: {{range $i, $r := $.Reviewed}}{{if $i}}, {{end}}{{$r.Title}}{{end}}</label>{{end}}
   </div>
   <div class="button-row">
     <button class="button primary"><span>Send and estimate <span aria-hidden="true">→</span></span></button>

@@ -110,7 +110,7 @@ func TestPromptPreview(t *testing.T) {
 			b := &browser{t: t, handler: a.Handler()}
 			page := html.UnescapeString(b.request("GET", fmt.Sprintf("/books/%d/estimate", id), nil).Body.String())
 			in, _ := loadEstimateInputs(a.store.DB, id)
-			req, err := estimateRequest(buildEstimatePayload(in.Book, in.History, in.Baseline, false))
+			req, err := estimateRequest(a.estimatePayloadForProvider(in.Book, in.History, in.Baseline, false))
 			if err != nil {
 				t.Fatal(err)
 			}

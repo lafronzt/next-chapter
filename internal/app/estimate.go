@@ -406,28 +406,33 @@ type estimateStats struct {
 
 // estimatePayload is exactly what the AI request sends; the preview shows it.
 type estimatePayload struct {
-	Candidate  estimateCandidate `json:"candidate"`
-	Stats      estimateStats     `json:"stats"`
-	RatedBooks []estimateRow     `json:"rated_books"`
+	Stats      estimateStats `json:"stats"`
+	RatedBooks []estimateRow `json:"rated_books"`
+	// Keep the target after history so it stays near the end of long prompts.
+	Candidate estimateCandidate `json:"candidate"`
 }
 
 // sampleHistory picks at most 40 rated books: the highest- and lowest-rated,
 // then those sharing most tags with the candidate (then its author or series),
 // in a deterministic order.
 func sampleHistory(c Book, history []ratedBook) []ratedBook {
+	return sampleHistoryLimit(c, history, estimateSampleSize, estimateEnds)
+}
+
+func sampleHistoryLimit(c Book, history []ratedBook, size, ends int) []ratedBook {
 	pool := []ratedBook{}
 	for _, h := range history {
 		if h.ID != c.ID {
 			pool = append(pool, h)
 		}
 	}
-	if len(pool) <= estimateSampleSize {
+	if len(pool) <= size {
 		return sortSample(pool)
 	}
 	chosen := map[int64]bool{}
 	pick := func(list []ratedBook, n int) {
 		for _, h := range list {
-			if n == 0 || len(chosen) >= estimateSampleSize {
+			if n == 0 || len(chosen) >= size {
 				return
 			}
 			if !chosen[h.ID] {
@@ -438,9 +443,9 @@ func sampleHistory(c Book, history []ratedBook) []ratedBook {
 	}
 	byRating := slices.Clone(pool)
 	slices.SortStableFunc(byRating, func(a, b ratedBook) int { return cmp.Or(cmp.Compare(b.Rating, a.Rating), cmp.Compare(a.ID, b.ID)) })
-	pick(byRating, estimateEnds)
+	pick(byRating, ends)
 	slices.SortStableFunc(byRating, func(a, b ratedBook) int { return cmp.Or(cmp.Compare(a.Rating, b.Rating), cmp.Compare(a.ID, b.ID)) })
-	pick(byRating, estimateEnds)
+	pick(byRating, ends)
 	tags := tagSet(c.Tags)
 	closeness := func(h ratedBook) int {
 		n := 0
@@ -461,7 +466,7 @@ func sampleHistory(c Book, history []ratedBook) []ratedBook {
 	slices.SortStableFunc(near, func(a, b ratedBook) int {
 		return cmp.Or(cmp.Compare(closeness(b), closeness(a)), cmp.Compare(a.ID, b.ID))
 	})
-	pick(near, estimateSampleSize)
+	pick(near, size)
 	sample := []ratedBook{}
 	for _, h := range pool {
 		if chosen[h.ID] {
@@ -501,7 +506,26 @@ func buildEstimatePayload(c Book, history []ratedBook, base ratingBaseline, revi
 	return p
 }
 
-const estimateTask = `You estimate the star rating (1 to 5) a reader would probably give a book they have not read yet, from their own ratings of books they finished. The data has the candidate book, the reader's rating statistics, a sample of their rated books, and a baseline estimate computed from their averages for the same author, series, and tags. Books may have a short description; use it to judge themes, tone, and pacing, not as an opinion of the book. Adjust the baseline only when the sample gives a reason. The Goodreads average is other readers' opinion and only a weak signal. Answer with "estimate" (a number from 1 to 5, one decimal), "confidence" ("low", "medium", or "high"; low when the history says little about this kind of book), and "reasons": one to three short plain-language sentences addressed to the reader as "you", each under 200 characters.`
+// estimatePayloadForProvider keeps self-hosted prompts small without changing
+// the full-history statistics or baseline. Reserve room for similar books as
+// well as a few high and low ratings; keep selection independent of review opt-in.
+func (a *App) estimatePayloadForProvider(c Book, history []ratedBook, base ratingBaseline, reviews bool) estimatePayload {
+	payload := buildEstimatePayload(c, history, base, reviews)
+	if !a.config.AI.SelfHosted() {
+		return payload
+	}
+	sample := sampleHistoryLimit(c, history, 8, 2)
+	compact := buildEstimatePayload(c, sample, base, reviews)
+	payload.RatedBooks = compact.RatedBooks
+	for i := range payload.RatedBooks {
+		row := &payload.RatedBooks[i]
+		row.Description = truncate(row.Description, 160)
+		row.Review = truncate(row.Review, 240)
+	}
+	return payload
+}
+
+const estimateTask = `You estimate the star rating (1 to 5) a reader would probably give a book they have not read yet, from their own ratings of books they finished. The data has the candidate book, the reader's rating statistics, a sample of their rated books, and a baseline estimate computed from their averages for the same author, series, and tags. Books may have a short description; use it to judge themes, tone, and pacing, not as an opinion of the book. Evaluate the candidate, not the rated books. Compare the candidate’s supplied themes, tone, tags, author, or series with specific books you rated. Use the baseline as a starting point; adjust it only when those comparisons support a change. When a meaningful comparison is possible, at least one reason must connect a supplied candidate detail to a named rated book and its rating. Do not invent book details or preferences. If there is no meaningful comparison, explain what candidate information is missing and use low confidence. Equal ratings for different candidates are allowed; do not manufacture differences. The Goodreads average is other readers' opinion and only a weak signal. Answer with "estimate" (a number from 1 to 5, one decimal), "confidence" ("low", "medium", or "high"; low when the history says little about this kind of book), and "reasons": one to three short plain-language sentences addressed to the reader as "you", each under 200 characters.`
 
 const estimateSchema = `{"type":"object","properties":{"estimate":{"type":"number"},"confidence":{"type":"string","enum":["low","medium","high"]},"reasons":{"type":"array","items":{"type":"string"}}},"required":["estimate","confidence","reasons"],"additionalProperties":false}`
 
@@ -629,7 +653,7 @@ func (a *App) prepareEstimate(bookID int64, fingerprint string, reviews bool) (e
 	if ei.Fingerprint != fingerprint {
 		return ei, AIRequest{}, nil, conflict("Your reading history or this book changed since the preview. Check what gets shared again.")
 	}
-	req, err := estimateRequest(buildEstimatePayload(ei.Book, ei.History, ei.Baseline, reviews && ei.KeepReviews))
+	req, err := estimateRequest(a.estimatePayloadForProvider(ei.Book, ei.History, ei.Baseline, reviews && ei.KeepReviews))
 	if err != nil {
 		return ei, req, nil, err
 	}
