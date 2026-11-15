@@ -1,5 +1,11 @@
 # Change log
 
+## Prompt 34 (saved library views)
+
+| Prompt | Change |
+|---|---|
+| 34 | Migration 14 adds `books.owned` and `saved_views`. `bookFilter` gains exact tag, series, page range / unknown pages, one-loan source/format/status (EXISTS), and ownership; `parseListFilter` is the single reader for URLs, forms, and saved definitions, and `values()` their canonical form. SQL functions `nc_fold` and `nc_hastag` give exact, Unicode-aware matching without LIKE. `views.go` holds the versioned definition, CRUD handlers (`/views`, `/views/{id}`), and validation; they never bump the revision or touch Undo. Pager links keep every filter. Ownership is on the add/edit forms, kept by imports, OR-ed on merge. Export/restore carry `saved_views` and `owned` (`maxRestoreSchema` 14). Tests in `views_test.go`. Backup before the migration: `<database>.pre-v14.bak`. |
+
 ## Prompt 33 (private reading notes)
 
 | Prompt | Change |

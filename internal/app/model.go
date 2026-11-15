@@ -41,7 +41,10 @@ type Book struct {
 	// Reason is the reader's private "why I want to read this", at most
 	// maxReason characters. It is never imported, looked up, or sent anywhere.
 	Reason string `json:"reason,omitempty"`
-	Loans  []Loan `json:"loans"`
+	// Owned is the reader's own flag that they have a copy. It is independent
+	// of loans, format, and reading status; imports never set or clear it.
+	Owned bool   `json:"owned,omitempty"`
+	Loans []Loan `json:"loans"`
 	// Estimate is the saved estimated rating, filled only where ranking or a
 	// list needs it. It is a cache and not part of the export.
 	Estimate *float64 `json:"-"`

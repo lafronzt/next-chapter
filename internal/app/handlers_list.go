@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -57,24 +58,25 @@ func (a *App) index(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	filter := view.filter(query)
-	status, sortKey := "", ""
+	var filterNotes []string
+	keep := url.Values{"view": {view.Key}, "q": {query}}
 	if view.Key == "all" {
-		// Only All books filters by status and sorts; both are plain query
-		// parameters and unknown values fall back to the default.
-		if s := r.URL.Query().Get("status"); in(s, readingStates) {
-			status, filter.Status = s, s
-		}
-		for _, o := range sortOptions {
-			if r.URL.Query().Get("sort") == o.Key {
-				sortKey, filter.Sort = o.Key, o.Key
-			}
+		// Only All books filters and sorts. Every filter is a plain query
+		// parameter read by parseListFilter; unknown values are ignored and
+		// reported.
+		filter, filterNotes = parseListFilter(r.URL.Query())
+		keep = filter.values()
+		keep.Set("view", "all")
+		if id := r.URL.Query().Get("saved"); id != "" {
+			keep.Set("saved", id)
 		}
 	}
+	status, sortKey := filter.Status, filter.Sort
 	total, err := countBooks(a.store.DB, filter)
 	if err != nil {
 		return err
 	}
-	pages := newPager(r, total, "/", url.Values{"view": {view.Key}, "q": {query}, "status": {status}, "sort": {sortKey}})
+	pages := newPager(r, total, "/", keep)
 	items, err := listBooks(a.store.DB, filter, pages.PerPage, pages.offset())
 	if err != nil {
 		return err
@@ -93,6 +95,11 @@ func (a *App) index(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	data := page{"AI": ai, "Title": pageTitle(title, pages), "Items": items, "Pager": pages, "Stats": stats, "View": view.Key, "ViewInfo": view, "Views": views, "Query": query, "CanUndo": canUndo, "UndoLabel": undoLabel, "Status": status, "Sort": sortKey, "SortOptions": sortOptions, "ReadingStates": readingStates}
+	if view.Key == "all" {
+		if err = a.listViewData(r, data, filter, filterNotes); err != nil {
+			return err
+		}
+	}
 	if view.Key == "queue" && query == "" && pages.Page == 1 {
 		home, err := loadHome(a.store.DB, time.Now())
 		if err != nil {
@@ -101,4 +108,35 @@ func (a *App) index(w http.ResponseWriter, r *http.Request) error {
 		data["Home"] = home
 	}
 	return a.render(w, r, "index.html", data, 200)
+}
+
+// listViewData adds what the All books filters show: the saved views, whether
+// the filters match the saved view being opened, and how many otherwise
+// matching books have no page count.
+func (a *App) listViewData(r *http.Request, data page, filter bookFilter, notes []string) error {
+	saved, err := loadSavedViews(a.store.DB)
+	if err != nil {
+		return err
+	}
+	data["SavedViews"], data["FilterNotes"], data["Filter"] = saved, notes, filter
+	data["FilterFields"], data["SearchFields"] = filter.hiddenFields(), filter.hiddenFields("q")
+	data["Active"] = filter.active()
+	data["Loans"], data["Sources"], data["Formats"] = libraryStates, loanSources, loanFormats
+	if id, e := strconv.ParseInt(r.URL.Query().Get("saved"), 10, 64); e == nil {
+		for _, s := range saved {
+			if s.ID == id {
+				data["Saved"] = s
+				data["SavedDiffers"] = s.Definition.filter().values().Encode() != filter.values().Encode()
+				data["SavedURL"] = openURL(s.ID, s.Definition.filter())
+			}
+		}
+	}
+	if (filter.PagesMin != nil || filter.PagesMax != nil) && !filter.PagesUnknown {
+		unknown := filter
+		unknown.PagesMin, unknown.PagesMax, unknown.PagesUnknown = nil, nil, true
+		if data["UnknownPages"], err = countBooks(a.store.DB, unknown); err != nil {
+			return err
+		}
+	}
+	return nil
 }

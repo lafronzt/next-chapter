@@ -32,13 +32,23 @@ type exportFile struct {
 	ReadingLog []readingEntry `json:"reading_log"`
 	// Notes are the reader's private notes, from schema version 13.
 	Notes []bookNote `json:"notes"`
+	// SavedViews are the reader's named list filters, from schema version 14.
+	SavedViews []savedViewExport `json:"saved_views"`
+}
+
+// savedViewExport is a saved view as exported.
+type savedViewExport struct {
+	Name       string         `json:"name"`
+	Definition viewDefinition `json:"definition"`
+	CreatedAt  string         `json:"created_at"`
+	UpdatedAt  string         `json:"updated_at"`
 }
 
 const (
 	// maxRestoreSchema is the newest export this build can restore. A test
 	// fails when a migration is added, so the restore code is checked against
 	// the new schema before this is raised.
-	maxRestoreSchema = 13
+	maxRestoreSchema = 14
 	maxRestoreUpload = 10_000_000
 	maxRestoreEvents = 100_000
 	maxRestoreAlias  = 20_000
@@ -58,6 +68,7 @@ type restorePlan struct {
 	Aliases        int        `json:"aliases"`
 	Readings       int        `json:"readings"`
 	Notes          int        `json:"notes"`
+	SavedViews     int        `json:"saved_views"`
 	AliasesKept    int        `json:"aliases_kept"`
 	HasPreferences bool       `json:"has_preferences"`
 }
@@ -135,6 +146,10 @@ func validateExport(f *exportFile) []string {
 	}
 	if len(f.Notes) > maxRestoreNotes {
 		add("The export has %d notes; restore at most %d.", len(f.Notes), maxRestoreNotes)
+		return problems
+	}
+	if len(f.SavedViews) > maxRestoreViews {
+		add("The export has %d saved views; restore at most %d.", len(f.SavedViews), maxRestoreViews)
 		return problems
 	}
 	if len(f.Aliases) > maxRestoreAlias {
@@ -289,6 +304,28 @@ func validateExport(f *exportFile) []string {
 		}
 		n.CreatedAt, n.UpdatedAt = created, updated
 	}
+	viewNames := map[string]bool{}
+	for i := range f.SavedViews {
+		v := &f.SavedViews[i]
+		label := fmt.Sprintf("Saved view %d", i+1)
+		name, err := cleanViewName(v.Name)
+		if err != nil || name != v.Name {
+			add("%s: the name must be 1 to %d characters without extra spaces.", label, maxViewName)
+		}
+		if viewNames[foldKey(v.Name)] {
+			add("%s: the name is repeated.", label)
+		}
+		viewNames[foldKey(v.Name)] = true
+		if message := v.Definition.check(); message != "" {
+			add("%s: %s.", label, message)
+		}
+		created, err1 := parseTime(v.CreatedAt)
+		updated, err2 := parseTime(v.UpdatedAt)
+		if err1 != nil || err2 != nil || created == "" || updated == "" {
+			add("%s: created_at and updated_at must be dates and times.", label)
+		}
+		v.CreatedAt, v.UpdatedAt = created, updated
+	}
 	if p := f.Preferences; p != nil {
 		if message := checkPreferences(*p); message != "" {
 			add("Preferences: %s", message)
@@ -320,15 +357,15 @@ func restoreExport(q queryer, f exportFile) (restorePlan, error) {
 	}
 	books := slices.Clone(f.Books)
 	slices.SortStableFunc(books, func(a, b Book) int { return cmp.Or(cmp.Compare(a.Position, b.Position), cmp.Compare(a.ID, b.ID)) })
-	insertBook, err := q.Prepare(`INSERT INTO books(title,author,identity,isbn,goodreads_id,pages,progress_page,progress_percent,tags,interest,reading_status,position,pinned,needs_placement,moved_by_hand,series,series_number,published_year,avg_rating,added_at,source,description,description_source,reason)
-    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+	insertBook, err := q.Prepare(`INSERT INTO books(title,author,identity,isbn,goodreads_id,pages,progress_page,progress_percent,tags,interest,reading_status,position,pinned,needs_placement,moved_by_hand,series,series_number,published_year,avg_rating,added_at,source,description,description_source,reason,owned)
+    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
 	if err != nil {
 		return result, err
 	}
 	defer insertBook.Close()
 	newID := make(map[int64]int64, len(books))
 	for _, b := range books {
-		res, err := insertBook.Exec(b.Title, b.Author, b.Identity, b.ISBN, b.GoodreadsID, b.Pages, b.ProgressPage, b.ProgressPercent, b.Tags, b.Interest, b.Status, b.Position, b.Pinned, b.NeedsPlacement, b.MovedByHand, b.Series, b.SeriesNumber, b.PublishedYear, b.AvgRating, b.AddedAt, b.Source, b.Description, b.DescriptionSource, b.Reason)
+		res, err := insertBook.Exec(b.Title, b.Author, b.Identity, b.ISBN, b.GoodreadsID, b.Pages, b.ProgressPage, b.ProgressPercent, b.Tags, b.Interest, b.Status, b.Position, b.Pinned, b.NeedsPlacement, b.MovedByHand, b.Series, b.SeriesNumber, b.PublishedYear, b.AvgRating, b.AddedAt, b.Source, b.Description, b.DescriptionSource, b.Reason, b.Owned)
 		if err != nil {
 			return result, err
 		}
@@ -415,6 +452,13 @@ func restoreExport(q queryer, f exportFile) (restorePlan, error) {
 		}
 		result.Notes++
 	}
+	for _, v := range f.SavedViews {
+		raw, _ := json.Marshal(v.Definition)
+		if _, err = q.Exec("INSERT INTO saved_views(name,definition,created_at,updated_at) VALUES(?,?,?,?)", v.Name, string(raw), v.CreatedAt, v.UpdatedAt); err != nil {
+			return result, err
+		}
+		result.SavedViews++
+	}
 	if f.Preferences != nil {
 		if err = setMeta(q, "preferences", *f.Preferences); err != nil {
 			return result, err
@@ -461,6 +505,16 @@ func exportLibrary(tx *sql.Tx) (exportFile, error) {
 	if f.ReadingLog, err = loadReadingLog(tx); err != nil {
 		return f, err
 	}
-	f.Notes, err = loadAllNotes(tx)
-	return f, err
+	if f.Notes, err = loadAllNotes(tx); err != nil {
+		return f, err
+	}
+	views, err := loadSavedViews(tx)
+	if err != nil {
+		return f, err
+	}
+	f.SavedViews = []savedViewExport{}
+	for _, v := range views {
+		f.SavedViews = append(f.SavedViews, savedViewExport{v.Name, v.Definition, v.CreatedAt, v.UpdatedAt})
+	}
+	return f, nil
 }

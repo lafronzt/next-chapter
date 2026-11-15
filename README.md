@@ -32,6 +32,7 @@ Every suggestion has a preview and reasons. Pinned books keep their positions. Y
 - **Reading progress**: save the page you are on, or a percentage for an audiobook or a book with no page count. Home shows how far along you are, and Due soon shows what is left and how much a day finishes it before a loan is due. Progress never moves a book.
 - **Expected holds**: enter when you expect a library hold to be ready. As that date nears, the book is lifted a little in suggestions (with a reason), and home lists holds arriving soon. The date is your own estimate; nothing is read from Libby.
 - **Private notes**: an optional "why I want to read this" on each book, plus dated notes you write about it, for any reading status. They are plain text (up to 500 characters for the reason, 5,000 for a note, 200 notes a book), stay on your server, and are never imported, looked up, ranked, or sent to an AI. See [Private notes](#private-notes).
+- **Saved library views**: filter All books by exact tag, series, page range (or pages unknown), current borrowing source, format, and status, and ownership, then save the filter and sort under a name. See [Saved views and ownership](#saved-views-and-ownership).
 - **Yearly reading goal**: set a target on Reading history and see whether you are ahead, on, or behind pace. It only measures.
 - Goodreads CSV imports that keep your `to-read` shelf order and are safe to repeat: export again from Goodreads whenever you want to bring in new books.
 - **Estimated ratings**: “what might I give this?” for an unread book, from your own ratings, with an optional AI second opinion and a running check of how accurate past estimates were.
@@ -368,6 +369,17 @@ Books on your Goodreads `read` shelf become **Reading history**: one entry per f
 
 - **A yearly goal** (optional) sits at the top of the page: set a number of books and it counts readings with a finish date this year, then says whether you are ahead, on, or behind an even pace. It only measures, and never changes your queue.
 
+### Saved views and ownership
+
+On **All books**, the filters combine with AND: status, search, exact tag, exact series, a page range, a borrowing source, format, and library status, and ownership.
+
+- **Exact means exact.** A tag matches a whole tag (ignoring case and the spaces around it), so `fan` never finds `fantasy`; a series matches the way ranking treats series names (case-insensitive, including non-ASCII letters). `%` and `_` are literal.
+- **Pages unknown.** A page range leaves out books with no page count; the page says how many such books match the rest of the filters. Tick **Pages unknown** to include them with a range, or alone to see only them.
+- **Borrowing** filters match a book that has a current loan satisfying every chosen field (for example Libby and ebook), counted once however many loans match.
+- **Ownership** is your own flag (**I own a copy** on the add and edit forms), separate from loans, formats, and reading status. Imports never set or clear it and a library event never changes it. A merge keeps it if either book is owned.
+- **Saved views** keep the current filter and sort under a name (up to 80 characters, 100 views). A view has a stable address (`/views/ID`) that opens its filters; you can rename, update, or delete it on **Saved views** (`/views`). The page says when the filters in the address differ from the saved definition, and nothing is saved until you choose **Update this view**. A view with no matches stays. Edits from an out-of-date page are refused. Views only select and sort: they never change positions, pins, placement flags, status, or the library revision, and a sorted list still turns queue moves off.
+- Saved views and ownership are in the JSON export (`saved_views`, and `owned` on each book) and the database backup; older exports restore with no views and nothing owned.
+
 ### Private notes
 
 Each book has an optional **Why I want to read this** (on the edit page) and any number of dated **notes** (on the book page, up to 200 a book). A note can name a page or a percentage where you wrote it, but writing one never changes your progress, status, queue position, or rating, and a note is not a finished reading. Text is shown exactly as typed, with line breaks kept and any markup escaped; there is no rich text.
@@ -407,7 +419,7 @@ The JSON export can also be loaded back, for example to move to a new instance w
 - Restored: books with their status, want-to-read, pins, **Needs placement**, queue positions and order, series, tags, pages, identifiers, added date, and source; reading history (review text only if the restored preferences keep reviews); library events with their fingerprints, so re-importing the same CSV adds no duplicates; current loans, rebuilt from the events with the same newest-wins rule as imports; merge and deletion aliases; ranking preferences; and Goodreads settings.
 - Exports from older versions carry retired Goodreads feed settings; they are accepted and ignored.
 - Not restored: previews, undo, sign-in state, and the session key. Books and events get new ID numbers.
-- Validation is strict and uses the same limits as the forms and CSV imports. Unknown fields, malformed JSON, out-of-range values, duplicate titles or Goodreads IDs, and exports from a newer schema version than this build supports are refused, and nothing is written. The export's `schema_version` is the database schema version it came from; this build restores versions 1 to 13. An export from before version 6 has no reading history, and its Goodreads connection starts following the `read` shelf.
+- Validation is strict and uses the same limits as the forms and CSV imports. Unknown fields, malformed JSON, out-of-range values, duplicate titles or Goodreads IDs, and exports from a newer schema version than this build supports are refused, and nothing is written. The export's `schema_version` is the database schema version it came from; this build restores versions 1 to 14. An export from before version 6 has no reading history, and its Goodreads connection starts following the `read` shelf.
 - The file is limited to 10 MB, 10,000 books, and 100,000 events. A 10,000-book export is typically about 6 MB; a library too large for JSON restore can still use the database backup.
 
 ### Schema upgrades and rollback
@@ -423,6 +435,8 @@ The app refuses to start if the database has a newer schema version than the run
 3. Start the previous image.
 
 Changes made after the upgrade are not in the `.bak`. Export JSON first if you need a record of them.
+
+Schema migration 14 adds the `books.owned` column and the `saved_views` table; every existing book starts not owned and there are no views. Roll back with `next-chapter.sqlite3.pre-v14.bak` as above, or keep later changes and run an older image after `DROP TABLE saved_views; ALTER TABLE books DROP COLUMN owned; UPDATE meta SET value='13' WHERE key='schema_version';`, which discards ownership flags and views only, so export JSON first if you want them. JSON exports from version 14 need this build or newer to restore.
 
 Schema migration 13 adds the `books.reason` column and the `book_notes` table for private notes; existing books start with an empty reason and no notes. Roll back with `next-chapter.sqlite3.pre-v13.bak` as above, or keep later changes and run an older image after `DROP TABLE book_notes; ALTER TABLE books DROP COLUMN reason; UPDATE meta SET value='12' WHERE key='schema_version';`, which discards notes and reasons only, so export JSON first if you want them. JSON exports from version 13 carry them and need this build or newer to restore.
 

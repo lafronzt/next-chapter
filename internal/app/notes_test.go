@@ -409,7 +409,7 @@ func TestMigratePrivateNotesFromVersionTwelve(t *testing.T) {
 		t.Fatal(err)
 	}
 	db.Close()
-	if err = migrateFile(path, migrations); err != nil {
+	if err = migrateFile(path, migrations[:13]); err != nil {
 		t.Fatal(err)
 	}
 	if v, _ := versionOf(t, path); v != 13 {

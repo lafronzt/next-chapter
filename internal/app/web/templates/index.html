@@ -119,15 +119,35 @@
   </nav>
   <form class="search" method="get" role="search">
     <input type="hidden" name="view" value="{{.View}}">
-    {{if .Status}}<input type="hidden" name="status" value="{{.Status}}">{{end}}
-    {{if .Sort}}<input type="hidden" name="sort" value="{{.Sort}}">{{end}}
+    {{range .SearchFields}}<input type="hidden" name="{{.Name}}" value="{{.Value}}">{{end}}
+    {{with .Saved}}<input type="hidden" name="saved" value="{{.ID}}">{{end}}
     <input aria-label="Search books" name="q" value="{{.Query}}" placeholder="Find a title, author, or tag…">
     <button aria-label="Search"><span aria-hidden="true">⌕</span></button>
   </form>
 </div>
 {{if eq .View "all"}}
+{{range .FilterNotes}}<div class="notice" role="status">{{.}}</div>{{end}}
+{{with .Saved}}
+<div class="panel saved-view" role="status">
+  <p><strong>Saved view: {{.Name}}</strong>{{if $.SavedDiffers}} <span class="badge">Filters changed</span>{{end}}</p>
+  <p class="muted"><small>{{.Definition.Summary}}</small></p>
+  {{if $.SavedDiffers}}
+  <p class="muted"><small>The filters in this address differ from what is saved. Nothing is saved until you choose Update this view. <a href="{{$.SavedURL}}">Back to the saved definition</a>.</small></p>
+  <form method="post" action="/views/{{.ID}}" class="button-row">
+    {{template "csrf" $}}
+    <input type="hidden" name="version" value="{{.Version}}">
+    {{range $.FilterFields}}<input type="hidden" name="{{.Name}}" value="{{.Value}}">{{end}}
+    <button class="button small" name="action" value="update">Update this view</button>
+  </form>
+  {{end}}
+  <p><a href="/views">Manage saved views</a></p>
+</div>
+{{end}}
+<details class="filters-more" {{if or .Active .Saved}}open{{end}}>
+<summary>Filters{{if .Active}} <span class="badge">on</span>{{end}}</summary>
 <form class="filters" method="get">
   <input type="hidden" name="view" value="all">
+  {{with .Saved}}<input type="hidden" name="saved" value="{{.ID}}">{{end}}
   {{if .Query}}<input type="hidden" name="q" value="{{.Query}}">{{end}}
   <label>Status<select name="status">
     <option value="">Any status</option>
@@ -137,9 +157,46 @@
     <option value="">Queue order</option>
     {{range .SortOptions}}<option value="{{.Key}}" {{if eq $.Sort .Key}}selected{{end}}>{{.Label}}</option>{{end}}
   </select></label>
+  <label>Tag <input name="tag" maxlength="200" value="{{.Filter.Tag}}" placeholder="exact tag"></label>
+  <label>Series <input name="series" maxlength="200" value="{{.Filter.Series}}" placeholder="exact series name"></label>
+  <label>Pages from <input type="number" name="pages_min" min="1" max="99999" inputmode="numeric" value="{{with .Filter.PagesMin}}{{.}}{{end}}"></label>
+  <label>to <input type="number" name="pages_max" min="1" max="99999" inputmode="numeric" value="{{with .Filter.PagesMax}}{{.}}{{end}}"></label>
+  <label class="check"><input type="checkbox" name="pages_unknown" value="1" {{if .Filter.PagesUnknown}}checked{{end}}> Pages unknown</label>
+  <label>Borrowed from<select name="source">
+    <option value="">Any source</option>
+    {{range .Sources}}<option value="{{.}}" {{if eq $.Filter.LoanSource .}}selected{{end}}>{{upper .}}</option>{{end}}
+  </select></label>
+  <label>Format<select name="format">
+    <option value="">Any format</option>
+    {{range .Formats}}<option value="{{.}}" {{if eq $.Filter.LoanFormat .}}selected{{end}}>{{.}}</option>{{end}}
+  </select></label>
+  <label>Library status<select name="loan_status">
+    <option value="">Any</option>
+    {{range .Loans}}<option value="{{.}}" {{if eq $.Filter.LoanStatus .}}selected{{end}}>{{.}}</option>{{end}}
+  </select></label>
+  <label>Ownership<select name="owned">
+    <option value="">Either</option>
+    <option value="yes" {{if eq .Filter.Owned "yes"}}selected{{end}}>Owned</option>
+    <option value="no" {{if eq .Filter.Owned "no"}}selected{{end}}>Not owned</option>
+  </select></label>
   <button class="button small"><span>Apply</span></button>
-  <span class="muted"><small>Sorting changes only how this list is read, never your queue order.</small></span>
+  <span class="muted"><small>Filters combine (a book must match all of them). Sorting and filtering change only how this list is read, never your queue order. A page range leaves out books with no page count unless “Pages unknown” is ticked; ticked alone it shows only those books. A borrowing filter matches books with a current loan that fits every choice.</small></span>
 </form>
+</details>
+{{if .UnknownPages}}<p class="muted"><small>{{.UnknownPages}} other {{if eq .UnknownPages 1}}book that matches the rest of these filters has{{else}}books that match the rest of these filters have{{end}} no page count and {{if eq .UnknownPages 1}}is{{else}}are{{end}} not shown. Tick “Pages unknown” to include {{if eq .UnknownPages 1}}it{{else}}them{{end}}.</small></p>{{end}}
+<div class="panel save-view">
+  {{if .SavedViews}}<p class="muted"><small>Your views: {{range $i, $v := .SavedViews}}{{if $i}}, {{end}}<a href="{{$v.URL}}">{{$v.Name}}</a>{{end}}. <a href="/views">Manage</a></small></p>{{end}}
+  {{if .Active}}
+  <form method="post" action="/views" class="inline-form">
+    {{template "csrf" .}}
+    {{range .FilterFields}}<input type="hidden" name="{{.Name}}" value="{{.Value}}">{{end}}
+    <label>Save these filters as a view <input name="name" maxlength="80" required placeholder="Owned, under 250 pages"></label>
+    <button class="button small">Save view</button>
+  </form>
+  {{else}}
+  <p class="muted"><small>Choose some filters, then save them as a named view to come back to. Views select and sort books; they never move them.</small></p>
+  {{end}}
+</div>
 {{end}}
 {{if and (eq .View "unreviewed") .Items}}
 <form class="bulk-triage" method="post" action="/triage">
