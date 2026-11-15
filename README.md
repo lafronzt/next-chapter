@@ -33,6 +33,7 @@ Every suggestion has a preview and reasons. Pinned books keep their positions. Y
 - **Expected holds**: enter when you expect a library hold to be ready. As that date nears, the book is lifted a little in suggestions (with a reason), and home lists holds arriving soon. The date is your own estimate; nothing is read from Libby.
 - **Private notes**: an optional "why I want to read this" on each book, plus dated notes you write about it, for any reading status. They are plain text (up to 500 characters for the reason, 5,000 for a note, 200 notes a book), stay on your server, and are never imported, looked up, ranked, or sent to an AI. See [Private notes](#private-notes).
 - **Saved library views**: filter All books by exact tag, series, page range (or pages unknown), current borrowing source, format, and status, and ownership, then save the filter and sort under a name. See [Saved views and ownership](#saved-views-and-ownership).
+- **Series dashboard**: the books you already have, grouped by series name, in number order, with the next known unread volume. See [Series dashboard](#series-dashboard).
 - **Yearly reading goal**: set a target on Reading history and see whether you are ahead, on, or behind pace. It only measures.
 - Goodreads CSV imports that keep your `to-read` shelf order and are safe to repeat: export again from Goodreads whenever you want to bring in new books.
 - **Estimated ratings**: “what might I give this?” for an unread book, from your own ratings, with an optional AI second opinion and a running check of how accurate past estimates were.
@@ -368,6 +369,15 @@ Books on your Goodreads `read` shelf become **Reading history**: one entry per f
 - Not available from Goodreads, and so not imported: reading progress and start dates (you can track the page you are on in the app yourself), dates of earlier re-reads (Goodreads keeps only the latest `Date Read`; `Read Count` is not a list of dates), private notes, and anything on a private profile. This app does not scrape Goodreads, ask for your Goodreads password or cookies, or use unofficial APIs.
 
 - **A yearly goal** (optional) sits at the top of the page: set a number of books and it counts readings with a finish date this year, then says whether you are ahead, on, or behind an even pace. It only measures, and never changes your queue.
+
+### Series dashboard
+
+**Series** (`/series`) groups the books in your library by series name, using the same case rule as ranking (so "Earthsea" and "EARTHSEA", or "Élan" and "éLAN", are one series), and shows how many are Read, Reading, Queued, Set aside, or waiting in To review. A book counts once however many times you re-read it. Its current status and any finished reading in your history are shown separately: a book you queued again after finishing it says "Finished before".
+
+- Numbered volumes are listed numerically (10 after 2, fractions such as 1.5 in place); books with no number are listed apart, and books that share a number are all shown and marked.
+- The **next known volume** is the first whole-numbered volume you have not finished. A volume that is set aside or waiting in To review is not skipped: it is shown as the next one, with an existing action (Start reading, or Move back to my queue). Fractional volumes never block it. Nothing is changed unless you press that button.
+- Gaps read "No local entry between #1 and #3". That says only what your library lacks: it does not claim such a volume exists or that the series is incomplete, and no titles are invented or fetched.
+- The page has a series-name search and pages through long lists. It changes no book, ranking, pin, or queue position, and needs no schema change.
 
 ### Saved views and ownership
 

@@ -1,5 +1,11 @@
 # Change log
 
+## Prompt 36 (series dashboard)
+
+| Prompt | Change |
+|---|---|
+| 36 | `series.go` and `series.html` (`GET /series`): one query loads every book with a series, grouped by `foldKey` (ranking's rule), ordered deterministically. Numbered volumes sort numerically, unnumbered and duplicate numbers stay visible, rereads count a book once, finished history is shown apart from status. The next known whole-numbered unread volume is not skipped past set-aside or To-review books; fractions never block; gaps use "No local entry between" wording. Series link in the sidebar and More panel. No schema change, no queue effect. Tests in `series_test.go`. |
+
 ## Prompt 34 (saved library views)
 
 | Prompt | Change |

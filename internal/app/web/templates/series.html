@@ -1,0 +1,57 @@
+{{template "top" .}}
+<header class="page-heading">
+  <div>
+    <h1>Your series</h1>
+    <p>Books in your library that share a series name, in number order. This page only reads your library: it never adds books, changes your queue, or claims a series is complete.</p>
+  </div>
+</header>
+<form class="search" method="get" role="search" action="/series">
+  <input aria-label="Search series names" name="q" value="{{.Query}}" placeholder="Find a series…">
+  <button aria-label="Search"><span aria-hidden="true">⌕</span></button>
+</form>
+{{range $i, $g := .Groups}}
+<section class="panel series-card stack" aria-labelledby="series-{{$i}}">
+  <h2 id="series-{{$i}}">{{.Name}}</h2>
+  <p class="muted">{{.Books}} {{if eq .Books 1}}book{{else}}books{{end}} here · Read {{.Read}} · Reading {{.Reading}} · Queued {{.Queued}} · Set aside {{.SetAside}}{{if .ToReview}} · To review {{.ToReview}}{{end}}{{if gt .EverFinished .Read}} · {{.EverFinished}} with a finished reading in your history{{end}}</p>
+  {{with .Next}}
+  <div class="notice" role="status">
+    <strong>Next known volume: {{if .Volume.Number}}#{{seriesNumber .Volume.Number}} {{end}}<a href="/books/{{.Volume.ID}}">{{.Volume.Title}}</a></strong>
+    <p>{{.Message}}</p>
+    {{if eq .Action "start"}}
+    <form method="post" action="/books/{{.Volume.ID}}/status">{{template "fields" $}}<input type="hidden" name="back" value="book"><button class="button small" name="action" value="start" aria-label="Start reading {{.Volume.Title}}">Start reading</button></form>
+    {{else if eq .Action "requeue"}}
+    <form method="post" action="/books/{{.Volume.ID}}/status">{{template "fields" $}}<input type="hidden" name="back" value="book"><button class="button small" name="action" value="requeue" aria-label="Move {{.Volume.Title}} back to my queue">Move back to my queue</button></form>
+    {{end}}
+  </div>
+  {{else}}{{if .Numbered}}
+  <p class="muted">Every numbered volume here has a finished reading. Nothing else is implied about the series.</p>
+  {{end}}{{end}}
+  {{if .Numbered}}
+  <h3>Numbered</h3>
+  <ol class="series-volumes">
+    {{range .Numbered}}
+    <li><span class="vol-number">#{{seriesNumber .Number}}</span> <a href="/books/{{.ID}}">{{.Title}}</a> <span class="muted">{{.Author}}</span> <span class="badge">{{status .Status}}</span>{{if .DuplicateNumber}} <span class="badge">Same number as another book</span>{{end}}{{if .Fractional}} <span class="badge">In between</span>{{end}}{{if and .Finished (ne .Status "read")}} <span class="muted"><small>Finished before ({{.Finished}} {{if eq .Finished 1}}reading{{else}}readings{{end}} logged)</small></span>{{end}}</li>
+    {{end}}
+  </ol>
+  {{range .Gaps}}<p class="muted"><small>{{.}}.</small></p>{{end}}
+  {{end}}
+  {{if .Unnumbered}}
+  <h3>No number</h3>
+  <ul class="series-volumes">
+    {{range .Unnumbered}}
+    <li><a href="/books/{{.ID}}">{{.Title}}</a> <span class="muted">{{.Author}}</span> <span class="badge">{{status .Status}}</span>{{if and .Finished (ne .Status "read")}} <span class="muted"><small>Finished before ({{.Finished}} {{if eq .Finished 1}}reading{{else}}readings{{end}} logged)</small></span>{{end}}</li>
+    {{end}}
+  </ul>
+  {{end}}
+</section>
+{{else}}
+{{if .Query}}
+<p class="muted">No series name contains “{{.Query}}”. <a href="/series">Show every series</a>.</p>
+{{else if .TotalSeries}}
+<p class="muted">No series to show on this page.</p>
+{{else}}
+<p class="muted">No series yet. A book joins one when its edit page has a series name, or when an import or lookup fills it in.{{if .Standalone}} {{.Standalone}} {{if eq .Standalone 1}}book has{{else}}books have{{end}} no series.{{end}}</p>
+{{end}}
+{{end}}
+{{template "pager" .Pager}}
+{{template "bottom" .}}
