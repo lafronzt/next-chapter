@@ -1,0 +1,30 @@
+{{template "top" .}}
+<a class="back" href="/?view=all"><span aria-hidden="true">←</span> Back to all books</a>
+<header class="page-heading">
+  <div>
+    <h1>Saved views</h1>
+    <p>A saved view remembers a filter and sort for All books. Opening one never changes your queue or any book. Up to {{.Max}} views.</p>
+  </div>
+</header>
+{{range .Views}}
+<div class="panel stack">
+  <p><strong><a href="{{.URL}}">{{.Name}}</a></strong> <span class="muted">· {{.Count}} {{if eq .Count 1}}book{{else}}books{{end}} now</span></p>
+  <p class="muted"><small>{{.Definition.Summary}}</small></p>
+  {{if eq .Count 0}}<p class="muted"><small>No books match right now. The view is kept.</small></p>{{end}}
+  <details class="more-details">
+    <summary>Rename or delete</summary>
+    <form class="form-grid" method="post" action="/views/{{.ID}}">
+      {{template "csrf" $}}
+      <input type="hidden" name="version" value="{{.Version}}">
+      <label class="span-2">Name<input name="name" maxlength="80" value="{{.Name}}" required></label>
+      <div class="span-2 button-row">
+        <button class="button" name="action" value="rename">Rename</button>
+        <button class="button danger" name="action" value="delete">Delete view</button>
+      </div>
+    </form>
+  </details>
+</div>
+{{else}}
+<p class="muted">No saved views yet. On <a href="/?view=all">All books</a>, choose filters such as “Owned” with pages up to 249, or Library format “ebook”, then use Save view.</p>
+{{end}}
+{{template "bottom" .}}

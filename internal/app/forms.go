@@ -11,7 +11,7 @@ import (
 )
 
 func bookFields(r *http.Request) (Book, error) {
-	b := Book{Title: strings.TrimSpace(r.FormValue("title")), Author: strings.TrimSpace(r.FormValue("author")), Tags: strings.TrimSpace(r.FormValue("tags")), Status: r.FormValue("reading_status"), Series: strings.TrimSpace(r.FormValue("series")), Description: cleanText(r.FormValue("description"), maxDescription), Reason: noteText(r.FormValue("reason")), Source: "manual"}
+	b := Book{Title: strings.TrimSpace(r.FormValue("title")), Author: strings.TrimSpace(r.FormValue("author")), Tags: strings.TrimSpace(r.FormValue("tags")), Status: r.FormValue("reading_status"), Series: strings.TrimSpace(r.FormValue("series")), Description: cleanText(r.FormValue("description"), maxDescription), Reason: noteText(r.FormValue("reason")), Owned: r.FormValue("owned") != "", Source: "manual"}
 	// A non-numeric interest stays 0, which checkBook rejects.
 	b.Interest, _ = strconv.Atoi(r.FormValue("interest"))
 	if raw := r.FormValue("pages"); raw != "" {

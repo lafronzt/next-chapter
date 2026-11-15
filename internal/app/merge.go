@@ -124,6 +124,9 @@ type mergePreview struct {
 	// true when both books have a different "why I want to read this": the
 	// source's becomes a note on the target. ReasonFilled is true when the
 	// target had none and takes the source's.
+	// OwnedFilled is true when the merged book is owned and the kept one was
+	// not, so the kept book becomes owned.
+	OwnedFilled              bool
 	MoveNotes                int
 	ReasonKept, ReasonFilled bool
 	ISBNConflict             bool
@@ -153,6 +156,7 @@ func mergeBooks(q queryer, sourceID, targetID int64, apply bool) (mergePreview, 
 		}
 		return p, nil
 	}
+	p.OwnedFilled = source.Owned && !target.Owned
 	p.ISBNConflict = source.ISBN != "" && target.ISBN != "" && source.ISBN != target.ISBN
 	for _, f := range []struct {
 		label string
@@ -246,8 +250,8 @@ func mergeBooks(q queryer, sourceID, targetID int64, apply bool) (mergePreview, 
 	}
 	_, err = q.Exec(`UPDATE books SET goodreads_id=CASE WHEN goodreads_id='' THEN ? ELSE goodreads_id END, isbn=CASE WHEN isbn='' THEN ? ELSE isbn END,
     pages=COALESCE(pages,?), series=CASE WHEN series='' THEN ? ELSE series END, series_number=COALESCE(series_number,?), tags=CASE WHEN tags='' THEN ? ELSE tags END,
-    description_source=CASE WHEN description='' THEN ? ELSE description_source END, description=CASE WHEN description='' THEN ? ELSE description END WHERE id=?`,
-		source.GoodreadsID, source.ISBN, source.Pages, source.Series, source.SeriesNumber, source.Tags, source.DescriptionSource, source.Description, targetID)
+    description_source=CASE WHEN description='' THEN ? ELSE description_source END, description=CASE WHEN description='' THEN ? ELSE description END, owned=MAX(owned,?) WHERE id=?`,
+		source.GoodreadsID, source.ISBN, source.Pages, source.Series, source.SeriesNumber, source.Tags, source.DescriptionSource, source.Description, source.Owned, targetID)
 	if err != nil {
 		return p, err
 	}

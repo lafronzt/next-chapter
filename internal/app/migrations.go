@@ -20,6 +20,7 @@ var migrations = []migration{
 	{11, "reading progress and expected hold dates", migrateProgressAndHolds},
 	{12, "reading progress as a percentage", migrateProgressPercent},
 	{13, "private reading notes", migratePrivateNotes},
+	{14, "ownership flag and saved library views", migrateSavedViews},
 }
 
 func migrateBaseline(tx *sql.Tx) error {
@@ -229,5 +230,23 @@ CREATE TABLE book_notes (
  version INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
 );
 CREATE INDEX book_notes_book ON book_notes(book_id, created_at, id);`)
+	return err
+}
+
+// books.owned is the reader's own flag that they have a copy (default 0), and
+// saved_views holds named, versioned filter definitions for the All books
+// list. A saved view only selects and sorts books; it never moves them.
+//
+// Backup: the migration framework writes <database>.pre-v14.bak before
+// applying this. Rollback: stop the app, put that file back as the database,
+// and run the previous release; ownership flags and saved views made since
+// are lost, so download an export first if you want to keep them.
+func migrateSavedViews(tx *sql.Tx) error {
+	_, err := tx.Exec(`ALTER TABLE books ADD COLUMN owned INTEGER NOT NULL DEFAULT 0 CHECK(owned IN (0,1));
+CREATE TABLE saved_views (
+ id INTEGER PRIMARY KEY, name TEXT NOT NULL, definition TEXT NOT NULL,
+ version INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+);
+CREATE UNIQUE INDEX saved_views_name ON saved_views(name COLLATE NOCASE);`)
 	return err
 }

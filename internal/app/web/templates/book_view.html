@@ -10,7 +10,7 @@
     <h1 id="book-title">{{.Book.Title}}</h1>
     <p class="author">{{.Book.Author}}{{if .Book.Pages}}<span> · {{pages .Book.Pages}} pages</span>{{end}}{{with .Book.Series}}<span> · {{.}}{{with $.Book.SeriesNumber}} #{{seriesNumber .}}{{end}}</span>{{end}}</p>
     <p class="book-meta">{{pips .Book.Interest}}{{if .Book.Tags}}<span> · {{.Book.Tags}}</span>{{end}}</p>
-    <p><span class="badge">{{status .Book.Status}}</span>{{if .Book.Pinned}} <span class="badge pin"><span aria-hidden="true">◆</span> Pinned</span>{{end}}</p>
+    <p><span class="badge">{{status .Book.Status}}</span>{{if .Book.Pinned}} <span class="badge pin"><span aria-hidden="true">◆</span> Pinned</span>{{end}}{{if .Book.Owned}} <span class="badge">Owned</span>{{end}}</p>
     {{if eq .Book.Status "reading"}}
     <div class="progress-block">
       {{if .Book.HasProgress}}<meter class="progress-meter" min="0" max="100" value="{{.Book.Percent}}" aria-label="Progress in {{.Book.Title}}"></meter>{{end}}

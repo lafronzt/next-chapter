@@ -28,6 +28,29 @@ func init() {
 		}
 		return args[0], nil
 	})
+	// nc_fold is foldKey, the case rule ranking uses for series names.
+	sqlite.MustRegisterDeterministicScalarFunction("nc_fold", 1, func(_ *sqlite.FunctionContext, args []driver.Value) (driver.Value, error) {
+		switch v := args[0].(type) {
+		case string:
+			return foldKey(v), nil
+		case []byte:
+			return foldKey(string(v)), nil
+		}
+		return args[0], nil
+	})
+	// nc_hastag reports whether a comma-separated tag list has exactly this
+	// tag, ignoring case and the spaces around each tag; "fan" never matches
+	// "fantasy". The tag is passed lowercase.
+	sqlite.MustRegisterDeterministicScalarFunction("nc_hastag", 2, func(_ *sqlite.FunctionContext, args []driver.Value) (driver.Value, error) {
+		tags, _ := args[0].(string)
+		tag, _ := args[1].(string)
+		for _, t := range strings.Split(tags, ",") {
+			if strings.ToLower(strings.TrimSpace(t)) == tag {
+				return int64(1), nil
+			}
+		}
+		return int64(0), nil
+	})
 }
 
 type Store struct{ DB *sql.DB }

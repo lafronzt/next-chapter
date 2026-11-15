@@ -2564,3 +2564,18 @@ input[type=checkbox],input[type=radio] {
 .note + .note, .note + form {
   margin-top:12px;
 }
+
+/* All books filters collapse into one summary so a phone shows the list first */
+.filters-more > summary {
+  cursor:pointer;
+  padding:8px 0;
+  font-weight:600;
+}
+.filters label.check {
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+.saved-view, .save-view {
+  margin:10px 0;
+}

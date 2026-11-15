@@ -17,6 +17,24 @@ type bookFilter struct {
 	// Sort is a key of sortOptions; empty is queue order. Sorting only
 	// changes how a list is read and never touches stored positions.
 	Sort string
+	// Tag and Series match exactly (ignoring case), never as substrings.
+	Tag, Series string
+	// PagesMin and PagesMax bound the page count. A book with no page count
+	// is outside any range unless PagesUnknown is set; PagesUnknown without a
+	// range selects only books with no page count.
+	PagesMin, PagesMax *int
+	PagesUnknown       bool
+	// LoanSource, LoanStatus, and LoanFormat must all hold for one current
+	// loan of the book.
+	LoanSource, LoanStatus, LoanFormat string
+	// Owned is "yes", "no", or "" for either.
+	Owned string
+}
+
+// narrowed reports whether a filter other than status and search can hide
+// books, so a page's queue numbers must count the books between its rows.
+func (f bookFilter) narrowed() bool {
+	return f.Tag != "" || f.Series != "" || f.PagesMin != nil || f.PagesMax != nil || f.PagesUnknown || f.LoanSource != "" || f.LoanStatus != "" || f.LoanFormat != "" || f.Owned != ""
 }
 
 // sortOptions are the orders the All books list offers, besides queue order.
@@ -50,6 +68,46 @@ func (f bookFilter) where() (string, []any) {
 	}
 	if f.Query != "" {
 		conds, args = append(conds, `nc_lower(b.title||' '||b.author||' '||b.tags) LIKE ? ESCAPE '\'`), append(args, "%"+likeEscaper.Replace(f.Query)+"%")
+	}
+	if f.Tag != "" {
+		conds, args = append(conds, "nc_hastag(b.tags,?)"), append(args, strings.ToLower(f.Tag))
+	}
+	if f.Series != "" {
+		conds, args = append(conds, "b.series!='' AND nc_fold(b.series)=?"), append(args, foldKey(f.Series))
+	}
+	switch {
+	case f.PagesMin != nil || f.PagesMax != nil:
+		lo, hi := 0, 1<<30
+		if f.PagesMin != nil {
+			lo = *f.PagesMin
+		}
+		if f.PagesMax != nil {
+			hi = *f.PagesMax
+		}
+		cond := "b.pages BETWEEN ? AND ?"
+		if f.PagesUnknown {
+			cond = "(b.pages BETWEEN ? AND ? OR b.pages IS NULL)"
+		}
+		conds, args = append(conds, cond), append(args, lo, hi)
+	case f.PagesUnknown:
+		conds = append(conds, "b.pages IS NULL")
+	}
+	if f.LoanSource != "" || f.LoanStatus != "" || f.LoanFormat != "" {
+		// One loan must satisfy every chosen field, and EXISTS keeps a book
+		// with several matching loans from being listed or counted twice.
+		sub, loanArgs := []string{"l.book_id=b.id"}, []any{}
+		for _, c := range []struct{ column, value string }{{"source", f.LoanSource}, {"status", f.LoanStatus}, {"format", f.LoanFormat}} {
+			if c.value != "" {
+				sub, loanArgs = append(sub, "l."+c.column+"=?"), append(loanArgs, c.value)
+			}
+		}
+		conds, args = append(conds, "EXISTS (SELECT 1 FROM loans l WHERE "+strings.Join(sub, " AND ")+")"), append(args, loanArgs...)
+	}
+	switch f.Owned {
+	case "yes":
+		conds = append(conds, "b.owned=1")
+	case "no":
+		conds = append(conds, "b.owned=0")
 	}
 	if len(conds) == 0 {
 		return "", nil
@@ -119,7 +177,7 @@ func listBooks(q queryer, f bookFilter, limit, offset int) ([]listedBook, error)
 	if f.Sort != "" {
 		err = placeSorted(q, queued)
 	} else {
-		err = placeInQueue(q, queued, f.Query != "")
+		err = placeInQueue(q, queued, f.Query != "" || f.narrowed())
 	}
 	if err != nil {
 		return nil, err
