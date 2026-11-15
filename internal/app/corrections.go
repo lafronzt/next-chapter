@@ -209,15 +209,14 @@ ON CONFLICT(fingerprint) DO UPDATE SET action='void',source='',format='',status=
 			return err
 		}
 	case "edit":
-		at := ev.At
-		if dateOf(ev.Effective().At) != in.Date {
+		// Keep the recorded time of day when the date is unchanged.
+		at := ev.Effective().At
+		if dateOf(at) != in.Date {
 			t, err := time.Parse(time.DateOnly, in.Date)
 			if err != nil {
 				return bad("Enter the observation date as a calendar date.")
 			}
 			at = canonicalTime(t)
-		} else {
-			at = ev.Effective().At
 		}
 		if _, err := q.Exec(`INSERT INTO event_corrections(fingerprint,book_id,action,source,format,status,at,due_date,created_at,updated_at) VALUES(?,?,'edit',?,?,?,?,?,?,?)
 ON CONFLICT(fingerprint) DO UPDATE SET action='edit',source=excluded.source,format=excluded.format,status=excluded.status,at=excluded.at,due_date=excluded.due_date,updated_at=excluded.updated_at`, ev.Fingerprint, ev.BookID, in.Source, in.Format, in.Status, at, in.DueDate, stamp, stamp); err != nil {
