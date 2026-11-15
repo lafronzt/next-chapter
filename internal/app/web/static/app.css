@@ -2596,3 +2596,18 @@ input[type=checkbox],input[type=radio] {
 .vol-number {
   font-weight:600;
 }
+
+/* Borrowing calendar */
+.calendar-nav {
+  display:flex;
+  flex-wrap:wrap;
+  align-items:center;
+  gap:12px;
+  margin:12px 0;
+}
+.calendar-nav strong {
+  flex:1 1 auto;
+}
+main section[aria-labelledby] > h2 {
+  margin:28px 0 8px;
+}

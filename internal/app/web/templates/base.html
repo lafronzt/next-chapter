@@ -28,6 +28,7 @@
     <a href="/?view=all" {{if eq .Nav "all"}}class="active" aria-current="{{if .NavPage}}page{{else}}true{{end}}"{{end}}><span aria-hidden="true">▤</span> All books</a>
     <a href="/series" {{if eq .Nav "series"}}class="active" aria-current="{{if .NavPage}}page{{else}}true{{end}}"{{end}}><span aria-hidden="true">❡</span> Series</a>
     <a href="/reading" {{if eq .Nav "reading"}}class="active" aria-current="{{if .NavPage}}page{{else}}true{{end}}"{{end}}><span aria-hidden="true">✓</span> Reading history</a>
+    <a href="/calendar" {{if eq .Nav "calendar"}}class="active" aria-current="{{if .NavPage}}page{{else}}true{{end}}"{{end}}><span aria-hidden="true">▦</span> Borrowing calendar</a>
     <a href="/history" {{if eq .Nav "history"}}class="active" aria-current="{{if .NavPage}}page{{else}}true{{end}}"{{end}}><span aria-hidden="true">◷</span> Library history</a>
     <span class="nav-label second">MAKE IT YOURS</span>
     <a href="/imports" {{if eq .Nav "imports"}}class="active" aria-current="{{if .NavPage}}page{{else}}true{{end}}"{{end}}><span aria-hidden="true">↓</span> Import books</a>
@@ -66,6 +67,7 @@
     <div class="more-panel">
       <a href="/?view=all" {{if eq .Nav "all"}}aria-current="{{if .NavPage}}page{{else}}true{{end}}"{{end}}>All books</a>
       <a href="/series" {{if eq .Nav "series"}}aria-current="{{if .NavPage}}page{{else}}true{{end}}"{{end}}>Series</a>
+      <a href="/calendar" {{if eq .Nav "calendar"}}aria-current="{{if .NavPage}}page{{else}}true{{end}}"{{end}}>Borrowing calendar</a>
       <a href="/history" {{if eq .Nav "history"}}aria-current="{{if .NavPage}}page{{else}}true{{end}}"{{end}}>Library history</a>
       <a href="/imports" {{if eq .Nav "imports"}}aria-current="{{if .NavPage}}page{{else}}true{{end}}"{{end}}>Import books</a>
       <a href="/settings" {{if eq .Nav "settings"}}aria-current="{{if .NavPage}}page{{else}}true{{end}}"{{end}}>Preferences</a>

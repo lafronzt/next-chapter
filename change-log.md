@@ -1,5 +1,11 @@
 # Change log
 
+## Prompt 35 (borrowing calendar)
+
+| Prompt | Change |
+|---|---|
+| 35 | `calendar.go` and `calendar.html` (`GET /calendar`, `GET /calendar.ics`): one query reads current loans (borrowed, ready, hold); a pure `buildCalendar(loans, today, start, days)` sorts them into overdue, an agenda for a bounded range (default 30, at most 92 days, at most 500 entries), and undated loans; firm deadlines and hold estimates are labeled in words; overlap is described without inventing checkout dates. `buildICS` writes RFC 5545 all-day events with deterministic UIDs, UTC DTSTAMP, escaped text, CRLF, and UTF-8-safe folding. Clock is `a.now`. No schema change, no outbound requests, no queue or Undo effect. Tests in `calendar_test.go`. |
+
 ## Prompt 36 (series dashboard)
 
 | Prompt | Change |

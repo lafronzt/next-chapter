@@ -262,7 +262,7 @@ func navCurrent(path string, data page) (key string, exact bool) {
 			return view, true
 		}
 		return "queue", false
-	case path == "/history" || path == "/series" || path == "/reading" || path == "/imports" || path == "/settings":
+	case path == "/history" || path == "/series" || path == "/calendar" || path == "/reading" || path == "/imports" || path == "/settings":
 		return path[1:], true
 	case strings.HasPrefix(path, "/plans/"):
 		switch data["Kind"] {
@@ -289,7 +289,7 @@ func tabCurrent(path string, data page) string {
 	switch key {
 	case "queue", "unreviewed", "reading":
 		return key
-	case "all", "series", "history", "imports", "settings":
+	case "all", "series", "calendar", "history", "imports", "settings":
 		return "more"
 	}
 	return ""
