@@ -19,6 +19,7 @@ var migrations = []migration{
 	{10, "book descriptions", migrateDescriptions},
 	{11, "reading progress and expected hold dates", migrateProgressAndHolds},
 	{12, "reading progress as a percentage", migrateProgressPercent},
+	{13, "private reading notes", migratePrivateNotes},
 }
 
 func migrateBaseline(tx *sql.Tx) error {
@@ -207,5 +208,26 @@ ALTER TABLE loans ADD COLUMN expected_ready TEXT NOT NULL DEFAULT '';`)
 // and run the previous release.
 func migrateProgressPercent(tx *sql.Tx) error {
 	_, err := tx.Exec("ALTER TABLE books ADD COLUMN progress_percent INTEGER NULL CHECK(progress_percent BETWEEN 0 AND 100)")
+	return err
+}
+
+// books.reason is the reader's private "why I want to read this", and
+// book_notes holds their dated notes about a book. Both are local writing:
+// imports and lookups never touch them and no AI request carries them. version
+// counts saves, so an edit made from a stale page is refused. Existing books
+// get an empty reason and no notes.
+//
+// Backup: the migration framework writes <database>.pre-v13.bak before
+// applying this. Rollback: stop the app, put that file back as the database,
+// and run the previous release; notes written since are lost, so download an
+// export first if you want to keep them.
+func migratePrivateNotes(tx *sql.Tx) error {
+	_, err := tx.Exec(`ALTER TABLE books ADD COLUMN reason TEXT NOT NULL DEFAULT '';
+CREATE TABLE book_notes (
+ id INTEGER PRIMARY KEY, book_id INTEGER NOT NULL REFERENCES books(id),
+ body TEXT NOT NULL, page INTEGER NULL, percent INTEGER NULL CHECK(percent BETWEEN 0 AND 100),
+ version INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+);
+CREATE INDEX book_notes_book ON book_notes(book_id, created_at, id);`)
 	return err
 }

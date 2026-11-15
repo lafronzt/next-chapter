@@ -31,6 +31,7 @@ Every suggestion has a preview and reasons. Pinned books keep their positions. Y
 - Explainable placement and full-queue reordering, with preview, stale-preview protection, and undo. With AI assistance on, a suggestion can also show an AI-suggested order beside the usual one. Every AI request shows what it shares (and, if you want, the exact prompt) before it is sent, and runs in the background while you keep using the app.
 - **Reading progress**: save the page you are on, or a percentage for an audiobook or a book with no page count. Home shows how far along you are, and Due soon shows what is left and how much a day finishes it before a loan is due. Progress never moves a book.
 - **Expected holds**: enter when you expect a library hold to be ready. As that date nears, the book is lifted a little in suggestions (with a reason), and home lists holds arriving soon. The date is your own estimate; nothing is read from Libby.
+- **Private notes**: an optional "why I want to read this" on each book, plus dated notes you write about it, for any reading status. They are plain text (up to 500 characters for the reason, 5,000 for a note, 200 notes a book), stay on your server, and are never imported, looked up, ranked, or sent to an AI. See [Private notes](#private-notes).
 - **Yearly reading goal**: set a target on Reading history and see whether you are ahead, on, or behind pace. It only measures.
 - Goodreads CSV imports that keep your `to-read` shelf order and are safe to repeat: export again from Goodreads whenever you want to bring in new books.
 - **Estimated ratings**: “what might I give this?” for an unread book, from your own ratings, with an optional AI second opinion and a running check of how accurate past estimates were.
@@ -367,6 +368,15 @@ Books on your Goodreads `read` shelf become **Reading history**: one entry per f
 
 - **A yearly goal** (optional) sits at the top of the page: set a number of books and it counts readings with a finish date this year, then says whether you are ahead, on, or behind an even pace. It only measures, and never changes your queue.
 
+### Private notes
+
+Each book has an optional **Why I want to read this** (on the edit page) and any number of dated **notes** (on the book page, up to 200 a book). A note can name a page or a percentage where you wrote it, but writing one never changes your progress, status, queue position, or rating, and a note is not a finished reading. Text is shown exactly as typed, with line breaks kept and any markup escaped; there is no rich text.
+
+- Notes and the reason are never filled in, overwritten, or deleted by CSV imports or book lookup, never sent in a lookup request, and never part of an AI request, the exact-prompt preview, or logs. There is no send-to-AI option.
+- Saving, editing, or deleting a note does not change the library revision, so it never invalidates a preview or Undo, and Undo never touches notes. Each note carries a version, so a save from a page that is out of date is refused instead of overwriting a newer edit.
+- Deleting a book deletes its notes (the confirmation says how many). Merging moves every note to the kept book, identical text included; if both books have a different reason, the merged book's reason is kept as a note on the kept book, and the merge preview says so. A kept book with no reason takes the merged book's.
+- Notes and reasons are in the JSON export (`notes`, and `reason` on each book) and the database backup, and restore with it. Exports from before schema version 13 restore without them.
+
 ### Deleting and merging books
 
 Both actions start from a book's edit page under **Tidy up**. Nothing is merged or deleted automatically.
@@ -397,7 +407,7 @@ The JSON export can also be loaded back, for example to move to a new instance w
 - Restored: books with their status, want-to-read, pins, **Needs placement**, queue positions and order, series, tags, pages, identifiers, added date, and source; reading history (review text only if the restored preferences keep reviews); library events with their fingerprints, so re-importing the same CSV adds no duplicates; current loans, rebuilt from the events with the same newest-wins rule as imports; merge and deletion aliases; ranking preferences; and Goodreads settings.
 - Exports from older versions carry retired Goodreads feed settings; they are accepted and ignored.
 - Not restored: previews, undo, sign-in state, and the session key. Books and events get new ID numbers.
-- Validation is strict and uses the same limits as the forms and CSV imports. Unknown fields, malformed JSON, out-of-range values, duplicate titles or Goodreads IDs, and exports from a newer schema version than this build supports are refused, and nothing is written. The export's `schema_version` is the database schema version it came from; this build restores versions 1 to 8. An export from before version 6 has no reading history, and its Goodreads connection starts following the `read` shelf.
+- Validation is strict and uses the same limits as the forms and CSV imports. Unknown fields, malformed JSON, out-of-range values, duplicate titles or Goodreads IDs, and exports from a newer schema version than this build supports are refused, and nothing is written. The export's `schema_version` is the database schema version it came from; this build restores versions 1 to 13. An export from before version 6 has no reading history, and its Goodreads connection starts following the `read` shelf.
 - The file is limited to 10 MB, 10,000 books, and 100,000 events. A 10,000-book export is typically about 6 MB; a library too large for JSON restore can still use the database backup.
 
 ### Schema upgrades and rollback
@@ -413,6 +423,8 @@ The app refuses to start if the database has a newer schema version than the run
 3. Start the previous image.
 
 Changes made after the upgrade are not in the `.bak`. Export JSON first if you need a record of them.
+
+Schema migration 13 adds the `books.reason` column and the `book_notes` table for private notes; existing books start with an empty reason and no notes. Roll back with `next-chapter.sqlite3.pre-v13.bak` as above, or keep later changes and run an older image after `DROP TABLE book_notes; ALTER TABLE books DROP COLUMN reason; UPDATE meta SET value='12' WHERE key='schema_version';`, which discards notes and reasons only, so export JSON first if you want them. JSON exports from version 13 carry them and need this build or newer to restore.
 
 Schema migration 10 adds the `books.description` and `books.description_source` columns (both text, default empty); no existing data changes. Roll back with `next-chapter.sqlite3.pre-v10.bak` as above, or keep later changes and run an older image after `ALTER TABLE books DROP COLUMN description; ALTER TABLE books DROP COLUMN description_source; UPDATE meta SET value='9' WHERE key='schema_version';`, which discards descriptions only. JSON exports from version 10 carry descriptions and need this build or newer to restore.
 

@@ -339,7 +339,7 @@ func TestMigrateProgressAndHoldsFromVersionTen(t *testing.T) {
 		t.Fatalf("backups %v", b)
 	}
 	// Then the percentage column, which keeps the rows as they were.
-	if err = migrateFile(path, migrations); err != nil {
+	if err = migrateFile(path, migrations[:12]); err != nil {
 		t.Fatal(err)
 	}
 	if v, _ := versionOf(t, path); v != 12 {

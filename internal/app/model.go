@@ -38,7 +38,10 @@ type Book struct {
 	// empty. It is untrusted data wherever it is shown or sent.
 	Description       string `json:"description"`
 	DescriptionSource string `json:"description_source"`
-	Loans             []Loan `json:"loans"`
+	// Reason is the reader's private "why I want to read this", at most
+	// maxReason characters. It is never imported, looked up, or sent anywhere.
+	Reason string `json:"reason,omitempty"`
+	Loans  []Loan `json:"loans"`
 	// Estimate is the saved estimated rating, filled only where ranking or a
 	// list needs it. It is a cache and not part of the export.
 	Estimate *float64 `json:"-"`

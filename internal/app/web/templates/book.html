@@ -37,6 +37,7 @@
     {{$set := "abandoned"}}{{if eq .Book.Status "archived"}}{{$set = "archived"}}{{end}}
     {{range .ReadingStates}}{{if or (eq . "abandoned") (eq . "archived")}}{{if eq . $set}}<option value="{{.}}" {{if eq $.Book.Status .}}selected{{end}}>{{status .}}</option>{{end}}{{else}}<option value="{{.}}" {{if eq $.Book.Status .}}selected{{end}}>{{status .}}</option>{{end}}{{end}}
   </select></label>
+  <label class="span-2">Why I want to read this <span class="muted">optional, private; never imported or sent to an AI</span><textarea name="reason" rows="3" maxlength="500" placeholder="Who recommended it, what you hope to find">{{.Book.Reason}}</textarea></label>
   <details class="span-2 more-details" {{if or .Book.Pages .Book.Tags .Book.Series .Book.SeriesNumber .Book.Description}}open{{end}}>
     <summary>Details <span class="muted">pages, tags, series, description</span></summary>
     <div class="form-grid">

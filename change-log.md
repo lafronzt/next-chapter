@@ -1,5 +1,11 @@
 # Change log
 
+## Prompt 33 (private reading notes)
+
+| Prompt | Change |
+|---|---|
+| 33 | Migration 13 adds `books.reason` and the `book_notes` table (versioned rows, page or percent, bounded text). `notes.go` holds validation and the add/edit/delete handlers (`POST /books/{id}/notes`, `POST /notes/{nid}`); they leave the revision, Undo, queue, status, and progress alone. Reason field on the add and edit forms; notes section on the book page. Delete removes notes; merge moves them and keeps a conflicting reason as a note, shown in the preview. Export/restore carry `notes` and `reason` (`maxRestoreSchema` 13). Tests in `notes_test.go` prove notes never reach AI requests, previews, or lookups. Backup before the migration: `<database>.pre-v13.bak`; rollback is to restore it and run the previous release. |
+
 ## Reading workflow (progress, holds, yearly goal)
 
 | Change | Detail |

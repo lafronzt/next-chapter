@@ -80,8 +80,8 @@ func loadAliases(q queryer) ([]alias, error) {
 }
 
 type deletePreview struct {
-	Book                    Book
-	Events, Loans, Readings int
+	Book                           Book
+	Events, Loans, Readings, Notes int
 }
 
 func previewDelete(q queryer, id int64) (deletePreview, error) {
@@ -90,7 +90,7 @@ func previewDelete(q queryer, id int64) (deletePreview, error) {
 		return deletePreview{}, err
 	}
 	p := deletePreview{Book: b, Loans: len(b.Loans)}
-	err = q.QueryRow("SELECT (SELECT count(*) FROM events WHERE book_id=?), (SELECT count(*) FROM reading_log WHERE book_id=?)", id, id).Scan(&p.Events, &p.Readings)
+	err = q.QueryRow("SELECT (SELECT count(*) FROM events WHERE book_id=?), (SELECT count(*) FROM reading_log WHERE book_id=?), (SELECT count(*) FROM book_notes WHERE book_id=?)", id, id, id).Scan(&p.Events, &p.Readings, &p.Notes)
 	return p, err
 }
 
@@ -99,7 +99,7 @@ func deleteBook(q queryer, id int64) error {
 	if err != nil {
 		return err
 	}
-	for _, statement := range []string{"DELETE FROM events WHERE book_id=?", "DELETE FROM loans WHERE book_id=?", "DELETE FROM reading_log WHERE book_id=?", "DELETE FROM rating_estimates WHERE book_id=?", "UPDATE book_aliases SET target_book_id=NULL WHERE target_book_id=?"} {
+	for _, statement := range []string{"DELETE FROM events WHERE book_id=?", "DELETE FROM loans WHERE book_id=?", "DELETE FROM reading_log WHERE book_id=?", "DELETE FROM rating_estimates WHERE book_id=?", "DELETE FROM book_notes WHERE book_id=?", "UPDATE book_aliases SET target_book_id=NULL WHERE target_book_id=?"} {
 		if _, err = q.Exec(statement, id); err != nil {
 			return err
 		}
@@ -120,8 +120,14 @@ type mergePreview struct {
 	// MoveReadings counts finished readings that move to the target;
 	// SameReadings those dropped because the target has the same one.
 	MoveReadings, SameReadings int
-	ISBNConflict               bool
-	Refusal                    string
+	// MoveNotes counts private notes that move to the target. ReasonKept is
+	// true when both books have a different "why I want to read this": the
+	// source's becomes a note on the target. ReasonFilled is true when the
+	// target had none and takes the source's.
+	MoveNotes                int
+	ReasonKept, ReasonFilled bool
+	ISBNConflict             bool
+	Refusal                  string
 }
 
 // mergeBooks folds source into target. The target keeps its title, author,
@@ -209,7 +215,10 @@ func mergeBooks(q queryer, sourceID, targetID int64, apply bool) (mergePreview, 
 			return p, err
 		}
 	}
-	if err = mergeReadings(q, &p, sourceID, targetID, apply); err != nil || !apply {
+	if err = mergeReadings(q, &p, sourceID, targetID, apply); err != nil {
+		return p, err
+	}
+	if err = mergeNotes(q, &p, source, target, apply); err != nil || !apply {
 		return p, err
 	}
 
@@ -226,6 +235,11 @@ func mergeBooks(q queryer, sourceID, targetID int64, apply bool) (mergePreview, 
 	// index never sees the same value twice.
 	if _, err = q.Exec("DELETE FROM rating_estimates WHERE book_id=?", sourceID); err != nil {
 		return p, err
+	}
+	if p.ReasonFilled {
+		if _, err = q.Exec("UPDATE books SET reason=? WHERE id=?", source.Reason, targetID); err != nil {
+			return p, err
+		}
 	}
 	if _, err = q.Exec("DELETE FROM books WHERE id=?", sourceID); err != nil {
 		return p, err
@@ -339,4 +353,33 @@ func mergeReadings(q queryer, p *mergePreview, sourceID, targetID int64, apply b
 		}
 	}
 	return nil
+}
+
+// mergeNotes moves every private note of the source to the target, identical
+// text included, so none is lost. A differing reason for adding the book is
+// kept as a note rather than overwritten.
+func mergeNotes(q queryer, p *mergePreview, source, target Book, apply bool) error {
+	n, err := countNotes(q, source.ID)
+	if err != nil {
+		return err
+	}
+	p.MoveNotes = n
+	switch {
+	case source.Reason == "" || source.Reason == target.Reason:
+	case target.Reason == "":
+		p.ReasonFilled = true
+	default:
+		p.ReasonKept = true
+		p.MoveNotes++
+	}
+	if !apply {
+		return nil
+	}
+	if _, err = q.Exec("UPDATE book_notes SET book_id=? WHERE book_id=?", target.ID, source.ID); err != nil {
+		return err
+	}
+	if p.ReasonKept {
+		_, err = q.Exec("INSERT INTO book_notes(book_id,body,created_at,updated_at) VALUES(?,?,?,?)", target.ID, reasonMergeLabel+":\n"+source.Reason, source.AddedAt, source.AddedAt)
+	}
+	return err
 }
