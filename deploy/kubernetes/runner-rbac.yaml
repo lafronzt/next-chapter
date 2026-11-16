@@ -1,0 +1,40 @@
+# Lets the in-cluster GitHub Actions runner run "helm upgrade" for the
+# next-chapter release (see the deploy job in .github/workflows/publish.yml).
+# Scoped to the next-chapter namespace; no ClusterRole is needed.
+#
+# Edit the subject below to match the service account your runner pods use,
+# then: kubectl apply -f deploy/kubernetes/runner-rbac.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: next-chapter-deployer
+  namespace: next-chapter
+rules:
+  # Helm keeps release state in Secrets; the chart also manages its own.
+  - apiGroups: [""]
+    resources: [secrets, services, persistentvolumeclaims, configmaps]
+    verbs: [get, list, watch, create, update, patch, delete]
+  # helm --atomic waits for pods and the rollout to become ready.
+  - apiGroups: [""]
+    resources: [pods]
+    verbs: [get, list, watch]
+  - apiGroups: [apps]
+    resources: [deployments, replicasets]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: [networking.k8s.io]
+    resources: [ingresses]
+    verbs: [get, list, watch, create, update, patch, delete]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: next-chapter-deployer
+  namespace: next-chapter
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: next-chapter-deployer
+subjects:
+  - kind: ServiceAccount
+    name: github-runner # EDIT: the runner pods' service account
+    namespace: github-runners # EDIT: the namespace the runner runs in

@@ -131,6 +131,12 @@ helm upgrade --install next-chapter deploy/helm/next-chapter \
 
 `auth.secretKey` is generated once and kept across upgrades. Use `auth.existingSecret` to supply your own Secret instead, and `env.*` for any other app setting. The data PVC is kept on `helm uninstall`.
 
+#### Automatic upgrades from releases
+
+Pushing a `v*` tag publishes the image and then runs `helm upgrade` from the `deploy` job in `.github/workflows/publish.yml`, setting only `image.tag` (`--reuse-values --atomic`). Release candidates (`v1.2.3-rc1`) are published but not deployed. The job runs on a self-hosted runner labelled `next-chapter-self-hosted` inside the cluster, so it needs no kubeconfig: Helm uses the runner pod's service account. Grant that account access with `deploy/kubernetes/runner-rbac.yaml` (edit the subject first). The runner image also needs `helm` on its `PATH`.
+
+`--atomic` rolls the pod back if the new version never becomes ready, but it does not undo a SQLite schema migration. Back up the data volume before releasing a version that migrates (see [Schema upgrades and rollback](#schema-upgrades-and-rollback)).
+
 For optional AI assistance, see [AI on Kubernetes](#ai-on-kubernetes); `deploy/kubernetes/ollama.yaml` runs a private Ollama server in the cluster if you want local models.
 
 The PVC defaults to 1 GiB. The manifest includes resource limits, readiness/liveness checks, a non-root user, dropped capabilities, and a writable temporary directory. `/healthz` is unauthenticated and returns only a health status.
