@@ -107,8 +107,10 @@ jobs:
           provenance: true
           sbom: true
 
-  # Runs on the self-hosted runner inside the cluster network, so the cluster
-  # credentials never reach GitHub-hosted runners. Release candidates are
+  # Runs on the self-hosted runner, which can reach the cluster API server, so
+  # the cluster is never exposed to GitHub-hosted runners. The kubeconfig is
+  # the KUBE_CONFIG secret on the production environment (a namespaced service
+  # account; see deploy/kubernetes/runner-rbac.yaml). Release candidates are
   # published but not deployed.
   deploy:
     needs: [verify, publish]
@@ -122,6 +124,13 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - name: Write the kubeconfig
+        env:
+          KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
+        run: |
+          umask 077
+          printf '%s\n' "$KUBE_CONFIG" > "$RUNNER_TEMP/kubeconfig"
+          echo "KUBECONFIG=$RUNNER_TEMP/kubeconfig" >> "$GITHUB_ENV"
       # --reuse-values keeps the password, ingress host and AI settings from
       # the first install; only the image tag changes. --atomic rolls the
       # release back if the new pod never becomes ready. A rollback does not
@@ -137,3 +146,6 @@ jobs:
             --atomic --timeout 5m
       - name: Show the release
         run: helm status next-chapter --namespace next-chapter
+      - name: Remove the kubeconfig
+        if: always()
+        run: rm -f "$RUNNER_TEMP/kubeconfig"

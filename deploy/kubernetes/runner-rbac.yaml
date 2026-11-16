@@ -1,9 +1,27 @@
-# Lets the in-cluster GitHub Actions runner run "helm upgrade" for the
-# next-chapter release (see the deploy job in .github/workflows/publish.yml).
+# Lets the GitHub Actions deploy job run "helm upgrade" for the next-chapter
+# release (see .github/workflows/publish.yml). Apply this to the cluster that
+# runs next-chapter; the runner can live in a different cluster and reaches
+# this one through a kubeconfig built from the token below (see the README).
 # Scoped to the next-chapter namespace; no ClusterRole is needed.
 #
-# Edit the subject below to match the service account your runner pods use,
-# then: kubectl apply -f deploy/kubernetes/runner-rbac.yaml
+#   kubectl apply -f deploy/kubernetes/runner-rbac.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: github-deployer
+  namespace: next-chapter
+---
+# A long-lived token for the service account (not auto-created on recent
+# Kubernetes). Rotate it by deleting and re-applying this Secret.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: github-deployer-token
+  namespace: next-chapter
+  annotations:
+    kubernetes.io/service-account.name: github-deployer
+type: kubernetes.io/service-account-token
+---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
@@ -36,5 +54,5 @@ roleRef:
   name: next-chapter-deployer
 subjects:
   - kind: ServiceAccount
-    name: github-runner # EDIT: the runner pods' service account
-    namespace: github-runners # EDIT: the namespace the runner runs in
+    name: github-deployer
+    namespace: next-chapter

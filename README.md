@@ -133,7 +133,27 @@ helm upgrade --install next-chapter deploy/helm/next-chapter \
 
 #### Automatic upgrades from releases
 
-Pushing a `v*` tag publishes the image and then runs `helm upgrade` from the `deploy` job in `.github/workflows/publish.yml`, setting only `image.tag` (`--reuse-values --atomic`). Release candidates (`v1.2.3-rc1`) are published but not deployed. The job runs on a self-hosted runner labelled `next-chapter-self-hosted` inside the cluster, so it needs no kubeconfig: Helm uses the runner pod's service account. Grant that account access with `deploy/kubernetes/runner-rbac.yaml` (edit the subject first). The runner image also needs `helm` on its `PATH`.
+Pushing a `v*` tag publishes the image and then runs `helm upgrade` from the `deploy` job in `.github/workflows/publish.yml`, setting only `image.tag` (`--reuse-values --atomic`). Release candidates (`v1.2.3-rc1`) are published but not deployed. The job runs on a self-hosted runner labelled `next-chapter-self-hosted`, which may live in a different cluster as long as it can reach this cluster's API server. It authenticates with a kubeconfig stored as the `KUBE_CONFIG` secret on the `production` environment (Settings > Environments). The runner image also needs `helm` on its `PATH`.
+
+One-time setup, against the cluster that runs next-chapter:
+
+```sh
+kubectl apply -f deploy/kubernetes/runner-rbac.yaml   # service account + namespaced Role
+SERVER=https://<api-server-address>:6443
+TOKEN=$(kubectl -n next-chapter get secret github-deployer-token -o jsonpath='{.data.token}' | base64 -d)
+CA=$(kubectl -n next-chapter get secret github-deployer-token -o jsonpath='{.data.ca\.crt}')
+cat > kubeconfig <<KUBE
+apiVersion: v1
+kind: Config
+clusters: [{name: next-chapter, cluster: {server: $SERVER, certificate-authority-data: $CA}}]
+users: [{name: github-deployer, user: {token: $TOKEN}}]
+contexts: [{name: next-chapter, context: {cluster: next-chapter, user: github-deployer, namespace: next-chapter}}]
+current-context: next-chapter
+KUBE
+gh secret set KUBE_CONFIG --env production < kubeconfig && rm kubeconfig
+```
+
+The service account can only manage the `next-chapter` namespace. Never commit the kubeconfig.
 
 `--atomic` rolls the pod back if the new version never becomes ready, but it does not undo a SQLite schema migration. Back up the data volume before releasing a version that migrates (see [Schema upgrades and rollback](#schema-upgrades-and-rollback)).
 
