@@ -124,6 +124,27 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      # ARC runner images do not ship helm, and the pods are ephemeral, so
+      # install a pinned release on every run. The checksums come from
+      # https://get.helm.sh/helm-<version>-linux-<arch>.tar.gz.sha256sum; update
+      # them with the version. The binary goes in RUNNER_TEMP: no root needed.
+      - name: Install helm
+        env:
+          HELM_VERSION: v4.3.1
+          HELM_SHA256_AMD64: 0403a88ae20913d11b10a2467b50087721fea7581736da6b9d3992f5357fe54b
+          HELM_SHA256_ARM64: 8cf8f66ecbc252ac8f7f06cca68aba88508ddfde3a6a34feb1678ad1694b4f88
+        run: |
+          case "$(uname -m)" in
+            x86_64) arch=amd64; sha=$HELM_SHA256_AMD64 ;;
+            aarch64 | arm64) arch=arm64; sha=$HELM_SHA256_ARM64 ;;
+            *) echo "::error::Unsupported architecture $(uname -m)"; exit 1 ;;
+          esac
+          tarball="helm-${HELM_VERSION}-linux-${arch}.tar.gz"
+          mkdir -p "$RUNNER_TEMP/helm"
+          curl -fsSL --retry 3 -o "$RUNNER_TEMP/$tarball" "https://get.helm.sh/$tarball"
+          echo "$sha  $RUNNER_TEMP/$tarball" | sha256sum -c -
+          tar -xzf "$RUNNER_TEMP/$tarball" -C "$RUNNER_TEMP/helm" --strip-components=1 "linux-${arch}/helm"
+          echo "$RUNNER_TEMP/helm" >> "$GITHUB_PATH"
       - name: Write the kubeconfig
         env:
           KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
@@ -143,7 +164,7 @@ jobs:
             --namespace next-chapter \
             --reuse-values \
             --set image.tag="$VERSION" \
-            --atomic --timeout 5m
+            --rollback-on-failure --timeout 5m
       - name: Show the release
         run: helm status next-chapter --namespace next-chapter
       - name: Remove the kubeconfig
