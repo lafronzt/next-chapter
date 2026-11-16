@@ -101,10 +101,10 @@ func TestDecorativeGlyphsAreHidden(t *testing.T) {
 	_, b, _ := a11yLibrary(t)
 	body := b.request("GET", "/", nil).Body.String()
 	nav := mainNavPattern.FindStringSubmatch(body)[1]
-	for _, glyph := range []string{"≡", "✉", "▤", "◷", "↓", "⚙"} {
-		if !strings.Contains(nav, `<span aria-hidden="true">`+glyph+`</span>`) {
-			t.Errorf("nav glyph %s is announced", glyph)
-		}
+	// Nav icons are inline SVGs; each must sit in a hidden span so the link
+	// name stays its text label.
+	if n := strings.Count(nav, `<span aria-hidden="true"><svg `); n < 6 {
+		t.Errorf("only %d nav icons are hidden from assistive tech", n)
 	}
 	for _, glyph := range []string{"◆", "↗", "⌕", "＋", "✧"} {
 		if strings.Contains(body, glyph) && !regexp.MustCompile(`aria-hidden="true">`+glyph+`<`).MatchString(body) {

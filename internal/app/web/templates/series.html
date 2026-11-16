@@ -7,7 +7,7 @@
 </header>
 <form class="search" method="get" role="search" action="/series">
   <input aria-label="Search series names" name="q" value="{{.Query}}" placeholder="Find a series…">
-  <button aria-label="Search"><span aria-hidden="true">⌕</span></button>
+  <button aria-label="Search"><span aria-hidden="true">{{template "icon" "search"}}</span></button>
 </form>
 {{range $i, $g := .Groups}}
 <section class="panel series-card stack" aria-labelledby="series-{{$i}}">

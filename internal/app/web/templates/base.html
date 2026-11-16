@@ -23,16 +23,16 @@
   <a class="brand" href="/"><span class="brand-mark" aria-hidden="true">n<span>c</span></span><span>Next<br> Chapter<span class="brand-caption">A little intention. A better next read.</span></span></a>
   <nav aria-label="Main navigation">
     <span class="nav-label">YOUR READING LIFE</span>
-    <a href="/" {{if eq .Nav "queue"}}class="active" aria-current="{{if .NavPage}}page{{else}}true{{end}}"{{end}}><span aria-hidden="true">≡</span> Reading queue</a>
-    <a href="/?view=unreviewed" {{if eq .Nav "unreviewed"}}class="active" aria-current="{{if .NavPage}}page{{else}}true{{end}}"{{end}}><span aria-hidden="true">✉</span> To review{{if .UnreviewedCount}}<strong class="nav-count">{{.UnreviewedCount}}<span class="sr-only"> waiting</span></strong>{{end}}</a>
-    <a href="/?view=all" {{if eq .Nav "all"}}class="active" aria-current="{{if .NavPage}}page{{else}}true{{end}}"{{end}}><span aria-hidden="true">▤</span> All books</a>
-    <a href="/series" {{if eq .Nav "series"}}class="active" aria-current="{{if .NavPage}}page{{else}}true{{end}}"{{end}}><span aria-hidden="true">❡</span> Series</a>
-    <a href="/reading" {{if eq .Nav "reading"}}class="active" aria-current="{{if .NavPage}}page{{else}}true{{end}}"{{end}}><span aria-hidden="true">✓</span> Reading history</a>
-    <a href="/calendar" {{if eq .Nav "calendar"}}class="active" aria-current="{{if .NavPage}}page{{else}}true{{end}}"{{end}}><span aria-hidden="true">▦</span> Borrowing calendar</a>
-    <a href="/history" {{if eq .Nav "history"}}class="active" aria-current="{{if .NavPage}}page{{else}}true{{end}}"{{end}}><span aria-hidden="true">◷</span> Library history</a>
+    <a href="/" {{if eq .Nav "queue"}}class="active" aria-current="{{if .NavPage}}page{{else}}true{{end}}"{{end}}><span aria-hidden="true">{{template "icon" "queue"}}</span> Reading queue</a>
+    <a href="/?view=unreviewed" {{if eq .Nav "unreviewed"}}class="active" aria-current="{{if .NavPage}}page{{else}}true{{end}}"{{end}}><span aria-hidden="true">{{template "icon" "review"}}</span> To review{{if .UnreviewedCount}}<strong class="nav-count">{{.UnreviewedCount}}<span class="sr-only"> waiting</span></strong>{{end}}</a>
+    <a href="/?view=all" {{if eq .Nav "all"}}class="active" aria-current="{{if .NavPage}}page{{else}}true{{end}}"{{end}}><span aria-hidden="true">{{template "icon" "books"}}</span> All books</a>
+    <a href="/series" {{if eq .Nav "series"}}class="active" aria-current="{{if .NavPage}}page{{else}}true{{end}}"{{end}}><span aria-hidden="true">{{template "icon" "series"}}</span> Series</a>
+    <a href="/reading" {{if eq .Nav "reading"}}class="active" aria-current="{{if .NavPage}}page{{else}}true{{end}}"{{end}}><span aria-hidden="true">{{template "icon" "reading"}}</span> Reading history</a>
+    <a href="/calendar" {{if eq .Nav "calendar"}}class="active" aria-current="{{if .NavPage}}page{{else}}true{{end}}"{{end}}><span aria-hidden="true">{{template "icon" "calendar"}}</span> Borrowing calendar</a>
+    <a href="/history" {{if eq .Nav "history"}}class="active" aria-current="{{if .NavPage}}page{{else}}true{{end}}"{{end}}><span aria-hidden="true">{{template "icon" "history"}}</span> Library history</a>
     <span class="nav-label second">MAKE IT YOURS</span>
-    <a href="/imports" {{if eq .Nav "imports"}}class="active" aria-current="{{if .NavPage}}page{{else}}true{{end}}"{{end}}><span aria-hidden="true">↓</span> Import books</a>
-    <a href="/settings" {{if eq .Nav "settings"}}class="active" aria-current="{{if .NavPage}}page{{else}}true{{end}}"{{end}}><span aria-hidden="true">⚙</span> Preferences</a>
+    <a href="/imports" {{if eq .Nav "imports"}}class="active" aria-current="{{if .NavPage}}page{{else}}true{{end}}"{{end}}><span aria-hidden="true">{{template "icon" "import"}}</span> Import books</a>
+    <a href="/settings" {{if eq .Nav "settings"}}class="active" aria-current="{{if .NavPage}}page{{else}}true{{end}}"{{end}}><span aria-hidden="true">{{template "icon" "settings"}}</span> Preferences</a>
   </nav>
   <div class="sidebar-bottom">
     <span class="status-dot"></span> {{if .Demo}}Demo library{{else}}Your private library{{end -}}
@@ -58,12 +58,12 @@
   <footer>Built for the joy of reading. <span>No algorithms you can’t understand.</span></footer>
 </main>
 <nav class="tabbar" aria-label="Main">
-  <a href="/" {{if eq .Tab "queue"}}class="active" aria-current="{{if .NavPage}}page{{else}}true{{end}}"{{end}}><span aria-hidden="true">≡</span> Queue</a>
-  <a href="/?view=unreviewed" {{if eq .Tab "unreviewed"}}class="active" aria-current="{{if .NavPage}}page{{else}}true{{end}}"{{end}}><span aria-hidden="true">✉</span> To review{{if .UnreviewedCount}}<strong class="nav-count">{{.UnreviewedCount}}<span class="sr-only"> waiting</span></strong>{{end}}</a>
-  <a class="tab-add" href="/books/new" {{if eq .Tab "add"}}aria-current="page"{{end}}><span aria-hidden="true">＋</span> Add<span class="sr-only"> a book</span></a>
-  <a href="/reading" {{if eq .Tab "reading"}}class="active" aria-current="{{if .NavPage}}page{{else}}true{{end}}"{{end}}><span aria-hidden="true">✓</span> Reading</a>
+  <a href="/" {{if eq .Tab "queue"}}class="active" aria-current="{{if .NavPage}}page{{else}}true{{end}}"{{end}}><span aria-hidden="true">{{template "icon" "queue"}}</span> Queue</a>
+  <a href="/?view=unreviewed" {{if eq .Tab "unreviewed"}}class="active" aria-current="{{if .NavPage}}page{{else}}true{{end}}"{{end}}><span aria-hidden="true">{{template "icon" "review"}}</span> To review{{if .UnreviewedCount}}<strong class="nav-count">{{.UnreviewedCount}}<span class="sr-only"> waiting</span></strong>{{end}}</a>
+  <a class="tab-add" href="/books/new" {{if eq .Tab "add"}}aria-current="page"{{end}}><span aria-hidden="true">{{template "icon" "add"}}</span> Add<span class="sr-only"> a book</span></a>
+  <a href="/reading" {{if eq .Tab "reading"}}class="active" aria-current="{{if .NavPage}}page{{else}}true{{end}}"{{end}}><span aria-hidden="true">{{template "icon" "reading"}}</span> Reading</a>
   <details class="tab-more">
-    <summary {{if eq .Tab "more"}}class="active"{{end}}><span aria-hidden="true">⋯</span> More</summary>
+    <summary {{if eq .Tab "more"}}class="active"{{end}}><span aria-hidden="true">{{template "icon" "more"}}</span> More</summary>
     <div class="more-panel">
       <a href="/?view=all" {{if eq .Nav "all"}}aria-current="{{if .NavPage}}page{{else}}true{{end}}"{{end}}>All books</a>
       <a href="/series" {{if eq .Nav "series"}}aria-current="{{if .NavPage}}page{{else}}true{{end}}"{{end}}>Series</a>
@@ -78,6 +78,9 @@
 </body>
 </html>
 {{end}}
+
+{{/* icon draws a 24px outline glyph by name; the wrapping span is decorative. */}}
+{{define "icon"}}<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" focusable="false">{{if eq . "queue"}}<path d="M4 6h16M4 12h16M4 18h10"/>{{else if eq . "review"}}<path d="M4 6h16v12H4z"/><path d="m4 7 8 6 8-6"/>{{else if eq . "books"}}<path d="M5 4h4.5v16H5zM9.5 4H14v16H9.5z"/><path d="m15.5 5.5 4-1 3 14.5-4 1z" transform="translate(-2 0)"/>{{else if eq . "series"}}<path d="M4 7l8-3 8 3-8 3z"/><path d="m4 12 8 3 8-3M4 17l8 3 8-3"/>{{else if eq . "reading"}}<path d="m5 12.5 4.5 4.5L19 7.5"/>{{else if eq . "calendar"}}<rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/>{{else if eq . "history"}}<circle cx="12" cy="12" r="8"/><path d="M12 7.5V12l3 2"/>{{else if eq . "import"}}<path d="M12 4v11m0 0-4-4m4 4 4-4M5 20h14"/>{{else if eq . "settings"}}<path d="M5 7h9M18 7h1M5 17h1M10 17h9"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/>{{else if eq . "add"}}<path d="M12 5v14M5 12h14"/>{{else if eq . "more"}}<circle cx="6" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="18" cy="12" r="1"/>{{else if eq . "search"}}<circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/>{{end}}</svg>{{end}}
 
 {{define "prompt"}}
 <details class="prompt-preview">

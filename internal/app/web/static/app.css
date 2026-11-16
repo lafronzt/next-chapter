@@ -2611,3 +2611,343 @@ input[type=checkbox],input[type=radio] {
 main section[aria-labelledby] > h2 {
   margin:28px 0 8px;
 }
+
+/* ---- Polish layer: depth, motion, consistent icons, calmer chrome ---- */
+:root {
+  --radius:8px;
+  --surface:#fffefb;
+  --hover:#eeefe7;
+  --shadow-sm:0 1px 2px #23382f14;
+  --shadow-md:0 6px 20px -8px #23382f33,0 1px 3px #23382f14;
+  --ease:cubic-bezier(.2,.7,.2,1);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --surface:#1a2a25;
+    --hover:#22382f;
+    --shadow-sm:0 1px 2px #0006;
+    --shadow-md:0 8px 24px -8px #000a;
+  }
+}
+
+html {
+  -webkit-font-smoothing:antialiased;
+  scroll-behavior:smooth;
+}
+
+h1,h2 {
+  text-wrap:balance;
+}
+
+/* Icons: one stroke family, aligned to the label baseline. */
+.sidebar nav a>span:first-child,.tabbar>a>span:first-child,.tabbar summary>span:first-child {
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  width:20px;
+  height:20px;
+  font-size:0;
+}
+
+.sidebar nav a>span:first-child svg,.tabbar svg {
+  width:20px;
+  height:20px;
+}
+
+.sidebar nav {
+  margin-top:40px;
+  gap:2px;
+}
+
+.sidebar nav a {
+  position:relative;
+  padding:9px 12px;
+  transition:background .15s var(--ease),color .15s var(--ease);
+}
+
+.sidebar nav a.active::before {
+  content:"";
+  position:absolute;
+  left:-27px;
+  top:9px;
+  bottom:9px;
+  width:3px;
+  border-radius:0 3px 3px 0;
+  background:var(--accent);
+}
+
+.sidebar nav a.active svg {
+  color:var(--accent);
+}
+
+.brand-caption {
+  max-width:150px;
+}
+
+/* A quieter header strip so the page title leads. */
+.topline {
+  border-bottom-color:transparent;
+  margin-bottom:var(--space-6);
+  padding-bottom:0;
+  font-weight:600;
+  opacity:.8;
+}
+
+h1 {
+  font-size:40px;
+}
+
+/* Buttons: real affordance and feedback. */
+.button {
+  border-radius:var(--radius);
+  background:var(--surface);
+  transition:background .15s var(--ease),border-color .15s var(--ease),box-shadow .15s var(--ease),transform .1s var(--ease);
+  box-shadow:var(--shadow-sm);
+}
+
+.button:hover {
+  background:var(--hover);
+}
+
+.button:active {
+  transform:translateY(1px);
+  box-shadow:none;
+}
+
+.button.primary {
+  background:var(--green);
+  box-shadow:var(--shadow-sm),inset 0 1px 0 #ffffff22;
+}
+
+.button.primary:hover {
+  background:color-mix(in srgb,var(--green) 86%,#000);
+}
+
+.button.light,.button.danger {
+  box-shadow:none;
+}
+
+/* Inputs: clear boundary, visible focus, gentle radius. */
+input,select,textarea {
+  border-radius:var(--radius);
+  transition:border-color .15s var(--ease),box-shadow .15s var(--ease);
+}
+
+input:focus-visible,select:focus-visible,textarea:focus-visible {
+  outline:none;
+  border-color:var(--green);
+  box-shadow:0 0 0 3px color-mix(in srgb,var(--green) 28%,transparent);
+}
+
+/* Search reads as a field, not floating text. */
+.list-toolbar .search {
+  max-width:300px;
+  min-width:220px;
+  margin:6px 0;
+  border:1px solid var(--line);
+  border-radius:999px;
+  background:var(--surface);
+  padding:0 4px 0 14px;
+  transition:border-color .15s var(--ease),box-shadow .15s var(--ease);
+}
+
+.search:focus-within {
+  border-color:var(--green);
+  box-shadow:0 0 0 3px color-mix(in srgb,var(--green) 22%,transparent);
+}
+
+.search input,.search input:focus-visible {
+  box-shadow:none;
+  border:none;
+  font-size:var(--text-sm);
+}
+
+.search button {
+  display:inline-flex;
+  padding:6px 8px;
+  line-height:0;
+}
+
+.search button svg {
+  width:18px;
+  height:18px;
+}
+
+/* Tabs: clearer selected state. */
+.tabs a {
+  transition:color .15s var(--ease);
+}
+
+.tabs a:hover {
+  color:var(--ink);
+}
+
+.tabs a.selected {
+  border-bottom-width:3px;
+  border-radius:1px;
+}
+
+/* Book rows become cards that lift on hover. */
+.book-row {
+  padding:20px 16px;
+  margin:0 -16px;
+  border-radius:var(--radius);
+  border-bottom-color:var(--line);
+  transition:background .15s var(--ease);
+}
+
+.book-row:hover {
+  background:var(--surface);
+  box-shadow:var(--shadow-sm);
+}
+
+.book-cover {
+  box-shadow:var(--shadow-md),inset 3px 0 1px #ffffff18;
+  transition:transform .2s var(--ease);
+}
+
+.book-row:hover .book-cover {
+  transform:translateY(-2px);
+}
+
+.badge {
+  border-radius:999px;
+  padding:3px 9px;
+}
+
+/* Panels, notices and stats share one surface language. */
+.panel,.apply-bar {
+  border-radius:12px;
+  box-shadow:var(--shadow-sm);
+}
+
+.panel {
+  background:var(--surface);
+}
+
+.notice {
+  border-radius:var(--radius);
+  box-shadow:var(--shadow-sm);
+}
+
+.intention {
+  border-radius:14px;
+  box-shadow:var(--shadow-md);
+}
+
+.stats {
+  border:1px solid var(--line);
+  border-radius:12px;
+  background:var(--surface);
+  padding:20px 24px;
+  box-shadow:var(--shadow-sm);
+}
+
+.empty {
+  border:1px dashed var(--line);
+  border-radius:16px;
+  margin-top:var(--space-5);
+  padding:64px 24px;
+}
+
+footer {
+  border-top-color:transparent;
+}
+
+@media(max-width:760px) {
+  .sidebar nav a.active::before {
+    display:none;
+  }
+  .book-row {
+    margin:0;
+    padding:16px 0;
+  }
+  .book-row:hover {
+    background:none;
+    box-shadow:none;
+  }
+  .tabbar {
+    box-shadow:0 -4px 16px -8px #0003;
+    backdrop-filter:saturate(1.4) blur(10px);
+  }
+  .tabbar .tab-add {
+    box-shadow:var(--shadow-md);
+  }
+}
+
+@media (prefers-reduced-motion:reduce) {
+  html {
+    scroll-behavior:auto;
+  }
+  .button,.book-cover,.sidebar nav a {
+    transition:none;
+  }
+}
+
+/* Series page: compact cards with clear hierarchy. */
+.series-card {
+  gap:10px;
+  padding:24px 28px;
+  margin-bottom:var(--space-4);
+}
+
+.series-card h2 {
+  font-size:24px;
+}
+
+.series-card h3 {
+  margin:var(--space-3) 0 0;
+  font-size:var(--text-xs);
+  letter-spacing:1.6px;
+  text-transform:uppercase;
+  color:var(--muted);
+}
+
+.series-card .notice {
+  margin:var(--space-2) 0;
+}
+
+.series-volumes {
+  margin:0;
+  padding:0;
+  list-style:none;
+  border:1px solid var(--line);
+  border-radius:var(--radius);
+}
+
+.series-volumes li {
+  display:flex;
+  flex-wrap:wrap;
+  align-items:center;
+  gap:var(--space-1) var(--space-3);
+  padding:12px 16px;
+}
+
+.series-volumes li a {
+  font-weight:600;
+}
+
+.series-volumes li a:hover {
+  text-decoration:underline;
+  text-underline-offset:3px;
+}
+
+.series-volumes .badge {
+  margin-left:auto;
+}
+
+.vol-number {
+  min-width:2.2em;
+  font:var(--text-md) var(--serif);
+  color:var(--accent);
+}
+
+form.search:not(.list-toolbar .search) {
+  max-width:360px;
+  margin-bottom:var(--space-5);
+  border:1px solid var(--line);
+  border-radius:999px;
+  background:var(--surface);
+  padding:0 4px 0 14px;
+}

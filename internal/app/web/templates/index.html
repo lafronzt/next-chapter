@@ -122,7 +122,7 @@
     {{range .SearchFields}}<input type="hidden" name="{{.Name}}" value="{{.Value}}">{{end}}
     {{with .Saved}}<input type="hidden" name="saved" value="{{.ID}}">{{end}}
     <input aria-label="Search books" name="q" value="{{.Query}}" placeholder="Find a title, author, or tag…">
-    <button aria-label="Search"><span aria-hidden="true">⌕</span></button>
+    <button aria-label="Search"><span aria-hidden="true">{{template "icon" "search"}}</span></button>
   </form>
 </div>
 {{if eq .View "all"}}

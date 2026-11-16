@@ -55,7 +55,7 @@
 {{else}}
 <form class="search merge-search" method="get" role="search">
   <input aria-label="Search for the book to keep" name="q" value="{{.Query}}" placeholder="Find a title, author, or tag…">
-  <button aria-label="Search"><span aria-hidden="true">⌕</span></button>
+  <button aria-label="Search"><span aria-hidden="true">{{template "icon" "search"}}</span></button>
 </form>
 {{if .Query}}
 {{if .Results}}
