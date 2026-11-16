@@ -32,7 +32,7 @@ rules:
   - apiGroups: [""]
     resources: [secrets, services, persistentvolumeclaims, configmaps]
     verbs: [get, list, watch, create, update, patch, delete]
-  # helm --atomic waits for pods and the rollout to become ready.
+  # helm --rollback-on-failure waits for pods and the rollout to become ready.
   - apiGroups: [""]
     resources: [pods]
     verbs: [get, list, watch]

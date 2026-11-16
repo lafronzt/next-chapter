@@ -153,7 +153,7 @@ jobs:
           printf '%s\n' "$KUBE_CONFIG" > "$RUNNER_TEMP/kubeconfig"
           echo "KUBECONFIG=$RUNNER_TEMP/kubeconfig" >> "$GITHUB_ENV"
       # --reuse-values keeps the password, ingress host and AI settings from
-      # the first install; only the image tag changes. --atomic rolls the
+      # the first install; only the image tag changes. --rollback-on-failure rolls the
       # release back if the new pod never becomes ready. A rollback does not
       # undo a SQLite migration: back up the data volume first (see README).
       - name: Upgrade the Helm release
