@@ -115,7 +115,9 @@ jobs:
   deploy:
     needs: [verify, publish]
     if: ${{ !contains(needs.verify.outputs.version, '-') }}
-    runs-on: [self-hosted, next-chapter-self-hosted]
+    # ARC runner scale set: runs-on is the scale set name alone. Adding
+    # self-hosted or other labels leaves the job queued forever.
+    runs-on: next-chapter-self-hosted
     timeout-minutes: 10
     environment: production
     permissions:

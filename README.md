@@ -171,7 +171,7 @@ helm upgrade --install next-chapter deploy/helm/next-chapter \
 
 #### Automatic upgrades from releases
 
-Pushing a `v*` tag publishes the image and then runs `helm upgrade` from the `deploy` job in `.github/workflows/publish.yml`, setting only `image.tag` (`--reuse-values --rollback-on-failure`). Release candidates (`v1.2.3-rc1`) are published but not deployed. The job runs on a self-hosted runner labelled `next-chapter-self-hosted`, which may live in a different cluster as long as it can reach this cluster's API server. It authenticates with a kubeconfig stored as the `KUBE_CONFIG` secret on the `production` environment (Settings > Environments). The deploy job installs a pinned, checksum-verified `helm` itself (ARC runner images do not include it), so the runner only needs outbound access to `get.helm.sh`.
+Pushing a `v*` tag publishes the image and then runs `helm upgrade` from the `deploy` job in `.github/workflows/publish.yml`, setting only `image.tag` (`--reuse-values --rollback-on-failure`). Release candidates (`v1.2.3-rc1`) are published but not deployed. The job runs on the Actions Runner Controller scale set named `next-chapter-self-hosted` (the `runs-on` value is the scale set name alone), which may live in a different cluster as long as it can reach this cluster's API server. It authenticates with a kubeconfig stored as the `KUBE_CONFIG` secret on the `production` environment (Settings > Environments). The deploy job installs a pinned, checksum-verified `helm` itself (ARC runner images do not include it), so the runner only needs outbound access to `get.helm.sh`.
 
 One-time setup, against the cluster that runs next-chapter:
 
