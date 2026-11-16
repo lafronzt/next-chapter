@@ -3,8 +3,16 @@ on:
   push:
     branches: [main]
   pull_request:
+  # Weekly, so newly disclosed vulnerabilities in dependencies surface even
+  # when nothing changes in the repository.
+  schedule:
+    - cron: '17 6 * * 1'
 permissions:
   contents: read
+# A new push to a pull request supersedes its running checks.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 # Third-party actions are pinned by commit SHA; the comment is the release.
 # Tool versions are pinned below. See CONTRIBUTING.md to bump either.
 env:
@@ -14,6 +22,7 @@ env:
 jobs:
   lint:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -40,6 +49,7 @@ jobs:
 
   vulncheck:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -56,6 +66,7 @@ jobs:
 
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -90,6 +101,7 @@ jobs:
 
   container:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -105,6 +117,7 @@ jobs:
 
   manifests:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -115,6 +128,13 @@ jobs:
           cache: true
       - name: Validate Kubernetes manifests
         run: go run "github.com/yannh/kubeconform/cmd/kubeconform@${KUBECONFORM_VERSION}" -strict -summary deploy/kubernetes/
+      # The chart is the primary deployment path: lint it, then render it and
+      # validate the output against the same schemas as the static manifests.
+      - name: Lint and render the Helm chart
+        run: |
+          helm lint deploy/helm/next-chapter --strict --set auth.password=ci-lint
+          helm template next-chapter deploy/helm/next-chapter --set auth.password=ci-lint \
+            | go run "github.com/yannh/kubeconform/cmd/kubeconform@${KUBECONFORM_VERSION}" -strict -summary -
       - name: Images are pinned to a release
         run: |
           status=0

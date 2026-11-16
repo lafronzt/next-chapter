@@ -1,0 +1,58 @@
+# Lets the GitHub Actions deploy job run "helm upgrade" for the next-chapter
+# release (see .github/workflows/publish.yml). Apply this to the cluster that
+# runs next-chapter; the runner can live in a different cluster and reaches
+# this one through a kubeconfig built from the token below (see the README).
+# Scoped to the next-chapter namespace; no ClusterRole is needed.
+#
+#   kubectl apply -f deploy/kubernetes/runner-rbac.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: github-deployer
+  namespace: next-chapter
+---
+# A long-lived token for the service account (not auto-created on recent
+# Kubernetes). Rotate it by deleting and re-applying this Secret.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: github-deployer-token
+  namespace: next-chapter
+  annotations:
+    kubernetes.io/service-account.name: github-deployer
+type: kubernetes.io/service-account-token
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: next-chapter-deployer
+  namespace: next-chapter
+rules:
+  # Helm keeps release state in Secrets; the chart also manages its own.
+  - apiGroups: [""]
+    resources: [secrets, services, persistentvolumeclaims, configmaps]
+    verbs: [get, list, watch, create, update, patch, delete]
+  # helm --atomic waits for pods and the rollout to become ready.
+  - apiGroups: [""]
+    resources: [pods]
+    verbs: [get, list, watch]
+  - apiGroups: [apps]
+    resources: [deployments, replicasets]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: [networking.k8s.io]
+    resources: [ingresses]
+    verbs: [get, list, watch, create, update, patch, delete]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: next-chapter-deployer
+  namespace: next-chapter
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: next-chapter-deployer
+subjects:
+  - kind: ServiceAccount
+    name: github-deployer
+    namespace: next-chapter
