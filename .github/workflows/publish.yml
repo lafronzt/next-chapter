@@ -4,12 +4,17 @@ on:
     tags: ['v*']
 permissions:
   contents: read
+# Never cancel a release midway; a second run for the same tag waits.
+concurrency:
+  group: publish-${{ github.ref }}
+  cancel-in-progress: false
 # Third-party actions are pinned by commit SHA; the comment is the release.
 jobs:
   # Everything that can fail runs here, without registry access: tests, the
   # amd64 image, its smoke test and version check, and a vulnerability scan.
   verify:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     outputs:
       version: ${{ steps.version.outputs.version }}
     steps:
@@ -64,6 +69,7 @@ jobs:
   publish:
     needs: verify
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       contents: read
       packages: write
@@ -86,7 +92,8 @@ jobs:
           images: ${{ steps.image.outputs.name }}
           tags: |
             type=semver,pattern={{version}}
-            type=raw,value=latest
+            # Pre-releases (v1.2.3-rc1) must not move latest.
+            type=raw,value=latest,enable=${{ !contains(needs.verify.outputs.version, '-') }}
       - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
@@ -99,3 +106,34 @@ jobs:
           cache-from: type=gha
           provenance: true
           sbom: true
+
+  # Runs on the self-hosted runner inside the cluster network, so the cluster
+  # credentials never reach GitHub-hosted runners. Release candidates are
+  # published but not deployed.
+  deploy:
+    needs: [verify, publish]
+    if: ${{ !contains(needs.verify.outputs.version, '-') }}
+    runs-on: [self-hosted, next-chapter-self-hosted]
+    timeout-minutes: 10
+    environment: production
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # --reuse-values keeps the password, ingress host and AI settings from
+      # the first install; only the image tag changes. --atomic rolls the
+      # release back if the new pod never becomes ready. A rollback does not
+      # undo a SQLite migration: back up the data volume first (see README).
+      - name: Upgrade the Helm release
+        env:
+          VERSION: ${{ needs.verify.outputs.version }}
+        run: |
+          helm upgrade --install next-chapter deploy/helm/next-chapter \
+            --namespace next-chapter \
+            --reuse-values \
+            --set image.tag="$VERSION" \
+            --atomic --timeout 5m
+      - name: Show the release
+        run: helm status next-chapter --namespace next-chapter
