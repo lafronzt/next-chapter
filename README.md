@@ -557,6 +557,25 @@ Each lookup sends only the ISBN, title, and author, and needs the `read:catalog`
 
 Links live in `book_hardcover`, separate from the books table. Deleting a book remembers its Hardcover id with the deletion record, so a later import cannot recreate or relink it. Merging keeps the kept book's link or takes the other's; two different links refuse the merge and say why. JSON exports include links and restore them (Hardcover book ids are global, unlike the account link). Migration 18 adds `book_hardcover` and `hardcover_alias`; existing books are unlinked. Roll back by stopping the app, restoring `next-chapter.sqlite3.pre-v18.bak`, removing stray `-wal`/`-shm` files, and starting the previous image; links made since are lost.
 
+### Importing your Hardcover library
+
+**Hardcover → Preview import from Hardcover** reads your own library (`read:library`; one request per 100 books, at most 8 per run) and shows a preview in the same shape as the CSV imports: new books, status advances, readings, ratings, what Hardcover disagrees about, and what was skipped. Nothing is saved until you confirm, a pull with nothing new says so, and a run that stops at the rate limit can be applied and then continued. Later pulls fetch only books changed since the last complete pull; tick "Re-read everything" for a full pull, which gives the same result.
+
+New books are appended as Needs placement with `source` Hardcover. Pulls never reorder the queue or touch pins. Reviews, private notes, journal entries, lists, goals, and other users are never read.
+
+| Hardcover status | Here |
+|---|---|
+| Want to Read | Queue (new books: Needs placement) |
+| Currently Reading | Reading |
+| Read | Read |
+| Paused | skipped, with a reason: there is no paused status here |
+| Did Not Finish | Set aside |
+| Ignored | skipped |
+
+Status only moves forward: a book Hardcover says is Want to Read stays Read here, and the preview lists it as "Hardcover disagrees". Matching order is the Hardcover link, then the id remembered for a deleted or merged book, then ISBN, then title and author. Books you deleted are not recreated. Matched books are linked in the same step.
+
+Ratings go to reading history, rounded to quarter stars (Hardcover uses halves). A rating you entered, or one from Goodreads, is kept unless you tick "use Hardcover's rating" on that row; an empty one is filled. Finished reads become reading-history rows tied to the Hardcover read, so a repeat pull never duplicates them, and a row you edited is never overwritten. A month-only or year-only finish date keeps its precision: it is stored as the first day of that period, shown as "June 2025" or "2025", and never as a day. Migration 19 rebuilds `reading_log` to allow the `hardcover` source and add the precision and read id; roll back from `next-chapter.sqlite3.pre-v19.bak` as above.
+
 Schema migration 16 adds the `event_corrections` table for your edits and voids of library events; no existing event or loan changes. Roll back with `next-chapter.sqlite3.pre-v16.bak` as above, or keep later changes and run an older image after `DROP TABLE event_corrections; UPDATE meta SET value='15' WHERE key='schema_version';`, then re-import or re-record the affected library events, because current loans were worked out with the corrections applied. JSON exports from version 16 need this build or newer to restore.
 
 Schema migration 15 adds the `reading_attempts` and `progress_checkpoints` tables; nothing is created for existing books. Roll back with `next-chapter.sqlite3.pre-v15.bak` as above, or keep later changes and run an older image after `DROP TABLE progress_checkpoints; DROP TABLE reading_attempts; UPDATE meta SET value='14' WHERE key='schema_version';`, which discards attempts and updates only, so export JSON first if you want them. JSON exports from version 15 need this build or newer to restore.

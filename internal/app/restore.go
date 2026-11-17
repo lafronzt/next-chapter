@@ -62,7 +62,7 @@ const (
 	// maxRestoreSchema is the newest export this build can restore. A test
 	// fails when a migration is added, so the restore code is checked against
 	// the new schema before this is raised.
-	maxRestoreSchema = 18
+	maxRestoreSchema = 19
 	maxRestoreUpload = 10_000_000
 	maxRestoreEvents = 100_000
 	maxRestoreAlias  = 20_000
@@ -301,7 +301,7 @@ func validateExport(f *exportFile) []string {
 			add("Hardcover alias %d: the identity or Hardcover book id is not valid.", i+1)
 		}
 	}
-	readingFingerprints := map[string]bool{}
+	readingFingerprints, hcReads := map[string]bool{}, map[int64]bool{}
 	for i := range f.ReadingLog {
 		e := &f.ReadingLog[i]
 		label := fmt.Sprintf("Reading %d", i+1)
@@ -314,8 +314,17 @@ func validateExport(f *exportFile) []string {
 		if e.Rating != nil && (*e.Rating < 0.25 || *e.Rating > 5 || *e.Rating*4 != math.Trunc(*e.Rating*4)) {
 			add("%s: the rating must be 0.25 to 5 in quarter stars.", label)
 		}
-		if !in(e.Source, []string{"goodreads", "manual"}) {
-			add("%s: the source must be goodreads or manual.", label)
+		if !in(e.Source, []string{"goodreads", "manual", "hardcover"}) {
+			add("%s: the source must be goodreads, manual, or hardcover.", label)
+		}
+		if e.FinishedPrecision < 0 || e.FinishedPrecision > 3 || (e.HardcoverReadID != nil && *e.HardcoverReadID < 1) {
+			add("%s: the finish precision or Hardcover read id is not valid.", label)
+		}
+		if e.HardcoverReadID != nil {
+			if hcReads[*e.HardcoverReadID] {
+				add("%s: the Hardcover read id is repeated.", label)
+			}
+			hcReads[*e.HardcoverReadID] = true
 		}
 		if e.ReviewChars < 0 || (e.Review != nil && len([]rune(*e.Review)) > maxReview) {
 			add("%s: the review is too long.", label)
@@ -597,7 +606,7 @@ func restoreExport(q queryer, f exportFile) (restorePlan, error) {
 		if !prefs.KeepReviews {
 			review = nil
 		}
-		if _, err = q.Exec("INSERT INTO reading_log(book_id,finished_at,rating,source,review_chars,review,fingerprint) VALUES(?,?,?,?,?,?,?)", newID[e.BookID], e.FinishedAt, e.Rating, e.Source, e.ReviewChars, review, e.Fingerprint); err != nil {
+		if _, err = q.Exec("INSERT INTO reading_log(book_id,finished_at,rating,source,review_chars,review,fingerprint,finished_precision,hardcover_read_id) VALUES(?,?,?,?,?,?,?,?,?)", newID[e.BookID], e.FinishedAt, e.Rating, e.Source, e.ReviewChars, review, e.Fingerprint, max(1, e.FinishedPrecision), e.HardcoverReadID); err != nil {
 			return result, err
 		}
 		result.Readings++

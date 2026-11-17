@@ -185,8 +185,8 @@
 </section>
 {{if .Readings}}
 <div class="panel">
-  {{range .Readings}}
-  <div class="event"><span>{{with .FinishedAt}}<time datetime="{{.}}">{{day .}}</time>{{else}}Date not recorded{{end}}</span><strong>{{if .Rating}}{{stars .Rating}}{{else}}Unrated{{end}}</strong><span>{{if .AddedByHand}}Logged by you{{else if eq .Source "manual"}}Goodreads, edited{{else}}Goodreads{{end}}</span></div>
+  {{range .Readings}}{{$e := .}}
+  <div class="event"><span>{{with .FinishedAt}}<time datetime="{{.}}">{{$e.When}}</time>{{else}}Date not recorded{{end}}</span><strong>{{if .Rating}}{{stars .Rating}}{{else}}Unrated{{end}}</strong><span>{{if .AddedByHand}}Logged by you{{else if eq .Source "manual"}}Edited by you{{else if eq .Source "hardcover"}}Hardcover{{else}}Goodreads{{end}}</span></div>
   {{with .Review}}<blockquote class="review">{{.}}</blockquote>{{end}}
   {{end}}
 </div>

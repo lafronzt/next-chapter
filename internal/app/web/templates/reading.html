@@ -97,8 +97,8 @@
       <div>
         <a href="/books/{{.BookID}}#reading"><strong>{{.Title}}</strong></a>
         <p class="muted">{{.Author}}</p>
-        <p>{{with .Rating}}{{stars .}}{{else}}Unrated{{end}}{{with month .FinishedAt}}<span class="muted"> · finished {{.}}</span>{{end}}</p>
-        <span class="badge">{{if eq .Source "manual"}}Yours{{else}}Goodreads{{end}}</span>
+        <p>{{with .Rating}}{{stars .}}{{else}}Unrated{{end}}{{if lt .FinishedPrecision 3}}{{with month .FinishedAt}}<span class="muted"> · finished {{.}}</span>{{end}}{{end}}</p>
+        <span class="badge">{{if eq .Source "manual"}}Yours{{else if eq .Source "hardcover"}}Hardcover{{else}}Goodreads{{end}}</span>
       </div>
     </li>
     {{end}}

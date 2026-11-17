@@ -27,6 +27,16 @@
   </form>
 </section>
 <section class="panel settings-section">
+  <h2>Import your library</h2>
+  <p>Bring your Hardcover shelves, ratings, and finish dates into this library. You preview everything first; new books wait at the end of your queue marked Needs placement, and your order never changes.</p>
+  <form method="post" action="/hardcover/pull">
+    {{template "fields" .}}
+    <p class="muted"><small>Reads only your own library (needs the <code>read:library</code> scope) and costs about one request per 100 books. Reviews, notes, and lists are never imported. Requires a tested connection.</small></p>
+    <label class="checkbox"><input type="checkbox" name="mode" value="full"> Re-read everything, not only what changed since the last import</label>
+    <button class="button" {{if or (not .Configured) (not .Enabled) (not .Link)}}disabled{{end}}>Preview import from Hardcover</button>
+  </form>
+</section>
+<section class="panel settings-section">
   <h2>Disconnect</h2>
   <p>Removes the local account link and test history and turns off requests. Keeps every book and leaves Hardcover untouched. To revoke the token, visit <a href="https://hardcover.app/account/api" rel="noreferrer">your Hardcover API settings</a> and remove it from the server environment.</p>
   <form method="post" action="/hardcover/disconnect">

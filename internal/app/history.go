@@ -8,6 +8,7 @@ import (
 	"errors"
 	"slices"
 	"strings"
+	"time"
 )
 
 // readingEntry is one finished reading. Readings are a separate stream from
@@ -22,6 +23,11 @@ type readingEntry struct {
 	ReviewChars int      `json:"review_chars"`
 	Review      *string  `json:"review"`
 	Fingerprint string   `json:"fingerprint"`
+	// FinishedPrecision is 1 for a known day, 2 when only the month is known,
+	// and 3 when only the year is; FinishedAt is then the first day of that
+	// period. HardcoverReadID ties the row to one Hardcover read.
+	FinishedPrecision int    `json:"finished_precision,omitempty"`
+	HardcoverReadID   *int64 `json:"hardcover_read_id,omitempty"`
 	// Title and Author are filled for the history page; they are not stored.
 	Title  string `json:"title,omitempty"`
 	Author string `json:"author,omitempty"`
@@ -30,6 +36,25 @@ type readingEntry struct {
 // Readings added by hand get a random fingerprint with this prefix; any other
 // fingerprint came from Goodreads, even after the reader edited the reading.
 const manualFingerprint = "manual:"
+
+// When is the finish date as the reader should see it: the day, only the month
+// and year, or only the year, never a day that Hardcover did not give.
+func (e readingEntry) When() string {
+	if e.FinishedAt == nil || len(*e.FinishedAt) < 10 {
+		return ""
+	}
+	t, err := time.Parse(time.DateOnly, (*e.FinishedAt)[:10])
+	if err != nil {
+		return *e.FinishedAt
+	}
+	switch e.FinishedPrecision {
+	case 2:
+		return t.Format("January 2006")
+	case 3:
+		return t.Format("2006")
+	}
+	return t.Format(time.DateOnly)
+}
 
 // AddedByHand reports whether the reader created this reading in the app.
 func (e readingEntry) AddedByHand() bool { return strings.HasPrefix(e.Fingerprint, manualFingerprint) }
@@ -108,7 +133,7 @@ func logsHistory(r Record) bool {
 	return r.Source == "goodreads" && r.Event == nil && r.Status == "read"
 }
 
-const readingColumns = "l.id,l.book_id,l.finished_at,l.rating,l.source,l.review_chars,l.review,l.fingerprint,b.title,b.author"
+const readingColumns = "l.id,l.book_id,l.finished_at,l.rating,l.source,l.review_chars,l.review,l.fingerprint,l.finished_precision,l.hardcover_read_id,b.title,b.author"
 
 func queryReadings(q queryer, tail string, args ...any) ([]readingEntry, error) {
 	rows, err := q.Query("SELECT "+readingColumns+" FROM reading_log l JOIN books b ON b.id=l.book_id "+tail, args...)
@@ -119,7 +144,7 @@ func queryReadings(q queryer, tail string, args ...any) ([]readingEntry, error) 
 	result := []readingEntry{}
 	for rows.Next() {
 		var e readingEntry
-		if err = rows.Scan(&e.ID, &e.BookID, &e.FinishedAt, &e.Rating, &e.Source, &e.ReviewChars, &e.Review, &e.Fingerprint, &e.Title, &e.Author); err != nil {
+		if err = rows.Scan(&e.ID, &e.BookID, &e.FinishedAt, &e.Rating, &e.Source, &e.ReviewChars, &e.Review, &e.Fingerprint, &e.FinishedPrecision, &e.HardcoverReadID, &e.Title, &e.Author); err != nil {
 			return nil, err
 		}
 		result = append(result, e)
