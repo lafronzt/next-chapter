@@ -11,6 +11,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 )
 
 // hcFake is a synthetic Hardcover server. handle sees the GraphQL query text,
@@ -50,6 +51,8 @@ func newHCApp(t *testing.T, handle func(query string, vars map[string]any, n int
 	t.Cleanup(s.Close)
 	a := testApp(t, true)
 	a.hardcover = newHardcoverClient(HardcoverConfig{Token: "secret"}, nil, s.URL)
+	// A loaded machine must not turn a slow fake answer into a search timeout.
+	a.hardcover.searchTimeout = time.Minute
 	if err := a.store.Write(func(tx *sql.Tx) error {
 		p := defaultPreferences
 		p.Hardcover = true
