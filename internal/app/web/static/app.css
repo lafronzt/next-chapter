@@ -2982,3 +2982,53 @@ main>* {
     align-items:stretch;
   }
 }
+
+/* Phone: Reading now and Due soon rows read as stacked blocks (title, author,
+   progress, one aligned form row, then equal-width actions) instead of
+   inline fragments that wrap at arbitrary points. */
+@media(max-width:760px) {
+  .home-strip li {
+    flex-direction:column;
+    align-items:stretch;
+    gap:var(--space-3);
+    padding:var(--space-4) 0;
+  }
+  .strip-title a {
+    font-size:var(--text-md);
+  }
+  .strip-title a + .muted {
+    display:block;
+    font-size:var(--text-sm);
+  }
+  .strip-title .progress-meter {
+    max-width:none;
+    margin:var(--space-3) 0 var(--space-1);
+  }
+  .strip-title .progress-form {
+    flex-wrap:nowrap;
+    margin-top:var(--space-3);
+  }
+  .strip-title .progress-form label {
+    flex:1;
+    min-width:0;
+  }
+  .strip-title .progress-form input[type=number] {
+    flex:1;
+    width:100%;
+    min-width:0;
+  }
+  .strip-title .progress-form select {
+    flex:none;
+  }
+  .strip-actions {
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:var(--space-2);
+  }
+  .strip-actions form {
+    display:contents;
+  }
+  .strip-actions .button {
+    width:100%;
+  }
+}
