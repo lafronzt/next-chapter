@@ -783,7 +783,7 @@ Contributions are welcome under the [MIT license](LICENSE). See [CONTRIBUTING.md
 
 ### Audiobook positions, sharing notes, and book links
 
-On Home or a reading book’s page, choose **hours:minutes** for progress and enter an elapsed position such as `2:30` (2 hours, 30 minutes). Optional seconds (`2:30:15`) are preserved. This is a position in the audiobook, not time spent listening. Saving pages or a percentage replaces the elapsed position, and a blank clears progress. Time positions are stored and exported in seconds; progress history can record and correct them and shows pace in minutes of audio per calendar day. There is no local audiobook-duration field, so elapsed positions alone do not show a percentage bar, remaining-time estimate, or projected finish date. Mark the book finished yourself.
+On Home or a reading book’s page, choose **hours:minutes** for progress and enter an elapsed position such as `2:30` (2 hours, 30 minutes). Optional seconds (`2:30:15`) are preserved. This is a position in the audiobook, not time spent listening. Saving pages or a percentage replaces the elapsed position, and a blank clears progress. Time positions are stored and exported in seconds; progress history can record and correct them and shows pace in minutes of audio per calendar day. Add the optional total audiobook duration on the book page or in Edit book to see a percentage bar, time remaining, and a projected finish from dated progress. Mark the book finished yourself.
 
 With **Also update Hardcover progress when I save** enabled, a percentage is sent as its equivalent fraction of the selected Hardcover edition’s pages or audio duration. Hardcover’s GraphQL API has no percentage field. For example, 25% of a 10-hour audiobook sends 9,000 seconds; an unknown duration prevents percentage conversion. Elapsed positions can be sent as seconds without a duration. Pull progress keeps hours:minutes when that is how you track the book.
 
@@ -799,3 +799,22 @@ Every saved book’s page also has an **Open in** dropdown, ordered Open Library
 Screenshots with synthetic data: [audio progress, desktop](docs/audio-progress-desktop-light.png), [audio progress, phone](docs/audio-progress-mobile-dark.png), [note sharing, desktop](docs/share-note-desktop-light.png), and [note sharing, phone](docs/share-note-mobile-dark.png).
 
 Open in dropdown: [desktop](docs/open-in-dropdown-desktop-light.png) and [phone](docs/open-in-dropdown-mobile-dark.png).
+
+Audiobook progress supports an optional **Total audio** duration in hours:minutes
+(or hours:minutes:seconds). Save it beside your elapsed position on the book page,
+or in Edit book. With a duration, elapsed progress shows a percentage, a bar, and
+time remaining. Pace can compare percentage and time updates using that duration,
+including earlier updates that had no saved duration. The pace basis names the
+length used. Updates with a different saved audiobook length start a new pace run;
+resets, clears, and backward progress still break a run. Enter the duration of the
+edition you are listening to, independent of playback speed. Duration is entered
+locally; it is not automatically fetched from Hardcover. Reaching 100% never marks
+a book finished.
+
+Migration 25 adds optional `books.audio_seconds` and checkpoint `total_seconds`.
+Existing progress and history stay intact; unknown durations stay empty. JSON
+exports include both fields and require this build or newer to restore. Before
+upgrading, back up your database; the migration runner also creates
+`<database>.pre-v25.bak`. To roll back, stop the app, restore that backup over the
+database, remove stray `-wal`/`-shm` files, and run the previous image. Changes made
+since that backup will be lost.

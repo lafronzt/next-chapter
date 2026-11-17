@@ -20,6 +20,7 @@ type Book struct {
 	// ProgressSeconds is elapsed audiobook position, not listening time.
 	// At most one progress field is set.
 	ProgressSeconds *int `json:"progress_seconds,omitempty"`
+	AudioSeconds    *int `json:"audio_seconds,omitempty"` // Total duration of this audiobook edition.
 	// ProgressPercent is the progress in percent for a book tracked that way.
 	ProgressPercent *int     `json:"progress_percent,omitempty"`
 	Tags            string   `json:"tags"`

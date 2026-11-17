@@ -23,9 +23,10 @@
         <input type="hidden" name="back" value="book">
         <label>Progress <input type="text" name="progress" inputmode="{{if eq .Book.ProgressUnit "seconds"}}text{{else}}numeric{{end}}" placeholder="{{if eq .Book.ProgressUnit "seconds"}}e.g. 2:30{{else if eq .Book.ProgressUnit "percent"}}e.g. 35{{else}}e.g. 120{{end}}" value="{{.Book.ProgressValue}}"></label>
         <label>Unit <select name="unit" aria-label="Progress unit"><option value="page" {{if eq .Book.ProgressUnit "page"}}selected{{end}}>pages</option><option value="percent" {{if eq .Book.ProgressUnit "percent"}}selected{{end}}>%</option><option value="seconds" {{if eq .Book.ProgressUnit "seconds"}}selected{{end}}>hours:minutes</option></select></label>
+        <label class="audio-duration">Total audio <input type="text" name="audio_duration" placeholder="e.g. 10:00" aria-label="Total audiobook duration in hours:minutes" value="{{.Book.AudioDuration}}"></label>
         <button class="button small"><span>Save</span></button>
       </form>
-      <p class="muted"><small>For audio, choose hours:minutes and enter your elapsed position, such as 2:30.</small></p>
+      <p class="muted"><small>For audio, enter your position (2:30) and total duration (10:00) in hours:minutes to show 25% listened. Total duration also lets pace compare time and percentage updates.</small></p>
       {{if and .HardcoverReady .HardcoverLink}}
       <p class="muted sync-caption">Hardcover progress sync: <strong>{{if .HardcoverLink.ProgressSync}}on{{else}}off{{end}}</strong> · <a href="#hardcover">Manage sync</a></p>
       {{end}}

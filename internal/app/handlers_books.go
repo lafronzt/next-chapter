@@ -49,7 +49,7 @@ func (a *App) newBook(w http.ResponseWriter, r *http.Request) error {
 		if err != nil {
 			return err
 		}
-		if _, err = tx.Exec("UPDATE books SET reason=?,owned=? WHERE id=?", b.Reason, b.Owned, id); err != nil {
+		if _, err = tx.Exec("UPDATE books SET reason=?,owned=?,audio_seconds=? WHERE id=?", b.Reason, b.Owned, b.AudioSeconds, id); err != nil {
 			return err
 		}
 		if err = bump(tx); err != nil {
@@ -199,7 +199,7 @@ func (a *App) editBook(w http.ResponseWriter, r *http.Request) error {
 		if err = noteStatusChange(tx, id, old.Status, b.Status, midnight(a.now()), false); err != nil {
 			return err
 		}
-		_, err = tx.Exec(`UPDATE books SET title=?,author=?,identity=?,interest=?,reading_status=?,pages=?,isbn=?,published_year=?,tags=?,series=?,series_number=?,description_source=CASE WHEN description=? THEN description_source ELSE '' END,description=?,reason=?,owned=?,pinned=?,needs_placement=?,position=? WHERE id=?`, b.Title, b.Author, identity(b.Title, b.Author), b.Interest, b.Status, b.Pages, b.ISBN, b.PublishedYear, b.Tags, b.Series, b.SeriesNumber, b.Description, b.Description, b.Reason, b.Owned, pin, needs, position, id)
+		_, err = tx.Exec(`UPDATE books SET title=?,author=?,identity=?,interest=?,reading_status=?,pages=?,audio_seconds=?,isbn=?,published_year=?,tags=?,series=?,series_number=?,description_source=CASE WHEN description=? THEN description_source ELSE '' END,description=?,reason=?,owned=?,pinned=?,needs_placement=?,position=? WHERE id=?`, b.Title, b.Author, identity(b.Title, b.Author), b.Interest, b.Status, b.Pages, b.AudioSeconds, b.ISBN, b.PublishedYear, b.Tags, b.Series, b.SeriesNumber, b.Description, b.Description, b.Reason, b.Owned, pin, needs, position, id)
 		if err != nil {
 			return err
 		}

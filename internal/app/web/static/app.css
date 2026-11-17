@@ -3302,3 +3302,14 @@ main section.hc-panel[aria-labelledby]>h2 {
   /* Both the tabs and search row are sticky; anchor targets need room for both. */
   .book-row { scroll-margin-top:144px; }
 }
+
+/* Keep total duration readable beside the existing progress fields. */
+.progress-form .audio-duration { flex-direction:column; align-items:flex-start; }
+.progress-form input[name=audio_duration] { width:8em; max-width:100%; padding:7px 10px; }
+@media (max-width:900px) {
+  .reading-progress .audio-duration { grid-column:1 / -1; }
+  .reading-progress input[name=audio_duration] { width:100%; font-size:16px; min-height:44px; }
+}
+@media (prefers-color-scheme:dark) {
+  .reading-progress .button { background:var(--sidebar); color:var(--ink); }
+}

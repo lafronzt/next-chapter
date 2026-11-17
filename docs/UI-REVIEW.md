@@ -57,3 +57,12 @@ Bulk reading decisions are collapsed until requested. Ten additional layout
 checks at 320, 390, 768, 901 and 1280px in both themes found no unintended
 overflow. Screenshots: [overview](to-review-mobile-dark.png) and
 [placement and reading actions](to-review-placement-mobile-dark.png).
+
+Audiobook duration follow-up: checked the book progress form at 320, 390, and
+1440px in light and dark, with a synthetic 20-hour audiobook and mixed 26% /
+7:10 updates. All checked widths fit without page overflow; duration occupies
+its own full-width row on phones. The page shows 35%, 12:50 remaining, a pace of
+118 audio minutes per calendar day, and an estimated finish. Screenshots:
+[audio, light](audio-progress-mobile-light.png),
+[audio, dark](audio-progress-mobile-dark.png), and
+[audio, desktop](audio-progress-desktop-light.png).

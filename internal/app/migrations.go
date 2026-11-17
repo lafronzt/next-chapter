@@ -31,6 +31,7 @@ var migrations = []migration{
 	{22, "Hardcover catalog cache", migrateHardcoverCatalog},
 	{23, "audiobook time progress", migrateAudioProgress},
 	{24, "explicit Hardcover note shares", migrateHardcoverNotes},
+	{25, "audiobook duration", migrateAudioDuration},
 }
 
 func migrateBaseline(tx *sql.Tx) error {
@@ -459,5 +460,11 @@ func migrateHardcoverNotes(tx *sql.Tx) error {
 	_, err := tx.Exec(`ALTER TABLE book_notes ADD COLUMN hardcover_journal_id INTEGER NOT NULL DEFAULT 0 CHECK(hardcover_journal_id >= 0);
 ALTER TABLE book_notes ADD COLUMN hardcover_user_id INTEGER NOT NULL DEFAULT 0 CHECK(hardcover_user_id >= 0);
 ALTER TABLE book_notes ADD COLUMN hardcover_book_id INTEGER NOT NULL DEFAULT 0 CHECK(hardcover_book_id >= 0);`)
+	return err
+}
+
+func migrateAudioDuration(tx *sql.Tx) error {
+	_, err := tx.Exec(`ALTER TABLE books ADD COLUMN audio_seconds INTEGER CHECK(audio_seconds BETWEEN 1 AND 35999999);
+ ALTER TABLE progress_checkpoints ADD COLUMN total_seconds INTEGER CHECK(total_seconds BETWEEN 1 AND 35999999);`)
 	return err
 }
