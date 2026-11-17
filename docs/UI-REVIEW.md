@@ -12,6 +12,7 @@ notes, and dated progress. No real account or reader data was used.
 | A fixed sidebar extended below a 720px-tall desktop viewport. | Compact decorative spacing on short laptops, make the sidebar independently scrollable for smaller windows, and use the bottom navigation up to 900px to keep tablet content from being squeezed beside it. |
 | Progress-history rows reserved 130px beside every update for its edit link. | Put the edit disclosure below the update on narrow screens. |
 | Small controls and 14px inputs were awkward for touch and could trigger mobile Safari focus zoom. | Use 44px minimum button/control heights and 16px editable field text on narrow layouts. |
+| Sticky tabs/search could cover the top of a book after an anchor jump. | Reserve 144px above row targets on narrow screens. |
 | The selected All books tab could begin outside the visible horizontal tab strip. | Scroll the selected tab into the strip without moving the page vertically. |
 | Menus stayed open after tapping elsewhere, and the More menu could exceed landscape height. | Support outside-click and Escape dismissal, return keyboard focus to the trigger, and bound More to the viewport with its own scrolling. |
 
@@ -38,3 +39,21 @@ Screenshots:
 - [320px preference spacing](ux-settings-mobile-light.png)
 - [390px book page, dark](ux-book-mobile-dark.png)
 - [1280×720 desktop navigation](ux-desktop-short-light.png)
+
+
+## To review follows unresolved choices
+
+To review now includes both undecided reading status and queued books marked
+Needs placement, regardless of whether they were added by hand or imported.
+The count, search, pagination and queue numbers all use that combined view.
+Want to read keeps a book here for placement; Find its place previews a move,
+and Keep here accepts its current position. Bulk reading decisions are limited
+to undecided books and cannot change the placement group. Tests cover those
+boundaries and verify that opening the view or accepting the current spot does
+not reorder the queue.
+
+The view omits unrelated queue statistics and the full-queue reorder banner.
+Bulk reading decisions are collapsed until requested. Ten additional layout
+checks at 320, 390, 768, 901 and 1280px in both themes found no unintended
+overflow. Screenshots: [overview](to-review-mobile-dark.png) and
+[placement and reading actions](to-review-placement-mobile-dark.png).

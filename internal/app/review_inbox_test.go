@@ -40,7 +40,7 @@ UPDATE books SET reading_status='archived' WHERE title='Archived'`); err != nil 
 		t.Fatal("review pagination did not count placement items")
 	}
 	body := b.request("GET", "/?view=unreviewed", nil).Body.String()
-	for _, want := range []string{"Manual waiting", "Imported waiting", "Undecided", "Find its place", "Keep here", "Mark all 1 visible book as", `<strong class="nav-count">3<span class="sr-only"> waiting</span></strong>`} {
+	for _, want := range []string{"Manual waiting", "Imported waiting", "Undecided", "Find its place", "Keep here", "Mark 1 undecided book as", `<strong class="nav-count">3<span class="sr-only"> waiting</span></strong>`} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("missing %q", want)
 		}

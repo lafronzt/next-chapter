@@ -3273,3 +3273,32 @@ main section.hc-panel[aria-labelledby]>h2 {
   .sidebar nav { margin-top:24px; }
   .brand-caption { display:none; }
 }
+
+
+.review-bulk { margin-bottom:16px; }
+.review-bulk>summary {
+  display:flex;
+  align-items:center;
+  min-height:44px;
+  cursor:pointer;
+  text-decoration:underline;
+  text-underline-offset:3px;
+}
+.review-bulk .bulk-triage {
+  margin-top:8px;
+  padding:16px;
+  border:1px solid var(--line);
+  border-radius:12px;
+  background:var(--surface);
+}
+.review-bulk .bulk-triage>p { flex-basis:100%; }
+@media(max-width:900px) {
+  .review-bulk .bulk-triage label { width:100%; flex-direction:column; align-items:stretch; }
+  .review-bulk .bulk-triage select { width:100%; margin-left:0; }
+  .review-bulk .bulk-triage .button { width:100%; }
+}
+
+@media(max-width:900px) {
+  /* Both the tabs and search row are sticky; anchor targets need room for both. */
+  .book-row { scroll-margin-top:144px; }
+}
