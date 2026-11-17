@@ -66,6 +66,9 @@ type hardcoverClient struct {
 	daily                         int
 	remaining                     int
 	serverBudgets                 []hardcoverBudget
+	// searchTimeout bounds a search request; tests lengthen it so a loaded
+	// machine cannot turn a fake server's slow answer into a timeout.
+	searchTimeout time.Duration
 }
 
 func newHardcoverClient(c HardcoverConfig, transport *http.Client, endpoint string) *hardcoverClient {
@@ -82,7 +85,7 @@ func newHardcoverClient(c HardcoverConfig, transport *http.Client, endpoint stri
 	h.Timeout = 30 * time.Second
 	h.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
 	now := time.Now()
-	return &hardcoverClient{http: &h, endpoint: endpoint, token: c.Token, now: time.Now, tokens: 10, minuteAt: now, dayAt: now, daily: 5000, remaining: -1}
+	return &hardcoverClient{http: &h, endpoint: endpoint, token: c.Token, now: time.Now, tokens: 10, minuteAt: now, dayAt: now, daily: 5000, remaining: -1, searchTimeout: 3 * time.Second}
 }
 
 // Queries belong to this package. Count aliases independently and nested fields
@@ -244,7 +247,7 @@ func (c *hardcoverClient) do(ctx context.Context, query string, vars any, out an
 	}
 	timeout := 30 * time.Second
 	if search {
-		timeout = 3 * time.Second
+		timeout = c.searchTimeout
 	}
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
