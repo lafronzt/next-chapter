@@ -1,0 +1,70 @@
+{{template "top" .}}
+<a class="back" href="/hardcover"><span aria-hidden="true">←</span> Back to Hardcover</a>
+<header class="page-heading"><div>
+  <h1>Import from Hardcover</h1>
+  <p>Check what this would change. Nothing is saved until you confirm. Your queue order, pins, and local ratings stay as they are.</p>
+</div></header>
+{{if .Stale}}
+<div class="notice error" role="alert">Your library has changed since this preview. Run the import again.</div>
+{{else}}
+{{with .Pull.Stopped}}<div class="notice" role="status">{{.}}</div>{{end}}
+{{with .Result}}
+<section class="summary-row" aria-label="What this import does">
+  <div><span class="stat-number">{{.New}}</span><span>new books</span></div>
+  <div><span class="stat-number">{{.Matched}}</span><span>already here</span></div>
+  <div><span class="stat-number">{{.Linked}}</span><span>newly linked</span></div>
+  <div><span class="stat-number">{{.Advanced}}</span><span>status advances</span></div>
+  <div><span class="stat-number">{{.Readings}}</span><span>readings added</span></div>
+  <div><span class="stat-number">{{.RatingsFilled}}</span><span>ratings saved</span></div>
+  <div><span class="stat-number">{{.Disagree}}</span><span>Hardcover disagrees</span></div>
+  <div><span class="stat-number">{{.Skipped}}</span><span>skipped</span></div>
+</section>
+{{end}}
+{{if .NoOp}}<div class="notice" role="status">Nothing to change: this library is already up to date with Hardcover.</div>{{end}}
+<form method="post" action="/hardcover/pulls/{{.PlanID}}" class="stack">
+  {{template "fields" .}}
+  {{if .Choices}}
+  <section class="panel stack" aria-labelledby="rating-choices">
+    <h2 id="rating-choices">Ratings that differ</h2>
+    <p class="muted">Your rating stays unless you tick the box.</p>
+    {{range .Choices}}
+    <label class="checkbox"><input type="checkbox" name="use_rating_{{.HardcoverID}}"> <span><strong>{{.Title}}</strong>: yours {{.Local}} stars, Hardcover {{.Remote}} stars. Use Hardcover’s rating.</span></label>
+    {{end}}
+    {{if .MoreChoices}}<p class="muted">{{.MoreChoices}} more differ and keep your rating.</p>{{end}}
+  </section>
+  {{end}}
+  <div class="panel actions">
+    <strong>Bring these in?</strong>
+    <p class="muted">New books are added as Needs placement or with their status. Hardcover never changes your queue order, and reviews, notes, and lists are not imported.</p>
+    <button class="button primary">Import from Hardcover</button>
+  </div>
+</form>
+{{if .Rows}}
+<section class="panel stack" aria-labelledby="pull-rows">
+  <h2 id="pull-rows">What happens to each book</h2>
+  <ul class="plain-list">
+    {{range .Rows}}
+    <li><strong>{{.Title}}</strong> <span class="muted">· {{.Author}}</span>
+      {{if .Key}}<br><small class="muted">Matched by {{.Key}}.</small>{{end}}
+      {{range .Changes}}<br><small>{{.}}</small>{{end}}
+      {{range .Notes}}<br><small class="muted">{{.}}</small>{{end}}
+      {{if and (not .Changes) (not .Notes)}}<br><small class="muted">No change.</small>{{end}}
+    </li>
+    {{end}}
+  </ul>
+  {{template "pager" .Pager}}
+</section>
+{{end}}
+{{if not .Pull.Complete}}
+<form method="post" action="/hardcover/pull" class="panel stack">
+  {{template "fields" .}}
+  <input type="hidden" name="continue" value="1">
+  <input type="hidden" name="offset" value="{{.Pull.NextOffset}}">
+  <input type="hidden" name="since" value="{{.Pull.Since}}">
+  <input type="hidden" name="high" value="{{.Pull.HighWater}}">
+  <p>This run did not reach the end of your library. Import this part first, then continue.</p>
+  <button class="button">Continue the pull</button>
+</form>
+{{end}}
+{{end}}
+{{template "bottom" .}}

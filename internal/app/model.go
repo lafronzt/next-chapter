@@ -215,6 +215,8 @@ type Plan struct {
 	// HardcoverLinks is a previewed set of Hardcover link changes (kind
 	// "hc-link"); they are previewed and applied on the Hardcover pages.
 	HardcoverLinks *hcLinkPlan `json:"hardcover_links,omitempty"`
+	// HardcoverPull is a run of the reader's Hardcover library (kind "hc-pull").
+	HardcoverPull *hcPullPlan `json:"hardcover_pull,omitempty"`
 	// Intent is the reader's optional note for an AI suggestion; it lives
 	// only as long as the plan. AIRows is the AI-suggested order, applied
 	// instead of Rows when the reader chooses it; AINotice explains why an AI

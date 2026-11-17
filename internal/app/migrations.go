@@ -25,6 +25,7 @@ var migrations = []migration{
 	{16, "reader corrections to library events", migrateEventCorrections},
 	{17, "Hardcover account link", migrateHardcoverLink},
 	{18, "Hardcover book links", migrateHardcoverBookLinks},
+	{19, "Hardcover readings: source, precision, read id", migrateHardcoverReadings},
 }
 
 func migrateBaseline(tx *sql.Tx) error {
@@ -333,5 +334,34 @@ func migrateHardcoverBookLinks(tx *sql.Tx) error {
 );
 CREATE TABLE hardcover_alias (identity TEXT PRIMARY KEY, hardcover_book_id INTEGER NOT NULL);
 CREATE INDEX hardcover_alias_book ON hardcover_alias(hardcover_book_id);`)
+	return err
+}
+
+// reading_log gains a third source, 'hardcover', a finished_precision (1 day,
+// 2 month, 3 year) so a month-only or year-only date is never shown as a day,
+// and hardcover_read_id, which ties a row to one Hardcover read so a repeat
+// pull updates it instead of adding a duplicate. A date with precision 2 or 3
+// is stored as the first day of its month or year; the precision says the rest
+// is unknown. SQLite cannot change a CHECK in place, so the table is rebuilt
+// with its rows and indexes, as migration 9 did. Existing rows keep precision 1.
+//
+// Backup: <database>.pre-v19.bak. Rollback: stop the app, restore that file,
+// remove stray WAL/SHM files, and start the previous image; readings from
+// Hardcover added since are lost.
+func migrateHardcoverReadings(tx *sql.Tx) error {
+	_, err := tx.Exec(`CREATE TABLE reading_log_new (
+ id INTEGER PRIMARY KEY, book_id INTEGER NOT NULL REFERENCES books(id),
+ finished_at TEXT NULL, rating REAL NULL CHECK(rating BETWEEN 0.25 AND 5),
+ source TEXT NOT NULL CHECK(source IN ('goodreads','manual','hardcover')),
+ review_chars INTEGER NOT NULL DEFAULT 0, review TEXT NULL, fingerprint TEXT NOT NULL UNIQUE,
+ finished_precision INTEGER NOT NULL DEFAULT 1 CHECK(finished_precision IN (1,2,3)),
+ hardcover_read_id INTEGER NULL
+);
+INSERT INTO reading_log_new(id,book_id,finished_at,rating,source,review_chars,review,fingerprint) SELECT id,book_id,finished_at,rating,source,review_chars,review,fingerprint FROM reading_log;
+DROP TABLE reading_log;
+ALTER TABLE reading_log_new RENAME TO reading_log;
+CREATE INDEX reading_log_book ON reading_log(book_id, finished_at);
+CREATE INDEX reading_log_finished ON reading_log(finished_at, id);
+CREATE UNIQUE INDEX reading_log_hardcover_read ON reading_log(hardcover_read_id) WHERE hardcover_read_id IS NOT NULL;`)
 	return err
 }

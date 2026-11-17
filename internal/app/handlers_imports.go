@@ -128,6 +128,11 @@ func (a *App) renderImports(w http.ResponseWriter, r *http.Request, data page, s
 	if err != nil {
 		return err
 	}
+	prefs, err := readMeta(a.store.DB, "preferences", defaultPreferences)
+	if err != nil {
+		return err
+	}
+	data["HardcoverReady"] = prefs.Hardcover && a.hardcover != nil
 	data["Title"], data["Last"] = "Import books", last
 	return a.render(w, r, "imports.html", data, status)
 }

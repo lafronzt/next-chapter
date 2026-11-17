@@ -88,7 +88,7 @@ func (a *App) editReading(w http.ResponseWriter, r *http.Request) error {
 		}
 		if action == "delete" {
 			if !(readingEntry{Fingerprint: fp}).AddedByHand() {
-				return bad("Readings from Goodreads cannot be deleted here, because the next import would add them again. Edit the date or rating instead.")
+				return bad("Readings from Goodreads or Hardcover cannot be deleted here, because the next import would add them again. Edit the date or rating instead.")
 			}
 			_, err := tx.Exec("DELETE FROM reading_log WHERE id=?", rid)
 			if err != nil {
@@ -98,7 +98,7 @@ func (a *App) editReading(w http.ResponseWriter, r *http.Request) error {
 		}
 		// The fingerprint stays, so an import still recognizes an edited Goodreads
 		// reading as the same one.
-		changed, err := execChanged(tx, "UPDATE reading_log SET finished_at=?,rating=?,source='manual' WHERE id=? AND (finished_at IS NOT ? OR rating IS NOT ? OR source!='manual')", finished, rating, rid, finished, rating)
+		changed, err := execChanged(tx, "UPDATE reading_log SET finished_precision=CASE WHEN finished_at IS NOT ? THEN 1 ELSE finished_precision END,finished_at=?,rating=?,source='manual' WHERE id=? AND (finished_at IS NOT ? OR rating IS NOT ? OR source!='manual')", finished, finished, rating, rid, finished, rating)
 		if err != nil || !changed {
 			return err
 		}
