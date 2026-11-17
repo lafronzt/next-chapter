@@ -63,7 +63,7 @@ func TestCheckSortsIntoGroupsAndCostsOneRequest(t *testing.T) {
 		t.Fatal(err)
 	}
 	switchesOn(t, b, true, true)
-	before := len(remote.bodies)
+	before := len(remote.bodyList())
 	loc := runCheck(t, a, b)
 	if !strings.HasPrefix(loc, "/hardcover/changes/") {
 		t.Fatal(loc)
@@ -85,7 +85,7 @@ func TestCheckSortsIntoGroupsAndCostsOneRequest(t *testing.T) {
 		t.Fatal("the in-step count is missing")
 	}
 	// The check itself changed nothing and cost one read request of one top-level field.
-	if len(remote.bodies) != before || remote.mutating != 0 {
+	if len(remote.bodyList()) != before || remote.mutations() != 0 {
 		t.Fatal("a check sent a mutation")
 	}
 	if got := dbValue[string](t, a, "SELECT reading_status FROM books WHERE id=?", ids[0]); got != "to-read" {
@@ -181,12 +181,12 @@ func TestCheckActionsUseThePreviewedFlows(t *testing.T) {
 	if !strings.HasPrefix(send, "/hardcover/pushes/") || !strings.Contains(b.request("GET", send, nil).Body.String(), "Book 2") {
 		t.Fatalf("send preview: %s", send)
 	}
-	if remote.mutating != 0 {
+	if remote.mutations() != 0 {
 		t.Fatal("a preview sent something")
 	}
 	expect(t, b.request("POST", send, nil), 303)
-	if remote.rows[2].Status != 3 {
-		t.Fatalf("the send did not apply: %+v", remote.rows[2])
+	if remote.rowAt(2).Status != 3 {
+		t.Fatalf("the send did not apply: %+v", remote.rowAt(2))
 	}
 	if !strings.Contains(b.request("GET", "/hardcover", nil).Body.String(), "sent to Hardcover") {
 		t.Fatal("a send is not in the history")
@@ -208,7 +208,7 @@ func TestSwitchesAreOffAndGateTheCenter(t *testing.T) {
 	}
 	refill(a)
 	expect(t, b.request("POST", "/hardcover/check", nil), 400)
-	if len(remote.bodies) != 0 || a.hardcover.knownRemaining() != -1 && false {
+	if len(remote.bodyList()) != 0 || a.hardcover.knownRemaining() != -1 && false {
 		t.Fatal("a refused check reached Hardcover")
 	}
 	switchesOn(t, b, true, false)
@@ -320,7 +320,7 @@ func TestDisconnectKeepsBooksAndDropsSyncHistory(t *testing.T) {
 	if dbValue[int](t, a, "SELECT count(*) FROM books") != books || dbValue[int](t, a, "SELECT count(*) FROM book_hardcover") != 1 {
 		t.Fatal("disconnect removed books or their links")
 	}
-	if remote.mutating != 1 {
+	if remote.mutations() != 1 {
 		t.Fatal("disconnect contacted Hardcover")
 	}
 }
@@ -420,7 +420,7 @@ func TestUnlinkedListAndPostsNeedCSRF(t *testing.T) {
 	for _, p := range []string{"/hardcover/switches", "/hardcover/check", "/hardcover/history/clear", "/hardcover/forget"} {
 		expect(t, b.request("POST", p, url.Values{"csrf": {"bad"}}), 400)
 	}
-	if len(remote.bodies) != 0 {
+	if len(remote.bodyList()) != 0 {
 		t.Fatal("a forged post reached Hardcover")
 	}
 }

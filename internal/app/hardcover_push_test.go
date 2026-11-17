@@ -34,6 +34,39 @@ type pushRow struct {
 	Reads      []int
 }
 
+// The accessors below lock, because a request that timed out can still be applied by the fake
+// after the test has stopped waiting for it.
+
+func (p *pushRemote) rowAt(hc int) *pushRow {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	r := p.rows[hc]
+	if r == nil {
+		return nil
+	}
+	c := *r
+	c.Reads = append([]int(nil), r.Reads...)
+	return &c
+}
+
+func (p *pushRemote) rowCount() int {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return len(p.rows)
+}
+
+func (p *pushRemote) mutations() int {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.mutating
+}
+
+func (p *pushRemote) bodyList() []string {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return append([]string(nil), p.bodies...)
+}
+
 func (p *pushRemote) row(hc int) string {
 	r := p.rows[hc]
 	reads := []string{}
@@ -236,24 +269,24 @@ func TestPushAddAdvanceFinish(t *testing.T) {
 			t.Errorf("preview lacks %q", want)
 		}
 	}
-	if remote.mutating != 0 {
+	if remote.mutations() != 0 {
 		t.Fatal("previewing sent a mutation")
 	}
 	expect(t, b.request("POST", loc, nil), 303)
-	if remote.mutating != 1 {
-		t.Fatalf("%d mutation requests, want one batch", remote.mutating)
+	if remote.mutations() != 1 {
+		t.Fatalf("%d mutation requests, want one batch", remote.mutations())
 	}
-	if r := remote.rows[11]; r == nil || r.Status != 1 || r.Privacy != 3 {
+	if r := remote.rowAt(11); r == nil || r.Status != 1 || r.Privacy != 3 {
 		t.Fatalf("book 11 not added to Want to Read, private: %+v", r)
 	}
-	if r := remote.rows[12]; r.Status != 2 {
+	if r := remote.rowAt(12); r.Status != 2 {
 		t.Fatalf("book 12: %+v", r)
 	}
-	if r := remote.rows[13]; r.Status != 3 || r.Rating != 4.5 {
+	if r := remote.rowAt(13); r.Status != 3 || r.Rating != 4.5 {
 		t.Fatalf("book 13: %+v", r)
 	}
 	// Request bodies hold ids, status, rating, and privacy only.
-	all := strings.Join(remote.bodies, "\n")
+	all := strings.Join(remote.bodyList(), "\n")
 	for _, bad := range []string{"SECRET", "review", "private_notes", "reason", "journal", "_user_book_read", "Book 1", "started_at", "finished_at", "position", "pinned"} {
 		if strings.Contains(all, bad) {
 			t.Errorf("a request carries %q: %s", bad, all)
@@ -302,8 +335,8 @@ func TestPushThenPullChangesNothing(t *testing.T) {
 	rate(t, a, ids[0], 4.25)
 	loc := sendPreview(t, b, ids...)
 	expect(t, b.request("POST", loc, nil), 303)
-	if remote.rows[23].Status != 3 || len(remote.rows[23].Reads) != 1 {
-		t.Fatalf("%+v", remote.rows[23])
+	if remote.rowAt(23).Status != 3 || len(remote.rowAt(23).Reads) != 1 {
+		t.Fatalf("%+v", remote.rowAt(23))
 	}
 	logBefore := rowsOf(t, a, "SELECT id,finished_at,rating,source FROM reading_log")
 	b.request("GET", "/hardcover", nil)
@@ -339,8 +372,8 @@ func TestPushPrivacyPreference(t *testing.T) {
 		t.Fatal("a public row is not called out in the preview")
 	}
 	expect(t, b.request("POST", loc, nil), 303)
-	if remote.rows[31].Privacy != 1 {
-		t.Fatalf("privacy %d, want the chosen 1", remote.rows[31].Privacy)
+	if remote.rowAt(31).Privacy != 1 {
+		t.Fatalf("privacy %d, want the chosen 1", remote.rowAt(31).Privacy)
 	}
 	// An out-of-range preference falls back to private.
 	if hcPrivacy(Preferences{HardcoverPrivacy: 9}) != 3 || hcPrivacy(Preferences{}) != 3 {
@@ -371,7 +404,7 @@ func TestPushRejectedInA200(t *testing.T) {
 	remote.hook = nil
 	a.hardcover.tokens = 10
 	expect(t, b.request("POST", loc, nil), 303)
-	if remote.rows[41] == nil {
+	if remote.rowAt(41) == nil {
 		t.Fatal("the retry did not send")
 	}
 }
@@ -392,7 +425,7 @@ func TestPushMissingScope(t *testing.T) {
 	if !strings.Contains(body, "write:library") {
 		t.Fatalf("the missing scope is not named:\n%s", body)
 	}
-	if n := dbValue[int](t, a, "SELECT count(*) FROM hardcover_sync"); n != 0 || remote.rows[51] != nil {
+	if n := dbValue[int](t, a, "SELECT count(*) FROM hardcover_sync"); n != 0 || remote.rowAt(51) != nil {
 		t.Fatal("something was recorded or added")
 	}
 }
@@ -413,8 +446,8 @@ func TestPushRateLimitMidBatch(t *testing.T) {
 	a, b, ids := pushApp(t, remote, specs...)
 	loc := sendPreview(t, b, ids...)
 	expect(t, b.request("POST", loc, nil), 303)
-	if len(remote.rows) != 9 {
-		t.Fatalf("%d added by the first request, want 9", len(remote.rows))
+	if remote.rowCount() != 9 {
+		t.Fatalf("%d added by the first request, want 9", remote.rowCount())
 	}
 	// The second request is refused with a 429: the rest stay unsent.
 	a.hardcover.mu.Lock()
@@ -422,18 +455,18 @@ func TestPushRateLimitMidBatch(t *testing.T) {
 	a.hardcover.mu.Unlock()
 	expect(t, b.request("POST", loc, nil), 303)
 	body := b.request("GET", loc, nil).Body.String()
-	if !strings.Contains(body, "rate limit") || len(remote.rows) != 9 {
-		t.Fatalf("a 429 was not reported, or something was sent: %d rows\n%s", len(remote.rows), body)
+	if !strings.Contains(body, "rate limit") || remote.rowCount() != 9 {
+		t.Fatalf("a 429 was not reported, or something was sent: %d rows\n%s", remote.rowCount(), body)
 	}
 	// Once the limit passes, only the three unsent books go, and the sent ones are not resent.
 	a.hardcover.mu.Lock()
 	a.hardcover.tokens, a.hardcover.blockedUntil = 10, time.Time{}
 	a.hardcover.mu.Unlock()
 	expect(t, b.request("POST", loc, nil), 303)
-	if len(remote.rows) != 12 || remote.mutating != 2 {
-		t.Fatalf("%d rows after %d mutation requests, want 12 after 2", len(remote.rows), remote.mutating)
+	if remote.rowCount() != 12 || remote.mutations() != 2 {
+		t.Fatalf("%d rows after %d mutation requests, want 12 after 2", remote.rowCount(), remote.mutations())
 	}
-	if last := remote.bodies[len(remote.bodies)-1]; strings.Contains(last, "m3:") {
+	if last := remote.bodyList()[len(remote.bodyList())-1]; strings.Contains(last, "m3:") {
 		t.Fatal("the last request carried more than the three unsent books")
 	}
 }
@@ -446,7 +479,7 @@ func TestPushTimeoutVerifiesBeforeRetry(t *testing.T) {
 	a.hardcover.http.Timeout = 200 * time.Millisecond
 	loc := sendPreview(t, b, ids[0])
 	expect(t, b.request("POST", loc, nil), 303)
-	if remote.rows[71] == nil {
+	if remote.rowAt(71) == nil {
 		t.Fatal("the fake did not apply the write")
 	}
 	if body := b.request("GET", loc, nil).Body.String(); !strings.Contains(body, "Unconfirmed") {
@@ -457,8 +490,8 @@ func TestPushTimeoutVerifiesBeforeRetry(t *testing.T) {
 	a.hardcover.tokens = 10
 	a.hardcover.mu.Unlock()
 	expect(t, b.request("POST", loc, nil), 303)
-	if remote.mutating != 1 {
-		t.Fatalf("%d mutation requests: the book was sent again before checking", remote.mutating)
+	if remote.mutations() != 1 {
+		t.Fatalf("%d mutation requests: the book was sent again before checking", remote.mutations())
 	}
 	if body := b.request("GET", loc, nil).Body.String(); !strings.Contains(body, "confirmed on Hardcover") {
 		t.Fatalf("the verification is not shown:\n%s", body)
@@ -486,14 +519,14 @@ func TestPushTimeoutNotApplied(t *testing.T) {
 	a.hardcover.tokens = 10
 	a.hardcover.mu.Unlock()
 	expect(t, b.request("POST", loc, nil), 303) // verifies: not applied
-	if remote.rows[81] != nil || remote.mutating != 0 {
+	if remote.rowAt(81) != nil || remote.mutations() != 0 {
 		t.Fatal("sent during the check")
 	}
 	a.hardcover.mu.Lock()
 	a.hardcover.tokens = 10
 	a.hardcover.mu.Unlock()
 	expect(t, b.request("POST", loc, nil), 303) // now sends
-	if remote.rows[81] == nil || remote.mutating != 1 {
+	if remote.rowAt(81) == nil || remote.mutations() != 1 {
 		t.Fatal("the retry after a failed check did not send")
 	}
 }
@@ -508,7 +541,7 @@ func TestPushRemoteAheadIsAConflict(t *testing.T) {
 		t.Fatalf("no conflict shown:\n%s", body)
 	}
 	expect(t, b.request("POST", loc, nil), 400) // nothing to send
-	if remote.mutating != 0 {
+	if remote.mutations() != 0 {
 		t.Fatal("a conflict was sent")
 	}
 	// Taking Hardcover's version is an ordinary previewed pull for that book.
@@ -535,7 +568,7 @@ func TestPushRefusesUnlinkedAndStale(t *testing.T) {
 	expect(t, b.request("POST", "/hardcover/send", url.Values{"book": {strconv.FormatInt(other[0], 10)}}), 400)
 	expect(t, b.request("POST", "/books/"+strconv.FormatInt(other[0], 10)+"/hardcover/send", nil), 400)
 	expect(t, b.request("POST", "/hardcover/send", url.Values{"status": {"archived"}}), 400)
-	if remote.mutating != 0 {
+	if remote.mutations() != 0 {
 		t.Fatal("something was sent")
 	}
 	// A shelf preview takes the linked books on that shelf.
@@ -551,7 +584,7 @@ func TestPushRefusesUnlinkedAndStale(t *testing.T) {
 	if !strings.Contains(b.request("GET", loc, nil).Body.String(), "changed since this preview") {
 		t.Fatal("a stale preview is not explained")
 	}
-	if remote.mutating != 0 {
+	if remote.mutations() != 0 {
 		t.Fatal("a stale preview sent")
 	}
 }
@@ -565,7 +598,7 @@ func TestPushPostsNeedCSRF(t *testing.T) {
 	for _, path := range []string{"/hardcover/send", "/books/" + id + "/hardcover/send", loc, loc + "/take"} {
 		expect(t, b.request("POST", path, url.Values{"csrf": {"bad"}, "book": {id}}), 400)
 	}
-	if remote.mutating != 0 || a.hardcover == nil {
+	if remote.mutations() != 0 || a.hardcover == nil {
 		t.Fatal("a forged post sent")
 	}
 }
@@ -686,7 +719,7 @@ func TestPushRecordsWhatWasSentEvenIfTheLibraryChangedMeanwhile(t *testing.T) {
 	a, b, ids = pushApp(t, remote, "to-read:141")
 	loc := sendPreview(t, b, ids[0])
 	expect(t, b.request("POST", loc, nil), 303)
-	if remote.rows[141] == nil {
+	if remote.rowAt(141) == nil {
 		t.Fatal("the send did not happen")
 	}
 	if n := dbValue[int](t, a, "SELECT count(*) FROM hardcover_sync WHERE field='status'"); n != 1 {

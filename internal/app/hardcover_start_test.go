@@ -18,7 +18,7 @@ func TestStartReadingWithHardcoverPreview(t *testing.T) {
 			id := ids[0]
 			b.request("GET", bookPath(id), nil)
 			loc := locationOf(t, b.request("POST", bookPath(id)+"/status", url.Values{"action": {"start-hardcover"}}))
-			if !strings.HasPrefix(loc, "/hardcover/pushes/") || remote.mutating != 0 {
+			if !strings.HasPrefix(loc, "/hardcover/pushes/") || remote.mutations() != 0 {
 				t.Fatalf("expected preview without remote mutation: %s", loc)
 			}
 			if dbValue[string](t, a, "SELECT reading_status FROM books WHERE id=?", id) != "reading" {
@@ -40,12 +40,12 @@ func TestStartReadingWithHardcoverPreview(t *testing.T) {
 				return
 			}
 			expect(t, b.request("POST", loc, nil), 303)
-			if remote.rows[500].Status != 2 {
-				t.Fatalf("Hardcover did not receive Currently Reading: %+v", remote.rows[500])
+			if remote.rowAt(500).Status != 2 {
+				t.Fatalf("Hardcover did not receive Currently Reading: %+v", remote.rowAt(500))
 			}
 			b.request("GET", loc, nil)
 			expect(t, b.request("POST", loc, nil), 400)
-			if remote.mutating != 1 {
+			if remote.mutations() != 1 {
 				t.Fatal("confirmation was sent twice")
 			}
 		})
@@ -95,7 +95,7 @@ func TestStartHardcoverPreviewRejectsConcurrentChange(t *testing.T) {
 	}
 	b.request("GET", bookPath(ids[0]), nil)
 	loc := locationOf(t, b.request("POST", bookPath(ids[0])+"/status", url.Values{"action": {"start-hardcover"}}))
-	if !strings.HasSuffix(loc, "notice=started-hc-failed") || dbValue[int](t, a, "SELECT count(*) FROM plans WHERE kind='hc-push'") != 0 || remote.mutating != 0 {
+	if !strings.HasSuffix(loc, "notice=started-hc-failed") || dbValue[int](t, a, "SELECT count(*) FROM plans WHERE kind='hc-push'") != 0 || remote.mutations() != 0 {
 		t.Fatalf("concurrent change produced a sendable preview: %s", loc)
 	}
 }
