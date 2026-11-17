@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // readingHistory pages through finished readings, newest first, with stats
@@ -39,6 +40,13 @@ func (a *App) addReading(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
+	started, err := startDateField(r)
+	if err != nil {
+		return err
+	}
+	if err = checkReadingDates(started, finished, 1); err != nil {
+		return err
+	}
 	err = a.store.Write(func(tx *sql.Tx) error {
 		if err := current(tx, r); err != nil {
 			return err
@@ -46,7 +54,7 @@ func (a *App) addReading(w http.ResponseWriter, r *http.Request) error {
 		if _, err := getBook(tx, id); err != nil {
 			return err
 		}
-		if _, err := tx.Exec("INSERT INTO reading_log(book_id,finished_at,rating,source,fingerprint) VALUES(?,?,?,'manual',?)", id, finished, rating, manualFingerprint+randomToken()); err != nil {
+		if _, err := tx.Exec("INSERT INTO reading_log(book_id,started_at,finished_at,rating,source,fingerprint) VALUES(?,?,?,?,'manual',?)", id, started, finished, rating, manualFingerprint+randomToken()); err != nil {
 			return err
 		}
 		return bump(tx)
@@ -78,6 +86,10 @@ func (a *App) editReading(w http.ResponseWriter, r *http.Request) error {
 		return bad("Choose a valid action.")
 	}
 	var bookID int64
+	started, err := startDateField(r)
+	if err != nil {
+		return err
+	}
 	err = a.store.Write(func(tx *sql.Tx) error {
 		if err := current(tx, r); err != nil {
 			return err
@@ -96,9 +108,25 @@ func (a *App) editReading(w http.ResponseWriter, r *http.Request) error {
 			}
 			return bump(tx)
 		}
+
+		var previousStart *string
+		var previousFinish *string
+		var precision int
+		if err := tx.QueryRow("SELECT started_at,finished_at,finished_precision FROM reading_log WHERE id=?", rid).Scan(&previousStart, &previousFinish, &precision); err != nil {
+			return err
+		}
+		if !r.Form.Has("started_at") {
+			started = previousStart
+		}
+		if previousFinish == nil || finished == nil || *previousFinish != *finished {
+			precision = 1
+		}
+		if err := checkReadingDates(started, finished, precision); err != nil {
+			return err
+		}
 		// The fingerprint stays, so an import still recognizes an edited Goodreads
 		// reading as the same one.
-		changed, err := execChanged(tx, "UPDATE reading_log SET finished_precision=CASE WHEN finished_at IS NOT ? THEN 1 ELSE finished_precision END,finished_at=?,rating=?,source='manual' WHERE id=? AND (finished_at IS NOT ? OR rating IS NOT ? OR source!='manual')", finished, finished, rating, rid, finished, rating)
+		changed, err := execChanged(tx, "UPDATE reading_log SET started_at=?,finished_precision=CASE WHEN finished_at IS NOT ? THEN 1 ELSE finished_precision END,finished_at=?,rating=?,source='manual' WHERE id=? AND (finished_at IS NOT ? OR rating IS NOT ? OR started_at IS NOT ? OR source!='manual')", started, finished, finished, rating, rid, finished, rating, started)
 		if err != nil || !changed {
 			return err
 		}
@@ -108,4 +136,36 @@ func (a *App) editReading(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	return redirect(w, r, fmt.Sprintf("/books/%d?notice=reading#reading", bookID))
+}
+
+// startDateField deliberately accepts only a known calendar day.
+func startDateField(r *http.Request) (*string, error) {
+	raw := strings.TrimSpace(r.FormValue("started_at"))
+	if raw == "" {
+		return nil, nil
+	}
+	if !validFinishDate(raw) {
+		return nil, bad("Enter the start date as a calendar date, or leave it blank.")
+	}
+	return &raw, nil
+}
+
+func checkReadingDates(started, finished *string, precision int) error {
+	if started == nil || finished == nil {
+		return nil
+	}
+	end, err := time.Parse(time.DateOnly, *finished)
+	if err != nil {
+		return bad("Enter a valid finish date.")
+	}
+	switch precision {
+	case 2:
+		end = end.AddDate(0, 1, 0).AddDate(0, 0, -1)
+	case 3:
+		end = time.Date(end.Year(), 12, 31, 0, 0, 0, 0, time.UTC)
+	}
+	if *started > end.Format(time.DateOnly) {
+		return bad("The start date must be on or before the finish date.")
+	}
+	return nil
 }

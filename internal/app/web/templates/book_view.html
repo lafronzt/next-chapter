@@ -32,6 +32,11 @@
       {{end}}
     </div>
     {{end}}
+
+    {{if eq .Book.Status "reading"}}
+    <p class="muted">Started: {{with .Book.StartedAt}}<time datetime="{{.}}">{{.}}</time>{{else}}not recorded{{end}} · <a href="/books/{{.Book.ID}}/edit">Edit start date</a></p>
+    {{if and .HardcoverReady .HardcoverLink}}<form method="post" action="/books/{{.Book.ID}}/hardcover/dates">{{template "fields" .}}<button class="button small">Sync start date with Hardcover…</button></form>{{end}}
+    {{end}}
     <div class="button-row primary-action">
       {{if eq .Book.Status "to-read"}}
       <form method="post" action="/books/{{.Book.ID}}/status">
@@ -270,7 +275,7 @@
 {{if .Readings}}
 <div class="panel">
   {{range .Readings}}{{$e := .}}
-  <div class="event"><span>{{with .FinishedAt}}<time datetime="{{.}}">{{$e.When}}</time>{{else}}Date not recorded{{end}}</span><strong>{{if .Rating}}{{stars .Rating}}{{else}}Unrated{{end}}</strong><span>{{if .AddedByHand}}Logged by you{{else if eq .Source "manual"}}Edited by you{{else if eq .Source "hardcover"}}Hardcover{{else}}Goodreads{{end}}</span></div>
+  <div class="event"><span>{{with .StartedAt}}Started <time datetime="{{.}}">{{.}}</time> · {{end}}{{with .FinishedAt}}<time datetime="{{.}}">{{$e.When}}</time>{{else}}Date not recorded{{end}}</span><strong>{{if .Rating}}{{stars .Rating}}{{else}}Unrated{{end}}</strong><span>{{if .AddedByHand}}Logged by you{{else if eq .Source "manual"}}Edited by you{{else if eq .Source "hardcover"}}Hardcover{{else}}Goodreads{{end}}</span></div>
   {{with .Review}}<blockquote class="review">{{.}}</blockquote>{{end}}
   {{if and $.HardcoverReady $.HardcoverLink .FinishedAt}}
   <form method="post" action="/readings/{{.ID}}/hardcover/send">{{template "fields" $}}<button class="button small">Send this reading to Hardcover…</button></form>

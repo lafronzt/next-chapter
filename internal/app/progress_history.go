@@ -132,7 +132,7 @@ func recordCheckpoint(q queryer, b Book, unit string, value *int, today time.Tim
 		return err
 	}
 	if attempt == 0 {
-		res, err := q.Exec("INSERT INTO reading_attempts(book_id,started_on) VALUES(?,'')", b.ID)
+		res, err := q.Exec("INSERT INTO reading_attempts(book_id,started_on) VALUES(?,COALESCE(?,''))", b.ID, b.StartedAt)
 		if err != nil {
 			return err
 		}

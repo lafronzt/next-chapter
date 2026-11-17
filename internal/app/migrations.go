@@ -32,6 +32,7 @@ var migrations = []migration{
 	{23, "audiobook time progress", migrateAudioProgress},
 	{24, "explicit Hardcover note shares", migrateHardcoverNotes},
 	{25, "audiobook duration", migrateAudioDuration},
+	{26, "reading start dates", migrateReadingStartDates},
 }
 
 func migrateBaseline(tx *sql.Tx) error {
@@ -466,5 +467,16 @@ ALTER TABLE book_notes ADD COLUMN hardcover_book_id INTEGER NOT NULL DEFAULT 0 C
 func migrateAudioDuration(tx *sql.Tx) error {
 	_, err := tx.Exec(`ALTER TABLE books ADD COLUMN audio_seconds INTEGER CHECK(audio_seconds BETWEEN 1 AND 35999999);
  ALTER TABLE progress_checkpoints ADD COLUMN total_seconds INTEGER CHECK(total_seconds BETWEEN 1 AND 35999999);`)
+	return err
+}
+
+// Reuse an existing open progress attempt's known start; otherwise leave
+// historical dates unknown.
+func migrateReadingStartDates(tx *sql.Tx) error {
+	_, err := tx.Exec(`ALTER TABLE books ADD COLUMN started_at TEXT NULL;
+ ALTER TABLE books ADD COLUMN started_manual INTEGER NOT NULL DEFAULT 0 CHECK(started_manual IN (0,1));
+ ALTER TABLE reading_log ADD COLUMN started_at TEXT NULL;
+ UPDATE books SET started_at=(SELECT NULLIF(started_on,'') FROM reading_attempts WHERE book_id=books.id AND ended_on IS NULL ORDER BY id DESC LIMIT 1) WHERE reading_status='reading';
+ DELETE FROM plans; DELETE FROM undo_queue;`)
 	return err
 }

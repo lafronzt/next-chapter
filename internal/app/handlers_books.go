@@ -49,7 +49,7 @@ func (a *App) newBook(w http.ResponseWriter, r *http.Request) error {
 		if err != nil {
 			return err
 		}
-		if _, err = tx.Exec("UPDATE books SET reason=?,owned=?,audio_seconds=? WHERE id=?", b.Reason, b.Owned, b.AudioSeconds, id); err != nil {
+		if _, err = tx.Exec("UPDATE books SET reason=?,owned=?,audio_seconds=?,started_at=?,started_manual=? WHERE id=?", b.Reason, b.Owned, b.AudioSeconds, b.StartedAt, b.StartedAt != nil, id); err != nil {
 			return err
 		}
 		if err = bump(tx); err != nil {
@@ -197,6 +197,22 @@ func (a *App) editBook(w http.ResponseWriter, r *http.Request) error {
 			return err
 		}
 		if err = noteStatusChange(tx, id, old.Status, b.Status, midnight(a.now()), false); err != nil {
+			return err
+		}
+
+		if !r.Form.Has("started_at") {
+			b.StartedAt = old.StartedAt
+		}
+		manual := old.StartedManual
+		if r.Form.Has("started_at") && ((b.StartedAt == nil) != (old.StartedAt == nil) || b.StartedAt != nil && old.StartedAt != nil && *b.StartedAt != *old.StartedAt) {
+			manual = true
+		}
+		if b.Status == "reading" && old.Status != "reading" && b.StartedAt == nil && !r.Form.Has("started_at") {
+			day := a.now().Format(time.DateOnly)
+			b.StartedAt = &day
+			manual = false
+		}
+		if err = saveCurrentStart(tx, id, b.StartedAt, manual); err != nil {
 			return err
 		}
 		_, err = tx.Exec(`UPDATE books SET title=?,author=?,identity=?,interest=?,reading_status=?,pages=?,audio_seconds=?,isbn=?,published_year=?,tags=?,series=?,series_number=?,description_source=CASE WHEN description=? THEN description_source ELSE '' END,description=?,reason=?,owned=?,pinned=?,needs_placement=?,position=? WHERE id=?`, b.Title, b.Author, identity(b.Title, b.Author), b.Interest, b.Status, b.Pages, b.AudioSeconds, b.ISBN, b.PublishedYear, b.Tags, b.Series, b.SeriesNumber, b.Description, b.Description, b.Reason, b.Owned, pin, needs, position, id)

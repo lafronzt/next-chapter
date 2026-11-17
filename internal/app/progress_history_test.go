@@ -230,9 +230,10 @@ func TestAttemptsRereadsAndUndo(t *testing.T) {
 		}
 		return strings.Join(out, ",")
 	}
-	// Starting a book opens an attempt dated today.
+	// Starting a book opens an attempt dated by the app clock, matching its
+	// editable current start date.
 	expect(t, b.form(fmt.Sprintf("/books/%d/status", other), url.Values{"action": {"start"}}), 303)
-	if got := attemptsOf(other); got != "1:today>open" {
+	if got := attemptsOf(other); got != "1:2026-03-10>open" {
 		t.Fatal(got)
 	}
 	save(t, b, other, "20", "page", 303)
@@ -247,23 +248,23 @@ func TestAttemptsRereadsAndUndo(t *testing.T) {
 	}
 	// Stopping ends the attempt; Undo reopens that same attempt.
 	expect(t, b.form(fmt.Sprintf("/books/%d/status", other), url.Values{"action": {"stop"}}), 303)
-	if got := attemptsOf(other); got != "1:today>today" {
+	if got := attemptsOf(other); got != "1:2026-03-10>today" {
 		t.Fatal(got)
 	}
 	expect(t, b.form("/undo", nil), 303)
-	if got := attemptsOf(other); got != "1:today>open" || bookNamed(t, a, "Other").Status != "reading" {
+	if got := attemptsOf(other); got != "1:2026-03-10>open" || bookNamed(t, a, "Other").Status != "reading" {
 		t.Fatalf("%s %s", got, bookNamed(t, a, "Other").Status)
 	}
 	// Finish it: the attempt ends, its updates stay, progress clears.
 	expect(t, b.form(fmt.Sprintf("/books/%d/finish", other), url.Values{"finished_at": {"2026-03-12"}}), 303)
-	if got := attemptsOf(other); got != "1:today>today" {
+	if got := attemptsOf(other); got != "1:2026-03-10>today" {
 		t.Fatal(got)
 	}
 	// A reread is a new attempt; the old one's pace is not reused.
 	*clock = clock.AddDate(0, 1, 0)
 	edit := bookForm("Other", "reading")
 	expect(t, b.form(fmt.Sprintf("/books/%d/edit", other), edit), 303)
-	if got := attemptsOf(other); got != "1:today>today,2:2026-04-12>open" {
+	if got := attemptsOf(other); got != "1:2026-03-10>today,2:2026-04-12>open" {
 		t.Fatal(got)
 	}
 	save(t, b, other, "10", "page", 303)

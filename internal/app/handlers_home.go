@@ -134,6 +134,11 @@ func (a *App) bookStatus(w http.ResponseWriter, r *http.Request) error {
 		if err != nil {
 			return err
 		}
+		if action == "start" {
+			if err = saveCurrentStart(tx, id, nullable(a.now().Format(time.DateOnly)), false); err != nil {
+				return err
+			}
+		}
 		if err = bump(tx); err != nil {
 			return err
 		}
@@ -196,9 +201,13 @@ func (a *App) finishBook(w http.ResponseWriter, r *http.Request) error {
 		if err != nil {
 			return err
 		}
-		return a.render(w, r, "finish.html", page{"Title": "Finished: " + b.Title, "Book": b, "Today": time.Now().Format(time.DateOnly), "Nav": "queue"}, 200)
+		return a.render(w, r, "finish.html", page{"Title": "Finished: " + b.Title, "Book": b, "Today": a.now().Format(time.DateOnly), "Nav": "queue"}, 200)
 	}
 	finished, rating, err := readingFields(r)
+	if err != nil {
+		return err
+	}
+	started, err := startDateField(r)
 	if err != nil {
 		return err
 	}
@@ -216,10 +225,16 @@ func (a *App) finishBook(w http.ResponseWriter, r *http.Request) error {
 		if b.Status != "reading" && b.Status != "to-read" {
 			return bad("Only a book you are reading, or have queued, can be marked finished here.")
 		}
+		if !r.Form.Has("started_at") {
+			started = b.StartedAt
+		}
+		if err = checkReadingDates(started, finished, 1); err != nil {
+			return err
+		}
 		if err = setStatus(tx, b, "read"); err != nil {
 			return err
 		}
-		if _, err = tx.Exec("INSERT INTO reading_log(book_id,finished_at,rating,source,fingerprint) VALUES(?,?,?,'manual',?)", id, finished, rating, manualFingerprint+randomToken()); err != nil {
+		if _, err = tx.Exec("INSERT INTO reading_log(book_id,started_at,finished_at,rating,source,fingerprint) VALUES(?,?,?,?,'manual',?)", id, started, finished, rating, manualFingerprint+randomToken()); err != nil {
 			return err
 		}
 		return bump(tx)

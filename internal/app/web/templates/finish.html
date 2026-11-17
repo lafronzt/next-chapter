@@ -7,6 +7,7 @@
 </header>
 <form class="panel form-grid" method="post" action="/books/{{.Book.ID}}/finish">
   {{template "fields" .}}
+  <label>Started <span class="muted">optional</span><input type="date" name="started_at" value="{{with .Book.StartedAt}}{{.}}{{end}}"></label>
   <label>Finished<input type="date" name="finished_at" value="{{.Today}}" required></label>
   {{template "rating-input" noRating}}
   <div class="span-2 button-row">
