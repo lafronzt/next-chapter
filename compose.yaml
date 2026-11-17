@@ -10,6 +10,7 @@ services:
       COOKIE_SECURE: ${COOKIE_SECURE:-0}
       TRUSTED_PROXY_HOPS: ${TRUSTED_PROXY_HOPS:-0}
       DATABASE_PATH: /data/next-chapter.sqlite3
+      HARDCOVER_API_TOKEN: ${HARDCOVER_API_TOKEN:-}
       # Optional AI assistance, off unless AI_PROVIDER is set in .env. See
       # "AI assistance" in README.md. Compose passes only the variables
       # listed here, so use AI_API_KEY rather than a vendor-specific name.

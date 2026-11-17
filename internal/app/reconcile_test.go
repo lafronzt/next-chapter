@@ -709,7 +709,7 @@ INSERT INTO loans(book_id,source,format,status,due_date,observed_at) VALUES(1,'l
 	if err = migrateFile(path, migrations); err != nil {
 		t.Fatal(err)
 	}
-	if v, _ := versionOf(t, path); v != 16 {
+	if v, _ := versionOf(t, path); v != latestVersion(migrations) {
 		t.Fatal(v)
 	}
 	if scalar[int](t, path, "SELECT count(*) FROM event_corrections") != 0 || scalar[int](t, path, "SELECT count(*) FROM events") != 1 || scalar[string](t, path, "SELECT due_date FROM loans") != "2026-10-20" {

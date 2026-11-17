@@ -468,6 +468,48 @@ Both actions start from a book's edit page under **Tidy up**. Nothing is merged 
 - Deleting a book removes its readings. Merging moves them to the kept book, dropping any reading on a date the kept book already has.
 - Aliases are part of the database backup and appear under `aliases` in the JSON export. Neither action can be undone in the app; download a backup first if you might want the history.
 
+## Hardcover (optional)
+
+The first integration step provides a connection test only; book linking,
+imports, writeback, progress sync, series lookup, and queue publishing are not
+implemented yet. The app works fully without Hardcover and requires no paid plan.
+
+Set `HARDCOVER_API_TOKEN` in the server environment (for example in your private
+`.env` or a Kubernetes Secret), then enable **Hardcover** in **Preferences →
+Privacy**. Open **More → Hardcover** and press **Test connection**. Do not paste a
+token into a page. Use an expiring personal access token from
+[Hardcover API settings](https://hardcover.app/account/api), granting `read:me`
+for this connection step. Never grant `all`. Later library operations will need
+`read:library` / `write:library`, catalog matching will need `read:catalog`, and
+optional lists will need `read:lists` / `write:lists`; those operations are not
+available in this build. Only `read:me` is verified by this test; other scopes
+are reported as untested. OAuth with PKCE is a follow-up, not implemented here.
+
+Testing sends a bearer token and an account/schema query to the fixed endpoint
+`https://api.hardcover.app/v1/graphql`. It reads your own id and username and
+checks the library/read schema; no titles, ratings, reviews, private notes,
+reasons, queue order, pins, loans, or AI data are sent. Future matching requests
+may send book ids, ISBNs, titles and authors, and will be described before use.
+No calls run on page load, import, startup, or a timer. Credentials stay in the
+environment: never in the database, export, HTML, or application logs. Responses
+are capped at 1 MB, redirects are refused, and calls time out after 30 seconds
+(3 seconds for future search requests).
+
+Hardcover's beta API can change, and tokens may be reset. The connection test
+checks required fields before saving a link. Free-plan limits are 5,000
+requests/day, 60/minute, and a burst of 10; each top-level GraphQL field counts,
+so this test costs 3. A shared in-memory budget observes server headers and
+`Retry-After`, refuses over-budget calls, and never retries automatically.
+Limits can be shared with other apps using the same account. Restarting this
+app resets its fallback budget; server limits still apply. Only the last test
+and reported remaining count are persisted.
+
+**Disconnect** removes the local link and test history, turns the feature off,
+and leaves books and Hardcover untouched. Revoke the token in Hardcover's API
+settings and remove it from the environment to revoke access completely. JSON
+exports include the account link but restore discards it: test again to link
+the account belonging to the current token. Database backups retain the link.
+
 ## Backup and restore
 
 In Preferences, download a **database backup** for full recovery, or JSON for portable readable data that can also be restored (see below). Backups use SQLite’s `VACUUM INTO` snapshot operation, not a potentially incomplete copy of a live WAL file. Pending previews, the undo snapshot, login-failure counters, and the session key are omitted, so a restored copy never accepts sign-in cookies issued by the original; everyone signs in again after a restore. The backup still contains personal reading history and your public Goodreads connection settings.
@@ -504,6 +546,8 @@ The app refuses to start if the database has a newer schema version than the run
 3. Start the previous image.
 
 Changes made after the upgrade are not in the `.bak`. Export JSON first if you need a record of them.
+
+Schema migration 17 adds only `hardcover_link`, containing the connected account id, username, and link time. Existing books are unchanged. Roll back by stopping the app, restoring `next-chapter.sqlite3.pre-v17.bak`, removing stray `-wal`/`-shm` files, and starting the previous image as above. JSON exports from version 17 need this build or newer; restoring one always discards its Hardcover account link.
 
 Schema migration 16 adds the `event_corrections` table for your edits and voids of library events; no existing event or loan changes. Roll back with `next-chapter.sqlite3.pre-v16.bak` as above, or keep later changes and run an older image after `DROP TABLE event_corrections; UPDATE meta SET value='15' WHERE key='schema_version';`, then re-import or re-record the affected library events, because current loans were worked out with the corrections applied. JSON exports from version 16 need this build or newer to restore.
 
@@ -549,7 +593,7 @@ Then switch AI on in Preferences. Tests never contact a real provider; they use 
 
 For production, set `APP_PASSWORD` and `APP_SECRET_KEY` and omit `LOCAL_DEMO`. `DATABASE_PATH` defaults to `data/next-chapter.sqlite3`; `LISTEN_ADDR` defaults to `:8000`. `TRUSTED_PROXY_HOPS` (default `0`) is described under Docker Compose. The executable includes `version` and `healthcheck` commands.
 
-The application uses Go’s HTTP server, escaped HTML templates, plain CSS, and a pure-Go SQLite driver. Templates, assets, and CSV examples are embedded in the executable. No font, analytics, or cover-image service receives reading data. The app makes outbound requests only if the operator configures a provider and the reader switches it on, for [AI assistance](#ai-assistance-optional) that the reader requests and confirms one request at a time. With Ollama or another self-hosted model, those requests can stay on your own machine or network.
+The application uses Go’s HTTP server, escaped HTML templates, plain CSS, and a pure-Go SQLite driver. Templates, assets, and CSV examples are embedded in the executable. No font, analytics, or cover-image service receives reading data. The app makes outbound requests only if the operator configures a provider and the reader switches it on, for [AI assistance](#ai-assistance-optional) that the reader requests and confirms one request at a time. Optional [Hardcover](#hardcover-optional) connection tests send only an account/schema query when explicitly requested. With Ollama or another self-hosted model, those requests can stay on your own machine or network.
 
 ## Project layout
 

@@ -19,9 +19,10 @@ import (
 // is the database schema the export was written from; it doubles as the
 // format version.
 type exportFile struct {
-	SchemaVersion int          `json:"schema_version"`
-	ExportedAt    string       `json:"exported_at"`
-	Preferences   *Preferences `json:"preferences,omitempty"`
+	HardcoverLink *hardcoverLink `json:"hardcover_link,omitempty"`
+	SchemaVersion int            `json:"schema_version"`
+	ExportedAt    string         `json:"exported_at"`
+	Preferences   *Preferences   `json:"preferences,omitempty"`
 	// Sync is the retired Goodreads feed connection. Older exports carry it;
 	// it is accepted and ignored.
 	Sync    json.RawMessage `json:"sync,omitempty"`
@@ -55,7 +56,7 @@ const (
 	// maxRestoreSchema is the newest export this build can restore. A test
 	// fails when a migration is added, so the restore code is checked against
 	// the new schema before this is raised.
-	maxRestoreSchema = 16
+	maxRestoreSchema = 17
 	maxRestoreUpload = 10_000_000
 	maxRestoreEvents = 100_000
 	maxRestoreAlias  = 20_000
@@ -456,6 +457,10 @@ func restoreExport(q queryer, f exportFile) (restorePlan, error) {
 	if !empty {
 		return result, errNotEmpty
 	}
+	// A restored library must be linked explicitly with the current token.
+	if _, err = q.Exec("DELETE FROM hardcover_link; DELETE FROM meta WHERE key='hardcover_test'"); err != nil {
+		return result, err
+	}
 	books := slices.Clone(f.Books)
 	slices.SortStableFunc(books, func(a, b Book) int { return cmp.Or(cmp.Compare(a.Position, b.Position), cmp.Compare(a.ID, b.ID)) })
 	insertBook, err := q.Prepare(`INSERT INTO books(title,author,identity,isbn,goodreads_id,pages,progress_page,progress_percent,tags,interest,reading_status,position,pinned,needs_placement,moved_by_hand,series,series_number,published_year,avg_rating,added_at,source,description,description_source,reason,owned)
@@ -632,6 +637,9 @@ func exportLibrary(tx *sql.Tx) (exportFile, error) {
 		return f, err
 	}
 	f.Preferences = &prefs
+	if f.HardcoverLink, err = loadHardcoverLink(tx); err != nil {
+		return f, err
+	}
 	if f.SchemaVersion, _, err = schemaVersion(tx); err != nil {
 		return f, err
 	}

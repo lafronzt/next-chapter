@@ -89,7 +89,7 @@
 </div>
 {{else if eq .Kind "restore"}}
 {{with .Plan.Restore}}
-<div class="notice" role="status">{{.Queue}} books in your queue and {{.Other}} other books, with {{.Events}} library events and {{.Loans}} current loans. Queue order, pins, and Needs placement are kept; books get new ID numbers.{{if .Aliases}} {{.Aliases}} merge and deletion aliases come along.{{end}}{{if .Notes}} {{.Notes}} private notes come along.{{end}}{{if .SavedViews}} {{.SavedViews}} saved views come along.{{end}}{{if .Corrections}} {{.Corrections}} corrections to library events come along.{{end}}{{if .Updates}} {{.Attempts}} reading attempts with {{.Updates}} progress updates come along.{{end}}{{if .HasPreferences}} Your ranking preferences are restored.{{end}}</div>
+<div class="notice" role="status">{{.Queue}} books in your queue and {{.Other}} other books, with {{.Events}} library events and {{.Loans}} current loans. Queue order, pins, and Needs placement are kept; books get new ID numbers.{{if .Aliases}} {{.Aliases}} merge and deletion aliases come along.{{end}}{{if .Notes}} {{.Notes}} private notes come along.{{end}}{{if .SavedViews}} {{.SavedViews}} saved views come along.{{end}}{{if .Corrections}} {{.Corrections}} corrections to library events come along.{{end}}{{if .Updates}} {{.Attempts}} reading attempts with {{.Updates}} progress updates come along.{{end}}{{if .HasPreferences}} Your ranking preferences are restored.{{end}} Any Hardcover account link is discarded; reconnect with the current token after restoring.</div>
 {{if .AliasesKept}}<div class="notice" role="status">{{.AliasesKept}} aliases in the file match deletions already recorded here; the local ones are kept.</div>{{end}}
 {{end}}
 <div class="panel preview-list">

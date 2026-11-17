@@ -73,7 +73,11 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	a, err := app.New(app.Config{Database: env("DATABASE_PATH", "data/next-chapter.sqlite3"), Password: os.Getenv("APP_PASSWORD"), Secret: os.Getenv("APP_SECRET_KEY"), Demo: demo, SecureCookie: os.Getenv("COOKIE_SECURE") == "1", TrustedProxyHops: hops, AI: ai, Lookup: app.LoadLookupConfig(os.Getenv)})
+	hardcover, err := app.LoadHardcoverConfig(os.Getenv)
+	if err != nil {
+		return err
+	}
+	a, err := app.New(app.Config{Database: env("DATABASE_PATH", "data/next-chapter.sqlite3"), Password: os.Getenv("APP_PASSWORD"), Secret: os.Getenv("APP_SECRET_KEY"), Demo: demo, SecureCookie: os.Getenv("COOKIE_SECURE") == "1", TrustedProxyHops: hops, AI: ai, Lookup: app.LoadLookupConfig(os.Getenv), Hardcover: hardcover})
 	if err != nil {
 		return err
 	}

@@ -69,6 +69,7 @@ func TestNavigationMarksOneCurrentItem(t *testing.T) {
 		"/reading":           "/reading=page",
 		"/imports":           "/imports=page",
 		"/settings":          "/settings=page",
+		"/hardcover":         "/hardcover=page",
 		"/books/new":         "/=true",
 		"/books/1":           "/=true",
 		"/books/1/delete":    "/=true",

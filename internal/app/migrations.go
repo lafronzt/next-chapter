@@ -23,6 +23,7 @@ var migrations = []migration{
 	{14, "ownership flag and saved library views", migrateSavedViews},
 	{15, "reading attempts and dated progress updates", migrateProgressHistory},
 	{16, "reader corrections to library events", migrateEventCorrections},
+	{17, "Hardcover account link", migrateHardcoverLink},
 }
 
 func migrateBaseline(tx *sql.Tx) error {
@@ -301,5 +302,15 @@ func migrateEventCorrections(tx *sql.Tx) error {
  created_at TEXT NOT NULL, updated_at TEXT NOT NULL
 );
 CREATE INDEX event_corrections_book ON event_corrections(book_id);`)
+	return err
+}
+
+// No books change. Backup: <database>.pre-v17.bak. Rollback: stop the app,
+// restore that backup and remove stray WAL/SHM files before the previous image.
+func migrateHardcoverLink(tx *sql.Tx) error {
+	_, err := tx.Exec(`CREATE TABLE hardcover_link (
+ id INTEGER PRIMARY KEY CHECK(id=1), hardcover_user_id INTEGER NOT NULL,
+ username TEXT NOT NULL, linked_at TEXT NOT NULL
+ );`)
 	return err
 }
