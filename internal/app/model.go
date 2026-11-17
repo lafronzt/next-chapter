@@ -128,6 +128,10 @@ type Preferences struct {
 	// import, and then only title, author, and ISBN are sent.
 	BookLookup bool `json:"book_lookup,omitempty"`
 	Hardcover  bool `json:"hardcover,omitempty"`
+	// HardcoverPrivacy is the privacy setting (1 public, 2 followers, 3
+	// private) of library rows this app creates on Hardcover. 0 means the
+	// default, private.
+	HardcoverPrivacy int `json:"hardcover_privacy,omitempty"`
 	// ReadingGoal is the number of books to finish this year; 0 means no goal.
 	ReadingGoal int `json:"reading_goal,omitempty"`
 	// ProgressHistory keeps a dated checkpoint with each progress update. Off
@@ -217,6 +221,8 @@ type Plan struct {
 	HardcoverLinks *hcLinkPlan `json:"hardcover_links,omitempty"`
 	// HardcoverPull is a run of the reader's Hardcover library (kind "hc-pull").
 	HardcoverPull *hcPullPlan `json:"hardcover_pull,omitempty"`
+	// HardcoverPush is a previewed send of shelf status and ratings (kind "hc-push").
+	HardcoverPush *hcPushPlan `json:"hardcover_push,omitempty"`
 	// Intent is the reader's optional note for an AI suggestion; it lives
 	// only as long as the plan. AIRows is the AI-suggested order, applied
 	// instead of Rows when the reader chooses it; AINotice explains why an AI

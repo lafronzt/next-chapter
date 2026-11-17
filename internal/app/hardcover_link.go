@@ -97,6 +97,11 @@ func saveBookLink(q queryer, bookID int64, c hcCandidate, at string) error {
 	if c.EditionID > 0 {
 		edition = &c.EditionID
 	}
+	// A different link means a different Hardcover entry: the old history says
+	// nothing about it.
+	if err = resetSync(q, bookID); err != nil {
+		return err
+	}
 	_, err = q.Exec(`INSERT INTO book_hardcover(book_id,hardcover_book_id,hardcover_edition_id,slug,linked_at) VALUES(?,?,?,?,?)
  ON CONFLICT(book_id) DO UPDATE SET hardcover_book_id=excluded.hardcover_book_id,hardcover_edition_id=excluded.hardcover_edition_id,slug=excluded.slug,linked_at=excluded.linked_at`, bookID, c.BookID, edition, truncate(c.Slug, 200), at)
 	return err

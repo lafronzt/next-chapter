@@ -204,6 +204,9 @@ func (a *App) hardcoverLinkPlan(w http.ResponseWriter, r *http.Request) error {
 				if _, err = tx.Exec("DELETE FROM book_hardcover WHERE book_id=?", item.BookID); err != nil {
 					return err
 				}
+				if err = resetSync(tx, item.BookID); err != nil {
+					return err
+				}
 				unlinked++
 				continue
 			}

@@ -26,6 +26,7 @@ var migrations = []migration{
 	{17, "Hardcover account link", migrateHardcoverLink},
 	{18, "Hardcover book links", migrateHardcoverBookLinks},
 	{19, "Hardcover readings: source, precision, read id", migrateHardcoverReadings},
+	{20, "Hardcover sync history", migrateHardcoverSync},
 }
 
 func migrateBaseline(tx *sql.Tx) error {
@@ -363,5 +364,25 @@ ALTER TABLE reading_log_new RENAME TO reading_log;
 CREATE INDEX reading_log_book ON reading_log(book_id, finished_at);
 CREATE INDEX reading_log_finished ON reading_log(finished_at, id);
 CREATE UNIQUE INDEX reading_log_hardcover_read ON reading_log(hardcover_read_id) WHERE hardcover_read_id IS NOT NULL;`)
+	return err
+}
+
+// hardcover_sync records what was sent to Hardcover, so a later pull can tell
+// "Hardcover changed" from "we changed it". Fields are status, rating, and
+// read (the id of a read the Hardcover server created for a status change).
+// History per book is capped and is cleared when a book is unlinked, relinked,
+// merged away, or deleted. Existing books have none.
+//
+// Backup: <database>.pre-v20.bak. Rollback: stop the app, restore that file,
+// remove stray WAL/SHM files, and start the previous image; the history is
+// lost, and an older image refuses to open this schema.
+func migrateHardcoverSync(tx *sql.Tx) error {
+	_, err := tx.Exec(`CREATE TABLE hardcover_sync (
+ id INTEGER PRIMARY KEY, book_id INTEGER NOT NULL REFERENCES books(id),
+ field TEXT NOT NULL CHECK(field IN ('status','rating','read')),
+ local_value TEXT NOT NULL DEFAULT '', remote_value TEXT NOT NULL DEFAULT '',
+ direction TEXT NOT NULL CHECK(direction IN ('push','pull')), at TEXT NOT NULL
+);
+CREATE INDEX hardcover_sync_book ON hardcover_sync(book_id, id);`)
 	return err
 }

@@ -93,6 +93,8 @@ func hardcoverLibraryQuery(incremental bool) string {
 }
 
 type hcUserBookJSON struct {
+	ID        flexInt     `json:"id"`
+	BookID    flexInt     `json:"book_id"`
 	StatusID  flexInt     `json:"status_id"`
 	Rating    *float64    `json:"rating"`
 	UpdatedAt string      `json:"updated_at"`
@@ -503,6 +505,13 @@ func pullReadings(q queryer, bookID int64, it hcPullItem, opt pullOptions, d *pu
 				d.change("a finished reading's date updated from Hardcover")
 			}
 		case errors.Is(err, sql.ErrNoRows):
+			if pushed, e := pushedRead(q, bookID, f.read.ID); e != nil {
+				return e
+			} else if pushed {
+				// Hardcover made this read when this app sent the status; the
+				// finished reading is already here with its own date.
+				continue
+			}
 			// An existing reading of the same day is the same reading: tie it to
 			// Hardcover without touching its date, rating, or source.
 			err = q.QueryRow("SELECT id FROM reading_log WHERE book_id=? AND finished_at=? AND hardcover_read_id IS NULL ORDER BY id LIMIT 1", bookID, f.date).Scan(&rowID)
@@ -561,7 +570,8 @@ func pullReadings(q queryer, bookID int64, it hcPullItem, opt pullOptions, d *pu
 		return err
 	}
 	switch {
-	case rating.Valid && rating.Float64 == it.Rating:
+	case rating.Valid && (rating.Float64 == it.Rating || quarterStars(halfStars(rating.Float64)) == it.Rating):
+		// Same rating, or the one this app would send for it: not a disagreement.
 	case !rating.Valid || source == "hardcover":
 		if _, err := q.Exec("UPDATE reading_log SET rating=? WHERE id=?", it.Rating, lastRow); err != nil {
 			return err

@@ -137,6 +137,11 @@
     <div><button class="button" data-busy-label="Searching…">{{if .HardcoverLink}}Find a different Hardcover book{{else}}Link to Hardcover{{end}}</button></div>
   </form>
   {{if .HardcoverLink}}
+  <form method="post" action="/books/{{.Book.ID}}/hardcover/send" class="stack">
+    {{template "fields" .}}
+    <p class="muted"><small>Preview sending this book’s shelf status ({{status .Book.Status}}) and rating to Hardcover. You see what Hardcover has first; nothing is sent until you confirm.</small></p>
+    <div><button class="button" data-busy-label="Reading Hardcover…">Send to Hardcover…</button></div>
+  </form>
   <form method="post" action="/books/{{.Book.ID}}/hardcover/unlink">
     {{template "fields" .}}
     <button class="button">Unlink from Hardcover</button>

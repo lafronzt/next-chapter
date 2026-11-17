@@ -1,0 +1,54 @@
+{{template "top" .}}
+<a class="back" href="/hardcover"><span aria-hidden="true">←</span> Back to Hardcover</a>
+<header class="page-heading"><div>
+  <h1>Send to Hardcover</h1>
+  <p>Hardcover’s current rows were read just now. Check what would change. Nothing is sent until you confirm, and your own status, order, pins, and ratings here never change.</p>
+</div></header>
+{{if .Stale}}
+<div class="notice error" role="alert">Your library has changed since this preview. Preview the send again.</div>
+{{else}}
+{{with .Push.Stopped}}<div class="notice error" role="alert">{{.}} Nothing more was sent. Press the button again when you are ready.</div>{{end}}
+<section class="summary-row" aria-label="What this send does">
+  <div><span class="stat-number">{{.Push.Sendable}}</span><span>to send</span></div>
+  <div><span class="stat-number">{{.Push.Sent}}</span><span>sent</span></div>
+  <div><span class="stat-number">{{.Push.Conflicts}}</span><span>conflicts, not sent</span></div>
+  <div><span class="stat-number">{{.Push.Unchanged}}</span><span>no change</span></div>
+</section>
+{{if .Push.Unknown}}<div class="notice" role="status">{{.Push.Unknown}} book(s) did not get an answer from Hardcover. Pressing the button checks what Hardcover has before anything is sent again.</div>{{end}}
+{{if .Push.Failed}}<div class="notice error" role="alert">{{.Push.Failed}} book(s) were refused. They can be sent again.</div>{{end}}
+{{if or .Push.Pending .Push.Unknown}}
+<form method="post" action="/hardcover/pushes/{{.PlanID}}" class="panel actions">
+  {{template "fields" .}}
+  <strong>{{if .Push.Unknown}}Check Hardcover{{else}}Send these changes?{{end}}</strong>
+  <p class="muted">Sent: Hardcover’s book id, shelf status, rating (rounded to a half star), and for a new row its privacy setting. Never sent: reviews, notes, reasons, queue position, pins, or loans. Hardcover records starts and finishes itself. At most 9 books go in one request; press again for the rest.</p>
+  <button class="button primary" data-busy-label="Sending…">{{if .Push.Unknown}}Check Hardcover{{else}}Send to Hardcover{{end}}</button>
+</form>
+{{else if .Push.Sent}}
+<div class="notice" role="status">Everything in this preview that could be sent has been sent.</div>
+{{end}}
+<section class="panel stack" aria-labelledby="push-rows">
+  <h2 id="push-rows">What happens to each book</h2>
+  <ul class="plain-list">
+    {{range .Push.Items}}
+    <li><strong>{{.Title}}</strong> <span class="muted">· {{.Author}}</span>
+      <br><small>Here: {{.LocalLabel}}{{if .LocalRating}}, {{.LocalRating}} stars{{end}}.
+        On Hardcover: {{if .RemoteStatus}}{{.RemoteLabel}}{{if .RemoteRating}}, {{.RemoteRating}} stars{{end}}{{else}}not on your shelves{{end}}.</small>
+      {{if eq .Action "add"}}<br><small><strong>Will add</strong> as {{.TargetLabel}} ({{.PrivacyLabel}}){{if .SendRating}} with rating {{.SendRating}}{{end}}.</small>{{end}}
+      {{if eq .Action "update"}}<br><small><strong>Will update</strong>{{if .Target}} status to {{.TargetLabel}}{{end}}{{if .SendRating}}{{if .Target}} and{{end}} rating to {{.SendRating}}{{end}}.</small>{{end}}
+      {{if eq .Action "none"}}<br><small class="muted">Already matches. Nothing to send.</small>{{end}}
+      {{range .Notes}}<br><small class="muted">{{.}}</small>{{end}}
+      {{if .State}}<br><small><strong>{{if eq .State "sent"}}Sent{{else if eq .State "failed"}}Not sent{{else}}Unconfirmed{{end}}.</strong> {{.Result}}</small>{{end}}
+      {{if eq .Action "conflict"}}
+      <br><small><strong>Conflict, not sent.</strong> {{.Conflict}} Yours is kept: nothing is sent for this book.</small>
+      <form method="post" action="/hardcover/pushes/{{$.PlanID}}/take" class="inline-form">
+        {{template "fields" $}}
+        <input type="hidden" name="book_id" value="{{.BookID}}">
+        <button class="button">Take Hardcover’s version instead</button>
+      </form>
+      {{end}}
+    </li>
+    {{end}}
+  </ul>
+</section>
+{{end}}
+{{template "bottom" .}}

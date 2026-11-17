@@ -576,6 +576,27 @@ Status only moves forward: a book Hardcover says is Want to Read stays Read here
 
 Ratings go to reading history, rounded to quarter stars (Hardcover uses halves). A rating you entered, or one from Goodreads, is kept unless you tick "use Hardcover's rating" on that row; an empty one is filled. Finished reads become reading-history rows tied to the Hardcover read, so a repeat pull never duplicates them, and a row you edited is never overwritten. A month-only or year-only finish date keeps its precision: it is stored as the first day of that period, shown as "June 2025" or "2025", and never as a day. Migration 19 rebuilds `reading_log` to allow the `hardcover` source and add the precision and read id; roll back from `next-chapter.sqlite3.pre-v19.bak` as above.
 
+### Sending to Hardcover
+
+Sending is the outbound half, and it is always something you start and preview: from a linked book's page ("Send to Hardcover…") or from the Hardcover page, which previews the linked books on one shelf (up to 50). It never runs after an import, and never because you reordered, finished, or rated a book here. The preview reads your current Hardcover rows first (one request), then lists for each book what Hardcover has, what would change, and any note.
+
+| Here | Sent as |
+| --- | --- |
+| Queue | Want to Read (1) |
+| Reading | Currently Reading (2) |
+| Read | Read (3), with your latest rating |
+| Set aside | Did Not Finish (5) |
+| Archived, To review | nothing: there is no shelf for them |
+
+- **Only ids, status, rating, and privacy are sent.** Reviews, notes, reasons, queue position, pins, interest, estimates and loans never leave this library. The Hardcover server starts and finishes reads and writes the journal itself when a status changes, so this app does not.
+- **Ratings** are rounded to the nearest half star (4.25 is sent as 4.5) and the preview says so. The rounded value is never written back here, and a rating is never cleared on Hardcover.
+- **Privacy** of a row this app creates defaults to private. Choose followers-only or public in Preferences → Privacy; it applies only to new rows, and a public one is called out in the preview.
+- **Conflicts are not sent.** If Hardcover is ahead of or different from this library (it says Read, here says Queue; it is Paused; it holds a rating this app did not send), the book is listed as a conflict. "Yours is kept" needs no action; "Take Hardcover's version" previews an ordinary pull of that one book. There is no silent merge.
+- **Partial failures are honest.** A request carries at most 9 books (the preview used one of the burst of 10). A refusal, a 429, or a missing `write:library` scope leaves the rest unsent and says which. Sent books are never resent. A timeout is not retried blindly: the next press first re-reads Hardcover, counts the book as sent if it landed, and only otherwise sends it again.
+- **Sync history** (`hardcover_sync`: book, field, local value, sent value, direction, time; the last 20 per book) lets a later pull tell "Hardcover changed" from "we changed it". A push followed by a pull changes nothing: the read Hardcover created for the finish is ignored, because your reading history already has it with its real date. Unlinking, relinking, merging away, or deleting a book clears its history. Exports include it.
+
+Migration 20 adds `hardcover_sync`; existing books have none. Roll back by stopping the app, restoring `next-chapter.sqlite3.pre-v20.bak`, removing stray `-wal`/`-shm` files, and starting the previous image; the history is lost. Request shapes are in `testdata/hardcover/`; they come from Hardcover's official SDK, not a live capture.
+
 Schema migration 16 adds the `event_corrections` table for your edits and voids of library events; no existing event or loan changes. Roll back with `next-chapter.sqlite3.pre-v16.bak` as above, or keep later changes and run an older image after `DROP TABLE event_corrections; UPDATE meta SET value='15' WHERE key='schema_version';`, then re-import or re-record the affected library events, because current loans were worked out with the corrections applied. JSON exports from version 16 need this build or newer to restore.
 
 Schema migration 15 adds the `reading_attempts` and `progress_checkpoints` tables; nothing is created for existing books. Roll back with `next-chapter.sqlite3.pre-v15.bak` as above, or keep later changes and run an older image after `DROP TABLE progress_checkpoints; DROP TABLE reading_attempts; UPDATE meta SET value='14' WHERE key='schema_version';`, which discards attempts and updates only, so export JSON first if you want them. JSON exports from version 15 need this build or newer to restore.

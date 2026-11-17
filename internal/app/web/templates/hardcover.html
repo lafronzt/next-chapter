@@ -37,6 +37,23 @@
   </form>
 </section>
 <section class="panel settings-section">
+  <h2>Send to Hardcover</h2>
+  <p>Send the shelf status and rating of books you have linked. You preview what Hardcover has and what would change first, and nothing is sent on its own: not after an import, and not when you reorder, finish, or rate a book here. Books where Hardcover is ahead are shown as conflicts and are not sent.</p>
+  <form method="post" action="/hardcover/send">
+    {{template "fields" .}}
+    <p class="muted"><small>Needs the <code>write:library</code> scope. Only Hardcover’s book id, status, rating, and, for a new row, a privacy setting ({{.PrivacyName}} unless you change it in <a href="/settings?open=privacy#privacy">Preferences</a>) are sent. Up to 50 linked books per preview.</small></p>
+    <label>Linked books on this shelf
+      <select name="status">
+        <option value="to-read">Queue (Want to Read)</option>
+        <option value="reading">Reading (Currently Reading)</option>
+        <option value="read">Read</option>
+        <option value="abandoned">Set aside (Did Not Finish)</option>
+      </select>
+    </label>
+    <button class="button" {{if or (not .Configured) (not .Enabled) (not .Link)}}disabled{{end}}>Preview send to Hardcover</button>
+  </form>
+</section>
+<section class="panel settings-section">
   <h2>Disconnect</h2>
   <p>Removes the local account link and test history and turns off requests. Keeps every book and leaves Hardcover untouched. To revoke the token, visit <a href="https://hardcover.app/account/api" rel="noreferrer">your Hardcover API settings</a> and remove it from the server environment.</p>
   <form method="post" action="/hardcover/disconnect">

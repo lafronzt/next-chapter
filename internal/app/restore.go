@@ -48,6 +48,7 @@ type exportFile struct {
 	// restored, unlike the account link.
 	HardcoverBooks   []hcBookLink `json:"hardcover_books,omitempty"`
 	HardcoverAliases []hcAlias    `json:"hardcover_aliases,omitempty"`
+	HardcoverSync    []hcSyncRow  `json:"hardcover_sync,omitempty"`
 }
 
 // savedViewExport is a saved view as exported.
@@ -62,10 +63,11 @@ const (
 	// maxRestoreSchema is the newest export this build can restore. A test
 	// fails when a migration is added, so the restore code is checked against
 	// the new schema before this is raised.
-	maxRestoreSchema = 19
+	maxRestoreSchema = 20
 	maxRestoreUpload = 10_000_000
 	maxRestoreEvents = 100_000
 	maxRestoreAlias  = 20_000
+	maxRestoreSync   = 20_000
 	maxRestoreLog    = 100_000
 	maxProblemsShown = 30
 )
@@ -292,6 +294,14 @@ func validateExport(f *exportFile) []string {
 			add("%s: the edition, slug, or time is not valid.", label)
 		}
 		hcBooks[l.HardcoverBookID], hcLocal[l.BookID] = true, true
+	}
+	if len(f.HardcoverSync) > maxRestoreSync {
+		add("The export has %d Hardcover sync rows; restore at most %d.", len(f.HardcoverSync), maxRestoreSync)
+	}
+	for i, x := range f.HardcoverSync {
+		if !ids[x.BookID] || !in(x.Field, []string{"status", "rating", "read"}) || !in(x.Direction, []string{"push", "pull"}) || len(x.Local) > 64 || len(x.Remote) > 64 || len(x.At) > 64 {
+			add("Hardcover sync row %d is not valid.", i+1)
+		}
 	}
 	if len(f.HardcoverAliases) > maxRestoreAlias {
 		add("The export has %d Hardcover aliases; restore at most 20,000.", len(f.HardcoverAliases))
@@ -567,6 +577,11 @@ func restoreExport(q queryer, f exportFile) (restorePlan, error) {
 			return result, err
 		}
 	}
+	for _, x := range f.HardcoverSync {
+		if _, err = q.Exec("INSERT INTO hardcover_sync(book_id,field,local_value,remote_value,direction,at) VALUES(?,?,?,?,?,?)", newID[x.BookID], x.Field, x.Local, x.Remote, x.Direction, x.At); err != nil {
+			return result, err
+		}
+	}
 	for _, x := range f.HardcoverAliases {
 		if _, err = q.Exec("INSERT OR IGNORE INTO hardcover_alias(identity,hardcover_book_id) VALUES(?,?)", x.Identity, x.HardcoverBookID); err != nil {
 			return result, err
@@ -697,6 +712,9 @@ func exportLibrary(tx *sql.Tx) (exportFile, error) {
 		return f, err
 	}
 	if f.HardcoverAliases, err = loadHardcoverAliases(tx); err != nil {
+		return f, err
+	}
+	if f.HardcoverSync, err = loadHardcoverSync(tx); err != nil {
 		return f, err
 	}
 	if f.ReadingLog, err = loadReadingLog(tx); err != nil {

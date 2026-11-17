@@ -34,7 +34,7 @@ func (a *App) hardcoverPage(w http.ResponseWriter, r *http.Request) error {
 	if err = a.store.DB.QueryRow("SELECT (SELECT count(*) FROM book_hardcover),(SELECT count(*) FROM books)").Scan(&linked, &total); err != nil {
 		return err
 	}
-	return a.render(w, r, "hardcover.html", page{"Linked": linked, "Total": total, "Title": "Hardcover", "Nav": "hardcover", "Enabled": prefs.Hardcover, "Configured": a.hardcover != nil, "Link": link, "Last": last, "Remaining": remaining}, 200)
+	return a.render(w, r, "hardcover.html", page{"PrivacyName": hcPrivacyNames[hcPrivacy(prefs)], "Linked": linked, "Total": total, "Title": "Hardcover", "Nav": "hardcover", "Enabled": prefs.Hardcover, "Configured": a.hardcover != nil, "Link": link, "Last": last, "Remaining": remaining}, 200)
 }
 
 const hardcoverConnectQuery = `query NextChapterConnection {
