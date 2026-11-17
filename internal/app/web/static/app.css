@@ -3040,3 +3040,81 @@ main>* {
     width:100%;
   }
 }
+
+/* Lists, facts, and inline forms used by the Hardcover pages. The global reset
+   removes margins, so each says its own spacing. */
+.plain-list {
+  list-style:none;
+  margin:0;
+  padding:0;
+  display:flex;
+  flex-direction:column;
+  gap:16px;
+}
+
+.plain-list>li {
+  min-width:0;
+  overflow-wrap:anywhere;
+}
+
+.inline-form {
+  display:block;
+  margin-top:8px;
+}
+
+.facts {
+  display:grid;
+  grid-template-columns:max-content 1fr;
+  gap:6px 18px;
+  margin:0;
+}
+
+.facts dt {
+  color:var(--muted);
+}
+
+.facts dd {
+  margin:0;
+  min-width:0;
+  overflow-wrap:anywhere;
+}
+
+.panel details>summary {
+  cursor:pointer;
+  min-height:44px;
+  display:flex;
+  align-items:center;
+}
+
+.panel details[open]>summary {
+  margin-bottom:8px;
+}
+
+/* Buttons in the Hardcover panels keep their own width instead of filling the row. */
+.settings-section.stack .button {
+  align-self:flex-start;
+}
+
+/* Panels on the Hardcover preview pages sit in a column with room between
+   them, and their headings take the panel's own gap instead of the 28px
+   top margin that section headings elsewhere get. */
+.hc-panel {
+  margin-bottom:var(--space-4);
+}
+
+main section.hc-panel[aria-labelledby]>h2 {
+  margin:0;
+}
+
+/* The confirm panel on the preview pages: heading, explanation, and button each get room. */
+.hc-panel.actions {
+  display:flex;
+  flex-direction:column;
+  align-items:flex-start;
+  gap:14px;
+}
+
+/* "Send this reading" under a reading row: room above the button and before the next row. */
+.panel>.event+form,.panel>blockquote.review+form {
+  margin:12px 0 14px;
+}

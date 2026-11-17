@@ -7,7 +7,7 @@
 {{if .Stale}}
 <div class="notice error" role="alert">Your library has changed since this preview. Preview again.</div>
 {{else}}
-<form method="post" action="/hardcover/forget/{{.PlanID}}" class="panel stack">
+<form method="post" action="/hardcover/forget/{{.PlanID}}" class="panel stack hc-panel">
   {{template "fields" .}}
   <ul class="plain-list">
     <li>{{.Plan.Links}} book link(s)</li>

@@ -18,14 +18,14 @@
 </section>
 {{if eq .Check.Total 0}}<div class="notice" role="status">Everything checked is in step.</div>{{end}}
 {{if .Check.Ahead}}
-<section class="panel stack" aria-labelledby="g-ahead">
+<section class="panel stack hc-panel" aria-labelledby="g-ahead">
   <h2 id="g-ahead">Hardcover is ahead</h2>
   <ul class="plain-list">{{range .Check.Ahead}}<li><a href="/books/{{.BookID}}">{{.Title}}</a> <span class="muted">· here: {{.LocalText}} · Hardcover: {{.RemoteText}} · {{.Why}}</span></li>{{end}}</ul>
   <form method="post" action="/hardcover/changes/{{.PlanID}}/pull">{{template "fields" .}}<input type="hidden" name="group" value="hardcover"><button class="button">Preview importing these</button></form>
 </section>
 {{end}}
 {{if .Check.Local}}
-<section class="panel stack" aria-labelledby="g-local">
+<section class="panel stack hc-panel" aria-labelledby="g-local">
   <h2 id="g-local">Local is ahead</h2>
   <ul class="plain-list">{{range .Check.Local}}<li><a href="/books/{{.BookID}}">{{.Title}}</a> <span class="muted">· here: {{.LocalText}} · Hardcover: {{.RemoteText}}</span></li>{{end}}</ul>
   {{if .SyncPush}}
@@ -34,7 +34,7 @@
 </section>
 {{end}}
 {{if .Check.Both}}
-<section class="panel stack" aria-labelledby="g-both">
+<section class="panel stack hc-panel" aria-labelledby="g-both">
   <h2 id="g-both">Both changed</h2>
   <p class="muted">Both sides moved since the last sync, or there is no earlier sync to compare. Nothing is merged and neither is picked for you. Leaving a book alone keeps yours here and changes nothing on Hardcover.</p>
   <ul class="plain-list">
@@ -44,7 +44,7 @@
 </section>
 {{end}}
 {{if .Check.New}}
-<section class="panel stack" aria-labelledby="g-new">
+<section class="panel stack hc-panel" aria-labelledby="g-new">
   <h2 id="g-new">New on Hardcover</h2>
   <p class="muted">On your Hardcover shelves, with no match in this library.</p>
   <ul class="plain-list">{{range .Check.New}}<li>{{.Title}} <span class="muted">· {{.Author}}</span></li>{{end}}</ul>

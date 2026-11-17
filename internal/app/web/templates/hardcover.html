@@ -6,7 +6,7 @@
 {{with .Banner}}
 <div class="notice error" role="alert" data-kind="{{.Kind}}">{{.Message}}{{if .Link}} <a href="https://hardcover.app/account/api" rel="noreferrer">Hardcover API settings</a>.{{end}}</div>
 {{end}}
-<section class="panel settings-section">
+<section class="panel settings-section stack">
   <h2>Connection</h2>
   <p>{{if .Configured}}A token is configured on this server.{{else}}Not configured. Set HARDCOVER_API_TOKEN in the server environment to connect.{{end}}</p>
   <p>{{if .Enabled}}Manual requests are enabled.{{else}}Hardcover is off. Enable it in <a href="/settings?open=privacy#privacy">Preferences → Privacy</a> to test a connection.{{end}}</p>
@@ -18,12 +18,12 @@
   </ul>
   <p>Last reported rate-limit remaining: {{if ge .Remaining 0}}{{.Remaining}}{{else}}unknown{{end}}.</p>
   <p class="muted">Testing sends your bearer token and a query for your account id, username, and two schema types to api.hardcover.app. It costs 3 top-level fields. Nothing runs on page load or on a timer.</p>
-  <form method="post" action="/hardcover/test">
+  <form method="post" action="/hardcover/test" class="stack">
     {{template "fields" .}}
     <button class="button primary" {{if or (not .Configured) (not .Enabled)}}disabled{{end}}>Test connection</button>
   </form>
 </section>
-<section class="panel settings-section" id="sync">
+<section class="panel settings-section stack" id="sync">
   <h2>Keep in step</h2>
   <p>Press “Check for changes” to see what differs in each direction. It sorts books into <strong>Hardcover is ahead</strong>, <strong>Local is ahead</strong>, and <strong>Both changed</strong>. Each group then opens the same previewed import or send used elsewhere; nothing is applied from the check itself.</p>
   <form method="post" action="/hardcover/switches" class="stack">
@@ -39,7 +39,7 @@
     <button class="button primary" data-busy-label="Checking…" {{if or (not .Configured) (not .Enabled) (not .Link) (not .SyncPull)}}disabled{{end}}>Check for changes</button>
   </form>
 </section>
-<section class="panel settings-section" id="history">
+<section class="panel settings-section stack" id="history">
   <h2>History</h2>
   <p class="muted">The last {{len .History}} sync(s) that changed something. Titles and what moved only: never reviews or notes. <strong>Changes pulled into this library are not undone automatically, and neither are changes sent to Hardcover.</strong> To reverse a send, preview a new send for the book (the button below); to reverse an import, change the book here.</p>
   {{range .History}}
@@ -53,10 +53,10 @@
   </details>
   {{else}}<p class="muted">Nothing has been synced yet.</p>{{end}}
   {{if .History}}
-  <form method="post" action="/hardcover/history/clear">{{template "fields" .}}<button class="button small">Clear history</button></form>
+  <form method="post" action="/hardcover/history/clear" class="stack">{{template "fields" .}}<button class="button small">Clear history</button></form>
   {{end}}
 </section>
-<section class="panel settings-section" id="unlinked">
+<section class="panel settings-section stack" id="unlinked">
   <h2>Not linked</h2>
   <p>{{.UnlinkedCount}} of your books on a shelf have no Hardcover link. Books that exist on Hardcover but not here appear in each check, under “New on Hardcover”.</p>
   <ul class="plain-list">
@@ -64,29 +64,29 @@
       {{if $.Enabled}}<form method="post" action="/books/{{.ID}}/hardcover" class="inline-form">{{template "fields" $}}<button class="button small">Find a match</button></form>{{end}}</li>{{end}}
   </ul>
 </section>
-<section class="panel settings-section">
+<section class="panel settings-section stack">
   <h2>Link books</h2>
   <p>{{.Linked}} of {{.Total}} books are linked to a Hardcover book. Links let later features match by id instead of guessing by title.</p>
-  <form method="post" action="/hardcover/match">
+  <form method="post" action="/hardcover/match" class="stack">
     {{template "fields" .}}
     <p class="muted"><small>Checks up to 5 unlinked books per run. It sends only each book’s ISBN, title, and author, and only when you press the button. You confirm every link on the next page.</small></p>
     <button class="button" {{if or (not .Configured) (not .Enabled)}}disabled{{end}}>Find Hardcover matches</button>
   </form>
 </section>
-<section class="panel settings-section">
+<section class="panel settings-section stack">
   <h2>Import your library</h2>
   <p>Bring your Hardcover shelves, ratings, and finish dates into this library. You preview everything first; new books wait at the end of your queue marked Needs placement, and your order never changes.</p>
-  <form method="post" action="/hardcover/pull">
+  <form method="post" action="/hardcover/pull" class="stack">
     {{template "fields" .}}
     <p class="muted"><small>Reads only your own library (needs the <code>read:library</code> scope) and costs about one request per 100 books. Reviews, notes, and lists are never imported. Requires a tested connection.</small></p>
     <label class="checkbox"><input type="checkbox" name="mode" value="full"> Re-read everything, not only what changed since the last import</label>
     <button class="button" {{if or (not .Configured) (not .Enabled) (not .Link)}}disabled{{end}}>Preview import from Hardcover</button>
   </form>
 </section>
-<section class="panel settings-section">
+<section class="panel settings-section stack">
   <h2>Send to Hardcover</h2>
   <p>Send the shelf status and rating of books you have linked. You preview what Hardcover has and what would change first, and nothing is sent on its own: not after an import, and not when you reorder, finish, or rate a book here. Books where Hardcover is ahead are shown as conflicts and are not sent.</p>
-  <form method="post" action="/hardcover/send">
+  <form method="post" action="/hardcover/send" class="stack">
     {{template "fields" .}}
     <p class="muted"><small>Needs the <code>write:library</code> scope. Only Hardcover’s book id, status, rating, and, for a new row, a privacy setting ({{.PrivacyName}} unless you change it in <a href="/settings?open=privacy#privacy">Preferences</a>) are sent. Up to 50 linked books per preview.</small></p>
     <label>Linked books on this shelf
@@ -100,15 +100,15 @@
     <button class="button" {{if or (not .Configured) (not .Enabled) (not .Link)}}disabled{{end}}>Preview send to Hardcover</button>
   </form>
 </section>
-<section class="panel settings-section">
+<section class="panel settings-section stack">
   <h2>Forget Hardcover ids</h2>
   <p>Clears every Hardcover id kept here: book links, the memory of deleted books’ ids, sync history, cached catalog data, and the ties between readings and Hardcover reads. Every book, rating, and reading stays, and Hardcover is not contacted. You see the counts first.</p>
-  <form method="post" action="/hardcover/forget">{{template "fields" .}}<button class="button">Preview forgetting</button></form>
+  <form method="post" action="/hardcover/forget" class="stack">{{template "fields" .}}<button class="button">Preview forgetting</button></form>
 </section>
-<section class="panel settings-section">
+<section class="panel settings-section stack">
   <h2>Disconnect</h2>
   <p>Removes the local account link, test history, and sync history, and turns off requests. Keeps every book and its Hardcover link and leaves Hardcover untouched. To revoke the token, visit <a href="https://hardcover.app/account/api" rel="noreferrer">your Hardcover API settings</a> and remove it from the server environment.</p>
-  <form method="post" action="/hardcover/disconnect">
+  <form method="post" action="/hardcover/disconnect" class="stack">
     {{template "fields" .}}
     <button class="button">Disconnect Hardcover</button>
   </form>

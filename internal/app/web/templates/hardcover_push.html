@@ -17,7 +17,7 @@
 {{if .Push.Unknown}}<div class="notice" role="status">{{.Push.Unknown}} book(s) did not get an answer from Hardcover. Pressing the button checks what Hardcover has before anything is sent again.</div>{{end}}
 {{if .Push.Failed}}<div class="notice error" role="alert">{{.Push.Failed}} book(s) were refused. They can be sent again.</div>{{end}}
 {{if or .Push.Pending .Push.Unknown}}
-<form method="post" action="/hardcover/pushes/{{.PlanID}}" class="panel actions">
+<form method="post" action="/hardcover/pushes/{{.PlanID}}" class="panel actions hc-panel">
   {{template "fields" .}}
   <strong>{{if .Push.Unknown}}Check Hardcover{{else}}Send these changes?{{end}}</strong>
   <p class="muted">Sent: Hardcover’s book id, shelf status, rating (rounded to a half star), and for a new row its privacy setting. Never sent: reviews, notes, reasons, queue position, pins, or loans. Hardcover records starts and finishes itself. At most 9 books go in one request; press again for the rest.</p>
@@ -26,7 +26,7 @@
 {{else if .Push.Sent}}
 <div class="notice" role="status">Everything in this preview that could be sent has been sent.</div>
 {{end}}
-<section class="panel stack" aria-labelledby="push-rows">
+<section class="panel stack hc-panel" aria-labelledby="push-rows">
   <h2 id="push-rows">What happens to each book</h2>
   <ul class="plain-list">
     {{range .Push.Items}}

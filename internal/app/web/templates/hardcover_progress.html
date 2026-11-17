@@ -7,7 +7,7 @@
 {{if .Stale}}
 <div class="notice error" role="alert">Your library has changed since this preview. Pull the progress again.</div>
 {{else}}
-<section class="panel stack" aria-labelledby="progress-compare">
+<section class="panel stack hc-panel" aria-labelledby="progress-compare">
   <h2 id="progress-compare">{{.Plan.Title}}</h2>
   <dl class="facts">
     <dt>Here</dt><dd>{{.Plan.LocalText}}</dd>
@@ -18,7 +18,7 @@
   {{if eq .Plan.State "none"}}<div class="notice" role="status">Nothing can be pulled.</div>{{end}}
   {{if eq .Plan.State "local"}}<div class="notice" role="status">Only your progress has changed since the last sync, so there is nothing to pull. Save progress here with the Hardcover option on to send it.</div>{{end}}
 </section>
-<form method="post" action="/hardcover/progress/{{.PlanID}}" class="panel stack">
+<form method="post" action="/hardcover/progress/{{.PlanID}}" class="panel stack hc-panel">
   {{template "fields" .}}
   {{if eq .Plan.State "both"}}<div class="notice error" role="alert">Both sides changed since the last sync (or there is no earlier sync to compare). Choose one. Nothing is averaged and the later one is not picked for you.</div>{{end}}
   {{if or (eq .Plan.State "remote") (eq .Plan.State "both")}}
