@@ -530,6 +530,21 @@ func newFinder(cfg LookupConfig, hosts lookupHosts, client *http.Client) *Finder
 // errLookupNotFound when no source found it, and another error when a source
 // failed and none found it.
 func (f *Finder) Find(ctx context.Context, q LookupQuery) (BookDetails, error) {
+	return f.FindWith(ctx, q, nil, false)
+}
+
+// FindWith is Find with one more source for this call only: Hardcover, which
+// needs the book's linked id and so is not built with the finder. It goes first
+// when first is set, otherwise last.
+func (f *Finder) FindWith(ctx context.Context, q LookupQuery, extra BookSource, first bool) (BookDetails, error) {
+	sources := f.sources
+	switch {
+	case extra == nil:
+	case first:
+		sources = append([]BookSource{extra}, f.sources...)
+	default:
+		sources = append(slices.Clone(f.sources), extra)
+	}
 	q.Title, q.Author, q.ISBN = strings.TrimSpace(q.Title), strings.TrimSpace(q.Author), cleanISBN(q.ISBN)
 	if q.Title == "" {
 		return BookDetails{}, errLookupNotFound
@@ -540,7 +555,7 @@ func (f *Finder) Find(ctx context.Context, q LookupQuery) (BookDetails, error) {
 	var names []string
 	var ambiguous bool
 	var failure error
-	for _, s := range f.sources {
+	for _, s := range sources {
 		d, err := s.Lookup(ctx, q)
 		if errors.Is(err, errLookupNotFound) && q.ISBN != "" {
 			// The ISBN may be unknown to this database; the title may not be.

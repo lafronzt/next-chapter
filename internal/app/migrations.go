@@ -28,6 +28,7 @@ var migrations = []migration{
 	{19, "Hardcover readings: source, precision, read id", migrateHardcoverReadings},
 	{20, "Hardcover sync history", migrateHardcoverSync},
 	{21, "Hardcover progress opt-in and sync fields", migrateHardcoverProgress},
+	{22, "Hardcover catalog cache", migrateHardcoverCatalog},
 }
 
 func migrateBaseline(tx *sql.Tx) error {
@@ -409,5 +410,29 @@ INSERT INTO hardcover_sync_new SELECT id,book_id,field,local_value,remote_value,
 DROP TABLE hardcover_sync;
 ALTER TABLE hardcover_sync_new RENAME TO hardcover_sync;
 CREATE INDEX hardcover_sync_book ON hardcover_sync(book_id, id);`)
+	return err
+}
+
+// hardcover_catalog and series_cache cache what a reader-requested refresh of a
+// linked book read from Hardcover's catalog: a community average, a cover URL
+// (never the image), and the ordered members of the book's series. They are
+// caches of remote data: nothing else reads them for ranking, they are left out
+// of exports, and dropping them loses nothing. Existing books have none.
+//
+// Backup: <database>.pre-v22.bak. Rollback: stop the app, restore that file,
+// remove stray WAL/SHM files, and start the previous image; the caches are
+// simply rebuilt by refreshing again, and an older image refuses to open this
+// schema.
+func migrateHardcoverCatalog(tx *sql.Tx) error {
+	_, err := tx.Exec(`CREATE TABLE hardcover_catalog (
+ book_id INTEGER PRIMARY KEY REFERENCES books(id), rating REAL NULL CHECK(rating BETWEEN 0 AND 5),
+ ratings_count INTEGER NOT NULL DEFAULT 0, image_url TEXT NOT NULL DEFAULT '', fetched_at TEXT NOT NULL
+);
+CREATE TABLE series_cache (
+ source_book_id INTEGER NOT NULL REFERENCES books(id), series_id INTEGER NOT NULL, series_name TEXT NOT NULL,
+ series_total INTEGER NOT NULL DEFAULT 0, hardcover_book_id INTEGER NOT NULL, position REAL NULL,
+ title TEXT NOT NULL, author TEXT NOT NULL DEFAULT '', year INTEGER NULL, pages INTEGER NULL, fetched_at TEXT NOT NULL,
+ PRIMARY KEY(source_book_id, series_id, hardcover_book_id)
+);`)
 	return err
 }

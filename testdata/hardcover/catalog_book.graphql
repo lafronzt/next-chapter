@@ -1,0 +1,19 @@
+# One request for a linked book's catalog entry. Shapes (books_by_pk, book_series
+# with canonical_id null, series books filtered by book_status_id 1 and ordered
+# position asc_nulls_last) follow the official SDK's GetBook / GetSeriesBooks.
+query NextChapterCatalog($id: Int!) {
+  books_by_pk(id: $id) {
+    id title slug description pages release_year rating ratings_count cached_image
+    contributions { author { name } }
+    book_series(where: {series: {canonical_id: {_is_null: true}}}) {
+      position
+      series { id name books_count
+        book_series(where: {book: {book_status_id: {_eq: 1}}}, order_by: [{position: asc_nulls_last}, {book: {users_count: desc}}, {id: asc}], limit: 100) {
+          position
+          book { id title release_year pages contributions { author { name } } }
+        }
+      }
+    }
+  }
+}
+# position can be fractional or null. cached_image is JSON: {} or {"url": "..."}.

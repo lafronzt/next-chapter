@@ -1,0 +1,19 @@
+{{template "top" .}}
+<a class="back" href="/series"><span aria-hidden="true">←</span> Back to your series</a>
+<header class="page-heading"><div>
+  <h1>Add series volumes</h1>
+  <p>These books come from Hardcover’s catalog. Confirming adds them as ordinary books in “{{.Plan.LocalSeries}}”. They wait at the end of your queue marked Needs placement, and nothing already in your queue moves.</p>
+</div></header>
+{{if .Stale}}
+<div class="notice error" role="alert">Your library has changed since this preview. Preview the volumes again.</div>
+{{else}}
+<form method="post" action="/hardcover/series/{{.PlanID}}" class="panel stack">
+  {{template "fields" .}}
+  <ul class="plain-list">
+    {{range .Plan.Items}}<li><strong>{{.Label}} {{.Title}}</strong> <span class="muted">· {{.Author}}{{if .Year}} · {{.Year}}{{end}}{{if .Pages}} · {{.Pages}} pages{{end}}</span></li>{{end}}
+  </ul>
+  <p class="muted">Each is linked to its Hardcover book, so a later import matches it. Nothing is sent to Hardcover.</p>
+  <button class="button primary">Add {{len .Plan.Items}} to my list</button>
+</form>
+{{end}}
+{{template "bottom" .}}

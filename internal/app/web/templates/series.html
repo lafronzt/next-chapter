@@ -35,6 +35,25 @@
   </ol>
   {{range .Gaps}}<p class="muted"><small>{{.}}.</small></p>{{end}}
   {{end}}
+  {{with .Hardcover}}
+  <h3>Not in your library</h3>
+  <p class="muted"><small>From Hardcover’s catalog, fetched {{.FetchedAt}}. Community-curated, so it can be wrong. Nothing here is added until you preview and confirm it, and adding never reorders your queue.</small></p>
+  {{with .NextMissing}}<p class="notice" role="status">Next volume you do not have: <strong>{{.Label}} {{.Title}}</strong>.</p>{{end}}
+  {{if .Missing}}
+  <form method="post" action="/series/add" class="stack">
+    {{template "fields" $}}
+    <input type="hidden" name="source" value="{{.SourceBookID}}">
+    <ul class="series-volumes">
+      {{range .Missing}}
+      <li><label class="checkbox"><input type="checkbox" name="member" value="{{.HardcoverBookID}}"> <span><span class="vol-number">{{.Label}}</span> {{.Title}} <span class="muted">{{.Author}}{{if .Year}} · {{.Year}}{{end}}</span></span></label></li>
+      {{end}}
+    </ul>
+    {{if .Truncated}}<p class="muted"><small>Hardcover lists {{.Total}} books in this series; only the first {{len .Missing}} not here are shown.</small></p>{{end}}
+    <div><button class="button small">Preview adding to my list…</button></div>
+  </form>
+  {{else}}<p class="muted">You have every volume Hardcover lists for this series.</p>{{end}}
+  <form method="post" action="/books/{{.SourceBookID}}/hardcover/refresh">{{template "fields" $}}<input type="hidden" name="back" value="series"><button class="button small" data-busy-label="Reading Hardcover…">Refresh from Hardcover</button></form>
+  {{end}}
   {{if .Unnumbered}}
   <h3>No number</h3>
   <ul class="series-volumes">

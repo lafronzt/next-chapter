@@ -44,6 +44,7 @@ func (a *App) saveSettings(w http.ResponseWriter, r *http.Request) error {
 	case "privacy":
 		prefs = stored
 		prefs.KeepReviews, prefs.BookLookup, prefs.ProgressHistory, prefs.Hardcover = form.KeepReviews, form.BookLookup, form.ProgressHistory, form.Hardcover
+		prefs.HardcoverCovers, prefs.HardcoverRating = r.FormValue("hardcover_covers") != "", r.FormValue("hardcover_rating") != ""
 		if v, err := strconv.Atoi(r.FormValue("hardcover_privacy")); err == nil && v >= 1 && v <= 3 {
 			prefs.HardcoverPrivacy = v
 		}

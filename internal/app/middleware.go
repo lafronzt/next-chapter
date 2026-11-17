@@ -64,7 +64,7 @@ func (a *App) middleware(mux http.Handler) http.Handler {
 	})
 }
 func (a *App) securityHeaders(w http.ResponseWriter) {
-	w.Header().Set("Content-Security-Policy", "default-src 'self'; style-src 'self'; script-src 'self'; img-src 'self' data:; frame-ancestors 'none'; form-action 'self'; base-uri 'self'")
+	w.Header().Set("Content-Security-Policy", "default-src 'self'; style-src 'self'; script-src 'self'; img-src "+a.imgSrc()+"; frame-ancestors 'none'; form-action 'self'; base-uri 'self'")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.Header().Set("X-Frame-Options", "DENY")
 	w.Header().Set("Referrer-Policy", "same-origin")
@@ -97,4 +97,24 @@ func parseForm(w http.ResponseWriter, r *http.Request, limit int64) error {
 		return httpError{Status: 413, Message: fmt.Sprintf("The form or file is too large or malformed. Upload at most %d MB.", limit/1_000_000)}
 	}
 	return nil
+}
+
+// imgSrc is the policy's image sources. Images come from this app, or inline
+// data, and only when the reader switched on Hardcover covers, also from the
+// one Hardcover image host.
+func (a *App) imgSrc() string {
+	if a.hardcoverCoversOn() {
+		return "'self' data: https://" + hardcoverImageHost
+	}
+	return "'self' data:"
+}
+
+// hardcoverCoversOn is true when Hardcover is enabled and the reader switched
+// covers on. A read error counts as off.
+func (a *App) hardcoverCoversOn() bool {
+	if a.store == nil || a.store.DB == nil {
+		return false
+	}
+	prefs, err := readMeta(a.store.DB, "preferences", defaultPreferences)
+	return err == nil && prefs.Hardcover && prefs.HardcoverCovers
 }

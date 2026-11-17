@@ -5,6 +5,7 @@
     <span class="cover-line"></span>
     <span class="cover-title">{{.Book.Title}}</span>
     <span class="cover-author">{{.Book.Author}}</span>
+    {{if .ShowHardcoverCover}}<img class="hc-cover" src="{{.HardcoverCatalog.ImageURL}}" alt="Cover of {{.Book.Title}}" referrerpolicy="no-referrer" loading="lazy" width="72" height="108">{{end}}
   </div>
   <div class="next-up-body">
     <h1 id="book-title">{{.Book.Title}}</h1>
@@ -125,7 +126,7 @@
   {{if .LookupOn}}
   <form method="post" action="/books/{{.Book.ID}}/lookup" class="stack">
     {{template "fields" .}}
-    <p class="muted"><small>What gets sent: this book’s {{if .Book.ISBN}}title, author, and ISBN{{else}}title and author{{end}} to Open Library and Google Books. Never your ratings, reviews, tags, or reading history. You choose what to keep before anything is saved.</small></p>
+    <p class="muted"><small>What gets sent: this book’s {{if .Book.ISBN}}title, author, and ISBN{{else}}title and author{{end}} to Open Library and Google Books{{if .HardcoverReady}}{{if .HardcoverLink}}, and Hardcover (by this book’s linked id, so title and author are not needed there){{else}}, and Hardcover{{end}}{{end}}. Never your ratings, reviews, tags, or reading history. You choose what to keep before anything is saved.</small></p>
     <div><button class="button" data-busy-label="Looking up…">Look up details</button></div>
     <p class="notice" role="status" data-busy-status hidden>Checking Open Library and Google Books. This can take several seconds.</p>
   </form>
@@ -154,6 +155,12 @@
     <p class="muted"><small>Preview sending this book’s shelf status ({{status .Book.Status}}) and rating to Hardcover. You see what Hardcover has first; nothing is sent until you confirm.</small></p>
     <div><button class="button" data-busy-label="Reading Hardcover…">Send to Hardcover…</button></div>
   </form>
+  <form method="post" action="/books/{{.Book.ID}}/hardcover/refresh" class="stack">
+    {{template "fields" .}}
+    <p class="muted"><small>One request to Hardcover’s catalog (needs the <code>read:catalog</code> scope) for this book’s community average, cover address, and series. Nothing about you is sent, no field of this book is filled, and the result is kept here until you refresh again. Hardcover’s catalog is community-curated; use it at your own risk.</small></p>
+    <div><button class="button" data-busy-label="Reading Hardcover…">Refresh from Hardcover</button></div>
+  </form>
+  {{if .ShowHardcoverRating}}<p class="muted"><small>{{.HardcoverCatalog.RatingText}} · Hardcover data, refreshed {{.HardcoverCatalog.FetchedAt}}. Not used for your queue order, reasons, or estimates.</small></p>{{end}}
   <form method="post" action="/books/{{.Book.ID}}/hardcover/unlink">
     {{template "fields" .}}
     <button class="button">Unlink from Hardcover</button>
