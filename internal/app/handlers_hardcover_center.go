@@ -52,7 +52,7 @@ func (a *App) centerData(data page, prefs Preferences) error {
 			At          string
 		}
 		var seen []scopeRow
-		for _, name := range []string{"read:me", "read:library", "write:library", "read:catalog"} {
+		for _, name := range []string{"read:me", "read:library", "write:library", "read:catalog", "read:journal"} {
 			row := scopeRow{Name: name, State: "not used yet"}
 			if s, ok := scopes[name]; ok {
 				row.State, row.At = "worked", s.At.UTC().Format(time.RFC3339)

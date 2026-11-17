@@ -19,10 +19,11 @@
       <form class="progress-form" method="post" action="/books/{{.Book.ID}}/progress">
         {{template "fields" .}}
         <input type="hidden" name="back" value="book">
-        <label>Progress <input type="number" name="progress" min="0" inputmode="numeric" value="{{.Book.ProgressValue}}"></label>
-        <select name="unit" aria-label="Progress unit"><option value="page" {{if eq .Book.ProgressUnit "page"}}selected{{end}}>pages</option><option value="percent" {{if eq .Book.ProgressUnit "percent"}}selected{{end}}>%</option></select>
+        <label>Progress <input type="text" name="progress" placeholder="e.g. 2:30" value="{{.Book.ProgressValue}}"></label>
+        <select name="unit" aria-label="Progress unit"><option value="page" {{if eq .Book.ProgressUnit "page"}}selected{{end}}>pages</option><option value="percent" {{if eq .Book.ProgressUnit "percent"}}selected{{end}}>%</option><option value="seconds" {{if eq .Book.ProgressUnit "seconds"}}selected{{end}}>hours:minutes</option></select>
         <button class="button small"><span>Save</span></button>
       </form>
+      <p class="muted"><small>For audio, choose hours:minutes and enter your elapsed position, such as 2:30.</small></p>
       {{if and .HardcoverReady .HardcoverLink}}
       <p class="muted sync-caption">Hardcover progress sync: <strong>{{if .HardcoverLink.ProgressSync}}on{{else}}off{{end}}</strong> · <a href="#hardcover">Manage sync</a></p>
       {{end}}
@@ -56,6 +57,12 @@
       {{end}}
       <a class="button" href="/books/{{.Book.ID}}/edit"><span>Edit details</span></a>
     </div>
+    <details class="book-links">
+      <summary class="button small">Open in <span aria-hidden="true">▾</span></summary>
+      <ul class="book-link-menu" aria-label="Open this book on other sites">
+        {{range .ExternalBookLinks}}<li><a href="{{.URL}}" target="_blank" rel="noopener noreferrer" title="{{if .Search}}Search{{else}}Open{{end}} {{.Name}} in a new tab">{{.Name}}{{if .Search}} <small class="muted">(search)</small>{{end}} <span aria-hidden="true">↗</span></a></li>{{end}}
+      </ul>
+    </details>
   </div>
 </section>
 {{if or (eq .Book.Status "reading") .EarlierAttempts}}
@@ -88,7 +95,7 @@
         {{template "csrf" $}}
         <input type="hidden" name="version" value="{{.Version}}">
         <label>Date<input type="date" name="day" value="{{.Day}}" required></label>
-        <label>{{if eq .Unit "percent"}}Percent{{else}}Page{{end}}<input type="number" name="value" min="0" inputmode="numeric" value="{{with .Value}}{{.}}{{end}}" required></label>
+        <label>{{if eq .Unit "seconds"}}Hours:minutes{{else if eq .Unit "percent"}}Percent{{else}}Page{{end}}<input type="text" name="value" value="{{.FormValue}}" required></label>
         <p class="span-2 muted"><small>Changing or deleting your newest update also sets your current progress to the newest one left, so the two agree. Older updates leave it alone.</small></p>
         <div class="span-2 button-row">
           <button class="button" name="action" value="save">Save update</button>
@@ -103,7 +110,7 @@
 {{else if .HistoryOn}}
 <p class="muted">No updates saved for this reading yet. Each progress save above adds one, and pace needs two on different days.</p>
 {{else}}
-<p class="muted">Progress history is off, so only your latest page or percentage is kept. Turn it on in <a href="/settings?open=privacy#privacy">Preferences</a> for dated updates and a rough pace.</p>
+<p class="muted">Progress history is off, so only your latest page, percentage, or audiobook position is kept. Turn it on in <a href="/settings?open=privacy#privacy">Preferences</a> for dated updates and a rough pace.</p>
 {{end}}
 {{end}}
 {{if .EarlierAttempts}}
@@ -198,7 +205,7 @@
           <button class="button small danger">Unlink from Hardcover</button>
         </form>
       </div>
-      <p class="muted hc-data-note"><small>Matching sends this book’s title, author, and ISBN when available; you confirm the match. Catalog refresh sends its Hardcover id. Notes, reviews, and queue order stay here.</small></p>
+      <p class="muted hc-data-note"><small>Matching sends this book’s title, author, and ISBN when available; you confirm the match. Catalog refresh sends its Hardcover id. Notes are shared only through their own Share action. Reviews and queue order stay here.</small></p>
     </div>
   </details>
   {{else}}
@@ -214,13 +221,21 @@
 </div>
 <section class="section-heading" id="notes">
   <h2>Your notes</h2>
-  <p>Private writing for you alone. Notes are never imported, looked up, sent to an AI, or used for ranking, and they never change your reading progress or status.</p>
+  <p>Private by default. Share an individual note to Hardcover only when you choose. Notes are never sent to an AI or used for ranking, and they never change reading progress or status.</p>
 </section>
 {{with .Book.Reason}}<div class="panel"><p><strong>Why you wanted to read it</strong></p><p class="note-body">{{.}}</p><p class="muted"><small><a href="/books/{{$.Book.ID}}/edit">Change this</a> on the edit page.</small></p></div>{{end}}
 {{range .Notes}}
 <div class="panel note" id="note-{{.ID}}">
   <p class="muted"><small><time datetime="{{day .CreatedAt}}">{{day .CreatedAt}}</time>{{with .Where}} · at {{.}}{{end}}{{if .Edited}} · edited {{day .UpdatedAt}}{{end}}</small></p>
   <p class="note-body">{{.Body}}</p>
+  {{if and $.HardcoverReady $.HardcoverLink}}
+  <form method="post" action="/notes/{{.ID}}/hardcover">
+    {{template "fields" $}}
+    <input type="hidden" name="version" value="{{.Version}}">
+    <button class="button small">Share to Hardcover…</button>
+  </form>
+  {{end}}
+  {{if .HardcoverJournalID}}<p class="muted"><small>Previously shared to Hardcover. Edits and deletion here do not change that copy; sharing again updates it.</small></p>{{end}}
   <details class="more-details">
     <summary>Edit or delete this note</summary>
     <form class="form-grid" method="post" action="/notes/{{.ID}}">

@@ -59,6 +59,18 @@ func checkBook(b Book) string {
 	if b.Pages != nil && (*b.Pages < 1 || *b.Pages > 99999) {
 		return "Pages must be between 1 and 99,999."
 	}
+	count := 0
+	for _, v := range []*int{b.ProgressPage, b.ProgressPercent, b.ProgressSeconds} {
+		if v != nil {
+			count++
+		}
+	}
+	if count > 1 {
+		return "Keep progress in one unit only."
+	}
+	if b.ProgressSeconds != nil && (*b.ProgressSeconds < 0 || *b.ProgressSeconds > maxProgressSeconds) {
+		return "Audiobook position is out of range."
+	}
 	if n := b.SeriesNumber; n != nil && (math.IsNaN(*n) || math.IsInf(*n, 0) || *n < 0 || *n > 9999) {
 		return "Enter a valid series number."
 	}

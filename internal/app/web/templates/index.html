@@ -39,8 +39,8 @@
         <form class="progress-form" method="post" action="/books/{{.ID}}/progress">
           {{template "fields" $}}
           <input type="hidden" name="return" value="{{$.Pager.Self}}">
-          <label>Progress <input type="number" name="progress" min="0" inputmode="numeric" value="{{.ProgressValue}}" aria-label="How far you are in {{.Title}}"></label>
-          <select name="unit" aria-label="Unit for {{.Title}}"><option value="page" {{if eq .ProgressUnit "page"}}selected{{end}}>pages</option><option value="percent" {{if eq .ProgressUnit "percent"}}selected{{end}}>%</option></select>
+          <label>Progress <input type="text" name="progress" placeholder="e.g. 2:30" value="{{.ProgressValue}}" aria-label="How far you are in {{.Title}}"></label>
+          <select name="unit" aria-label="Unit for {{.Title}}"><option value="page" {{if eq .ProgressUnit "page"}}selected{{end}}>pages</option><option value="percent" {{if eq .ProgressUnit "percent"}}selected{{end}}>%</option><option value="seconds" {{if eq .ProgressUnit "seconds"}}selected{{end}}>hours:minutes</option></select>
           <button class="button small"><span>Save</span></button>
         </form>
       </div>

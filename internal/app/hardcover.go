@@ -96,6 +96,8 @@ func scopeFor(query string) string {
 		return "write:library"
 	case strings.Contains(query, "NextChapterConnection"):
 		return "read:me"
+	case strings.Contains(query, "reading_journals"):
+		return "read:journal"
 	case strings.Contains(query, "user_books"):
 		return "read:library"
 	}
@@ -435,7 +437,7 @@ func (c *hardcoverClient) do(ctx context.Context, query string, vars any, out an
 }
 
 func hardcoverNeededScope(data []byte) string {
-	for _, s := range []string{"read:me", "read:library", "write:library", "read:catalog", "read:lists", "write:lists"} {
+	for _, s := range []string{"read:me", "read:library", "write:library", "read:catalog", "read:journal", "read:lists", "write:lists"} {
 		if bytes.Contains(data, []byte(s)) {
 			return s
 		}

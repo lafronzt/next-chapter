@@ -2033,7 +2033,7 @@ input[type=checkbox],input[type=radio] {
   gap:var(--space-2);
 }
 
-.progress-form input[type=number] {
+.progress-form input[name=progress] {
   width:5.5em;
   padding:7px 10px;
 }
@@ -2077,7 +2077,7 @@ input[type=checkbox],input[type=radio] {
 }
 
 @media(max-width:760px) {
-  .progress-form input[type=number],.progress-form select,.progress-form .button {
+  .progress-form input[name=progress],.progress-form select,.progress-form .button {
     min-height:44px;
   }
 }
@@ -3021,7 +3021,7 @@ main>* {
     flex:1;
     min-width:0;
   }
-  .strip-title .progress-form input[type=number] {
+  .strip-title .progress-form input[name=progress] {
     flex:1;
     width:100%;
     min-width:0;
@@ -3149,4 +3149,44 @@ main section.hc-panel[aria-labelledby]>h2 {
   .checkpoint-list { padding:8px 16px; }
   .book-hardcover .hc-book-actions,.book-hardcover .hc-book-tools { gap:24px; }
   .book-hardcover .hc-book-action + .hc-book-action { border-top:1px solid var(--line); padding-top:20px; }
+}
+
+
+.book-links {
+  position:relative;
+  width:fit-content;
+  max-width:100%;
+  margin-top:16px;
+}
+.book-links summary {
+  display:inline-flex;
+  gap:8px;
+  list-style:none;
+}
+.book-links summary::-webkit-details-marker { display:none; }
+.book-link-menu {
+  position:absolute;
+  z-index:10;
+  top:100%;
+  left:0;
+  width:230px;
+  max-width:calc(100vw - 90px);
+  margin:6px 0 0;
+  padding:6px;
+  list-style:none;
+  background:var(--surface);
+  border:1px solid var(--line);
+  border-radius:10px;
+  box-shadow:var(--shadow-md);
+}
+.book-link-menu a {
+  display:block;
+  padding:10px 12px;
+  border-radius:6px;
+  color:var(--ink);
+  text-decoration:none;
+  overflow-wrap:anywhere;
+}
+.book-link-menu a:hover, .book-link-menu a:focus-visible {
+  background:var(--hover);
 }
