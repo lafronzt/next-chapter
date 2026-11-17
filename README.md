@@ -527,6 +527,36 @@ environment: never in the database, export, HTML, or application logs. Responses
 are capped at 1 MB, redirects are refused, and calls time out after 30 seconds
 (3 seconds for search requests).
 
+### Network diagnostics
+
+Every server-side outbound HTTP request logs its start and outcome to stderr:
+Hardcover, AI providers (including Ollama and custom endpoints), Open Library,
+Google Books, ISBNdb, and the container healthcheck command. Completion logs
+include the service, operation, duration, HTTP status (0 before a response),
+and failure phase. Safe causes distinguish DNS, certificate validation,
+timeouts, cancellation, refused/reset connections, HTTP failures, oversized
+responses, and invalid response data. Hardcover also reports recognized
+GraphQL error codes. An ordinary lookup miss is logged at info level;
+failures are warnings. Browser actions carry `request_id`; background AI
+requests carry `job_id`. A start without a completion means the request is
+still running or the process stopped before it finished.
+
+Credentials, URLs and query parameters, request/response bodies, book titles,
+prompts, and raw provider/network error text are excluded. Optional cover
+images load directly in the browser; inspect browser developer tools for
+those requests.
+
+On Kubernetes, use `kubectl -n next-chapter logs deployment/next-chapter`.
+The deployment manifests set `ndots: "1"` so external API names are resolved
+before inherited DNS search domains. With the default `ndots:5`, a broken
+upstream for a search domain can time out before the actual API name is tried.
+If DNS still fails, inspect CoreDNS and its upstream resolver. The app also
+needs outbound HTTPS access to the configured services.
+
+The DNS setting restarts the pod when applied; Helm uses `Recreate` to keep
+SQLite writers from overlapping. Rolling back this configuration requires
+no database changes: revert the DNS setting and restart the single pod.
+
 Hardcover's beta API can change, and tokens may be reset. The connection test
 checks required fields before saving a link. Free-plan limits are 5,000
 requests/day, 60/minute, and a burst of 10; each top-level GraphQL field counts,

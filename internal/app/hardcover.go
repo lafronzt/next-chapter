@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"regexp"
@@ -57,6 +58,7 @@ func (e hardcoverRateError) Error() string {
 // All calls share one budget. Reserve before sending, and never hold a database
 // transaction during HTTP. A 429 blocks subsequent calls; it is never retried.
 type hardcoverClient struct {
+	logger                        *slog.Logger
 	http                          *http.Client
 	endpoint, token               string
 	mu                            sync.Mutex
@@ -300,12 +302,27 @@ func (c *hardcoverClient) observe(h http.Header, status int) {
 func (c *hardcoverClient) knownRemaining() int { c.mu.Lock(); defer c.mu.Unlock(); return c.remaining }
 
 func (c *hardcoverClient) do(ctx context.Context, query string, vars any, out any) (err error) {
-	if c != nil {
-		defer func() { c.note(query, err) }()
-	}
 	if c == nil {
 		return hardcoverError("Hardcover is not configured.")
 	}
+	call := beginNetworkCall(ctx, c.logger, "hardcover", scopeFor(query))
+	call.phase = "budget"
+	defer func() {
+		if call.cause == "" {
+			var rate hardcoverRateError
+			var scope hardcoverScopeError
+			switch {
+			case errors.As(err, &rate):
+				call.cause = "rate_limit"
+			case errors.As(err, &scope):
+				call.cause = "scope"
+			case errors.Is(err, errHardcoverCapacity):
+				call.cause = "capacity"
+			}
+		}
+		c.note(query, err)
+		call.finish(err)
+	}()
 	cost, search := hardcoverCost(query)
 	if cost < 1 || cost > 10 {
 		return errHardcoverCapacity
@@ -319,6 +336,7 @@ func (c *hardcoverClient) do(ctx context.Context, query string, vars any, out an
 	}
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
+	call.phase = "request"
 	body, err := json.Marshal(map[string]any{"query": query, "variables": vars})
 	if err != nil {
 		return errHardcoverResponse
@@ -330,8 +348,10 @@ func (c *hardcoverClient) do(ctx context.Context, query string, vars any, out an
 	req.Header.Set("Authorization", "Bearer "+c.token)
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("User-Agent", "NextChapter/"+Version+" (+self-hosted)")
+	call.phase = "transport"
 	resp, err := c.http.Do(req)
 	if err != nil {
+		call.cause = networkTransportCause(err)
 		var ne net.Error
 		if errors.As(err, &ne) && ne.Timeout() || errors.Is(ctx.Err(), context.DeadlineExceeded) {
 			return errHardcoverTimeout
@@ -339,9 +359,16 @@ func (c *hardcoverClient) do(ctx context.Context, query string, vars any, out an
 		return errHardcoverUnavailable
 	}
 	defer resp.Body.Close()
+	call.status = resp.StatusCode
+	call.phase = "response_body"
 	c.observe(resp.Header, resp.StatusCode)
 	data, err := io.ReadAll(io.LimitReader(resp.Body, 1_048_577))
-	if err != nil || len(data) > 1_048_576 {
+	if err != nil {
+		call.cause = networkTransportCause(err)
+		return errHardcoverResponse
+	}
+	if len(data) > 1_048_576 {
+		call.cause = "response_too_large"
 		return errHardcoverResponse
 	}
 	var envelope struct {
@@ -356,26 +383,41 @@ func (c *hardcoverClient) do(ctx context.Context, query string, vars any, out an
 	}
 	// Never propagate provider text: it can echo credentials or arbitrary markup.
 	decodeErr := json.Unmarshal(data, &envelope)
+	call.phase = "http_status"
 	switch resp.StatusCode {
 	case 401:
+		call.cause = "authentication"
 		return errHardcoverAuth
 	case 403:
+		call.cause = "scope"
 		if bytes.Contains(data, []byte("request_exceeds_capacity")) {
+			call.cause = "capacity"
 			return errHardcoverCapacity
 		}
 		return hardcoverScopeError{hardcoverNeededScope(data)}
 	case 408:
+		call.cause = "timeout"
 		return errHardcoverTimeout
 	case 429:
+		call.cause = "rate_limit"
 		return hardcoverRateError{hardcoverRetry(resp.Header.Get("Retry-After"), c.now())}
 	case 503, 502, 504:
 		return errHardcoverUnavailable
 	}
 	if resp.StatusCode != 200 || decodeErr != nil {
+		if resp.StatusCode == 200 {
+			call.phase = "response_json"
+		}
 		return errHardcoverResponse
 	}
 	if len(envelope.Errors) > 0 {
+		call.phase = "graphql"
 		for _, e := range envelope.Errors {
+			// Do not log arbitrary extension codes supplied by the provider.
+			switch e.Extensions.Code {
+			case "invalid-jwt", "access-denied", "invalid-headers", "insufficient_scope", "validation-failed", "validation-failure":
+				call.cause = e.Extensions.Code
+			}
 			switch e.Extensions.Code {
 			case "invalid-jwt", "access-denied", "invalid-headers":
 				return errHardcoverAuth
@@ -385,11 +427,13 @@ func (c *hardcoverClient) do(ctx context.Context, query string, vars any, out an
 		}
 		return errHardcoverResponse
 	}
+	call.phase = "response_data"
 	if len(envelope.Data) == 0 || string(envelope.Data) == "null" || json.Unmarshal(envelope.Data, out) != nil {
 		return errHardcoverResponse
 	}
 	return nil
 }
+
 func hardcoverNeededScope(data []byte) string {
 	for _, s := range []string{"read:me", "read:library", "write:library", "read:catalog", "read:lists", "write:lists"} {
 		if bytes.Contains(data, []byte(s)) {

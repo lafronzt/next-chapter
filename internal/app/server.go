@@ -121,8 +121,11 @@ func New(c Config) (*App, error) {
 		a.ai = client
 	}
 	a.hardcover = newHardcoverClient(c.Hardcover, nil, "")
+	if a.hardcover != nil {
+		a.hardcover.logger = a.logger
+	}
 	a.finder = newFinder(c.Lookup, lookupHosts{}, nil)
-	a.jobCtx, a.stopJobs = context.WithCancel(context.Background())
+	a.jobCtx, a.stopJobs = context.WithCancel(context.WithValue(context.Background(), networkLoggerKey{}, a.logger))
 	return a, nil
 }
 

@@ -266,7 +266,15 @@ func providerError(class, message string, status int) error {
 
 const aiUnavailable = "The AI provider could not be reached. Try again later; nothing in your library changed."
 
-func (c *aiClient) Complete(ctx context.Context, req AIRequest) (AIResponse, error) {
+func (c *aiClient) Complete(ctx context.Context, req AIRequest) (result AIResponse, err error) {
+	call := beginNetworkCall(ctx, nil, "ai", c.provider)
+	defer func() {
+		var provider *aiError
+		if call.cause == "" && errors.As(err, &provider) {
+			call.cause = provider.class
+		}
+		call.finish(err)
+	}()
 	var path string
 	var body any
 	switch c.provider {
@@ -298,8 +306,10 @@ func (c *aiClient) Complete(ctx context.Context, req AIRequest) (AIResponse, err
 		// authenticating proxy takes a bearer token.
 		httpReq.Header.Set("Authorization", "Bearer "+c.key)
 	}
+	call.phase = "transport"
 	resp, err := c.client.Do(httpReq)
 	if err != nil {
+		call.cause = networkTransportCause(err)
 		var netErr net.Error
 		if errors.Is(err, context.DeadlineExceeded) || (errors.As(err, &netErr) && netErr.Timeout()) {
 			return AIResponse{}, providerError("timeout", "The AI provider took too long to answer. Try again later; nothing in your library changed. A slow local model may need a longer AI_TIMEOUT_SECONDS.", 0)
@@ -310,16 +320,22 @@ func (c *aiClient) Complete(ctx context.Context, req AIRequest) (AIResponse, err
 		return AIResponse{}, providerError("network", aiUnavailable, 0)
 	}
 	defer resp.Body.Close()
+	call.status = resp.StatusCode
+	call.phase = "response_body"
 	data, err := io.ReadAll(io.LimitReader(resp.Body, maxAIResponse+1))
 	if err != nil {
+		call.cause = networkTransportCause(err)
 		return AIResponse{}, providerError("network", aiUnavailable, resp.StatusCode)
 	}
 	if len(data) > maxAIResponse {
+		call.cause = "response_too_large"
 		return AIResponse{}, providerError("too-large", "The AI provider sent an answer that was too large to use.", resp.StatusCode)
 	}
 	if resp.StatusCode != http.StatusOK {
+		call.phase = "http_status"
 		return AIResponse{}, statusError(resp.StatusCode)
 	}
+	call.phase = "response_data"
 	switch c.provider {
 	case "anthropic":
 		return parseAnthropic(data)

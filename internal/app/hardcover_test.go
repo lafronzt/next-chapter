@@ -1,10 +1,14 @@
 package app
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"io"
+	"log/slog"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -17,6 +21,51 @@ import (
 	"testing"
 	"time"
 )
+
+func TestHardcoverFailureDiagnostics(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name, phase, cause string
+		transportErr       error
+		status             int
+		body               string
+	}{
+		{name: "dns", phase: "transport", cause: "dns", transportErr: &net.DNSError{Err: "private-token", Name: "private-title"}},
+		{name: "timeout", phase: "transport", cause: "timeout", transportErr: context.DeadlineExceeded},
+		{name: "connection", phase: "transport", cause: "connection", transportErr: errors.New("private-token private-title")},
+		{name: "auth", phase: "http_status", status: 401, body: "private-token private-title"},
+		{name: "schema", phase: "graphql", cause: "validation-failed", status: 200, body: `{"errors":[{"message":"private-token private-title","extensions":{"code":"validation-failed"}}]}`},
+		{name: "untrusted code", phase: "graphql", status: 200, body: `{"errors":[{"extensions":{"code":"private-token private-title"}}]}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var logs bytes.Buffer
+			c := newHardcoverClient(HardcoverConfig{Token: "private-token"}, nil, "https://example.invalid")
+			c.logger = slog.New(slog.NewTextHandler(&logs, nil))
+			c.http.Transport = hardcoverTransport(func(r *http.Request) (*http.Response, error) {
+				if tc.transportErr != nil {
+					return nil, tc.transportErr
+				}
+				return &http.Response{StatusCode: tc.status, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(tc.body))}, nil
+			})
+			var out any
+			if err := c.do(context.Background(), hardcoverConnectQuery, map[string]string{"title": "private-title"}, &out); err == nil {
+				t.Fatal("expected failure")
+			}
+			got := logs.String()
+			for _, want := range []string{"outbound request finished", "service=hardcover", "operation=read:me", "phase=" + tc.phase, "http_status=" + strconv.Itoa(tc.status)} {
+				if !strings.Contains(got, want) {
+					t.Fatalf("missing %q in %s", want, got)
+				}
+			}
+			if tc.cause != "" && !strings.Contains(got, "cause="+tc.cause) {
+				t.Fatalf("missing cause: %s", got)
+			}
+			if strings.Contains(got, "private-token") || strings.Contains(got, "private-title") {
+				t.Fatal("private data in diagnostics")
+			}
+		})
+	}
+}
 
 func hardcoverFixture(t *testing.T) []byte {
 	t.Helper()

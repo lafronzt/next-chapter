@@ -91,9 +91,10 @@ var (
 // lookupHTTP is the one small client every source uses: fixed hosts, a short
 // timeout, no redirects, a size limit, and an honest User-Agent.
 type lookupHTTP struct {
-	client *http.Client
-	base   string
-	header http.Header
+	client  *http.Client
+	service string
+	base    string
+	header  http.Header
 }
 
 func newLookupHTTP(client *http.Client, base string) lookupHTTP {
@@ -108,7 +109,13 @@ func newLookupHTTP(client *http.Client, base string) lookupHTTP {
 	return lookupHTTP{client: &c, base: strings.TrimRight(base, "/")}
 }
 
-func (h lookupHTTP) getJSON(ctx context.Context, path string, query url.Values, out any) error {
+func (h lookupHTTP) getJSON(ctx context.Context, path string, query url.Values, out any) (err error) {
+	service := h.service
+	if service == "" {
+		service = "book_lookup"
+	}
+	call := beginNetworkCall(ctx, nil, service, "lookup")
+	defer func() { call.finish(err) }()
 	target := h.base + path
 	if len(query) > 0 {
 		target += "?" + query.Encode()
@@ -122,11 +129,15 @@ func (h lookupHTTP) getJSON(ctx context.Context, path string, query url.Values, 
 	for k, v := range h.header {
 		req.Header[k] = v
 	}
+	call.phase = "transport"
 	resp, err := h.client.Do(req)
 	if err != nil {
+		call.cause = networkTransportCause(err)
 		return errors.New("the request failed")
 	}
 	defer resp.Body.Close()
+	call.status = resp.StatusCode
+	call.phase = "http_status"
 	switch {
 	case resp.StatusCode == http.StatusNotFound:
 		return errLookupNotFound
@@ -135,13 +146,17 @@ func (h lookupHTTP) getJSON(ctx context.Context, path string, query url.Values, 
 	case resp.StatusCode != http.StatusOK:
 		return fmt.Errorf("the database answered with status %d", resp.StatusCode)
 	}
+	call.phase = "response_body"
 	data, err := io.ReadAll(io.LimitReader(resp.Body, lookupBodyLimit+1))
 	if err != nil {
+		call.cause = networkTransportCause(err)
 		return errors.New("the response could not be read")
 	}
 	if len(data) > lookupBodyLimit {
+		call.cause = "response_too_large"
 		return errors.New("the response was too large")
 	}
+	call.phase = "response_json"
 	if err = json.Unmarshal(data, out); err != nil {
 		return errors.New("the response was not valid JSON")
 	}
@@ -511,6 +526,8 @@ func newFinder(cfg LookupConfig, hosts lookupHosts, client *http.Client) *Finder
 	}
 	open := openLibrary{newLookupHTTP(client, pick(hosts.OpenLibrary, openLibraryHost))}
 	google := googleBooks{newLookupHTTP(client, pick(hosts.GoogleBooks, googleBooksHost)), cfg.GoogleBooksKey}
+	open.http.service = "open_library"
+	google.http.service = "google_books"
 	// Source order decides whose description, series, and tags win, and who
 	// wins a tie on pages and year. An operator who set a Google Books key
 	// has chosen it, so it goes first; otherwise Open Library does.
@@ -520,6 +537,7 @@ func newFinder(cfg LookupConfig, hosts lookupHosts, client *http.Client) *Finder
 	}
 	if cfg.ISBNdbKey != "" {
 		h := newLookupHTTP(client, pick(hosts.ISBNdb, isbndbHost))
+		h.service = "isbndb"
 		h.header = http.Header{"Authorization": {cfg.ISBNdbKey}}
 		f.sources = append(f.sources, isbndb{h})
 	}

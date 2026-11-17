@@ -133,6 +133,11 @@ func (a *App) hardcoverTest(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
+	if !result.OK {
+		a.logger.Warn("Hardcover connection test failed", "request_id", state(r).ID, "error", result.Message)
+	} else {
+		a.logger.Info("Hardcover connection test succeeded", "request_id", state(r).ID)
+	}
 	return redirect(w, r, "/hardcover")
 }
 func (a *App) hardcoverDisconnect(w http.ResponseWriter, r *http.Request) error {
