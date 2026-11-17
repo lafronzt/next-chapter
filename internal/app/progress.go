@@ -40,15 +40,18 @@ func daysUntil(day string, today time.Time) (int, bool) {
 }
 
 // HasProgress reports whether there is progress to show as a bar: a percent,
-// or a page in a book whose page count is known.
+// or a page/audio position with a known total length.
 func (b Book) HasProgress() bool {
-	return b.ProgressPercent != nil || (b.ProgressPage != nil && b.Pages != nil && *b.Pages > 0)
+	return (b.ProgressSeconds != nil && b.AudioSeconds != nil && *b.AudioSeconds > 0) || b.ProgressPercent != nil || (b.ProgressPage != nil && b.Pages != nil && *b.Pages > 0)
 }
 
 // ProgressUnit is "seconds" for an audiobook position, "percent" for a saved
 // percentage or a book without a page count, and "page" otherwise.
 func (b Book) ProgressUnit() string {
 	if b.ProgressSeconds != nil {
+		return "seconds"
+	}
+	if b.AudioSeconds != nil && b.ProgressPercent == nil && b.ProgressPage == nil {
 		return "seconds"
 	}
 	if b.ProgressPercent != nil || (b.ProgressPage == nil && (b.Pages == nil || *b.Pages <= 0)) {
@@ -73,6 +76,8 @@ func (b Book) ProgressValue() string {
 // Percent is how far through the book the reader is, 0 to 100.
 func (b Book) Percent() int {
 	switch {
+	case b.ProgressSeconds != nil && b.AudioSeconds != nil && *b.AudioSeconds > 0:
+		return min(100, *b.ProgressSeconds*100 / *b.AudioSeconds)
 	case b.ProgressPercent != nil:
 		return *b.ProgressPercent
 	case b.ProgressPage != nil && b.Pages != nil && *b.Pages > 0:
@@ -98,6 +103,9 @@ func (b Book) PagesLeft() (int, bool) {
 func (b Book) ProgressText() string {
 	switch {
 	case b.ProgressSeconds != nil:
+		if b.AudioSeconds != nil && *b.AudioSeconds > 0 {
+			return fmt.Sprintf("%s of %s · %d%% · %s left", audioPosition(*b.ProgressSeconds), b.AudioDuration(), b.Percent(), audioPosition(max(0, *b.AudioSeconds-*b.ProgressSeconds)))
+		}
 		return audioPosition(*b.ProgressSeconds) + " elapsed"
 	case b.ProgressPercent != nil:
 		return fmt.Sprintf("%d%%", *b.ProgressPercent)
@@ -139,6 +147,9 @@ func percentPaceText(left, days int) string {
 // reader tracks the book that way, otherwise in pages. It is "" when neither
 // is known.
 func (d dueSoon) Pace() string {
+	if d.Book.ProgressSeconds != nil && d.Book.HasProgress() {
+		return percentPaceText(100-d.Book.Percent(), d.Days)
+	}
 	if d.Book.ProgressPercent != nil {
 		return percentPaceText(100-*d.Book.ProgressPercent, d.Days)
 	}
@@ -214,9 +225,9 @@ ORDER BY l.expected_ready,l.book_id`, limit)
 }
 
 // bookProgress saves how far the reader is in a book they are reading, as a
-// page or, for an audiobook or any book without a page count, a percentage.
-// Saving one clears the other, and a blank clears both. It changes only that
-// number: it never moves a book, finishes one, or invalidates a preview or Undo.
+// page, percentage, or elapsed audiobook position with an optional duration.
+// Saving one unit clears the others; a blank clears the position. It never
+// moves a book, finishes one, or invalidates a preview or Undo.
 func (a *App) bookProgress(w http.ResponseWriter, r *http.Request) error {
 	id, err := requestID(r)
 	if err != nil {
@@ -259,6 +270,19 @@ func (a *App) bookProgress(w http.ResponseWriter, r *http.Request) error {
 		if b.Status != "reading" {
 			return bad("Only a book you are reading has progress to track. Start it first.")
 		}
+		if r.Form.Has("audio_duration") {
+			b.AudioSeconds = nil
+			if raw := strings.TrimSpace(r.FormValue("audio_duration")); raw != "" {
+				n, e := parseAudioPosition(raw)
+				if e != nil {
+					return e
+				}
+				if n <= 0 {
+					return bad("Total audiobook duration must be greater than 0:00.")
+				}
+				b.AudioSeconds = &n
+			}
+		}
 		var page, percent, seconds *int
 		if unit == "page" {
 			if value != nil && b.Pages != nil && *b.Pages > 0 && *value > *b.Pages {
@@ -270,7 +294,7 @@ func (a *App) bookProgress(w http.ResponseWriter, r *http.Request) error {
 		} else {
 			seconds = value
 		}
-		if _, err = tx.Exec("UPDATE books SET progress_page=?,progress_percent=?,progress_seconds=? WHERE id=?", page, percent, seconds, id); err != nil {
+		if _, err = tx.Exec("UPDATE books SET progress_page=?,progress_percent=?,progress_seconds=?,audio_seconds=? WHERE id=?", page, percent, seconds, b.AudioSeconds, id); err != nil {
 			return err
 		}
 		// With progress history on, the same save also stores a dated update.
@@ -423,4 +447,12 @@ func parseAudioPosition(raw string) (int, error) {
 		seconds += values[2]
 	}
 	return seconds, nil
+}
+
+// AudioDuration is the total edition length as an editable hours:minutes value.
+func (b Book) AudioDuration() string {
+	if b.AudioSeconds == nil {
+		return ""
+	}
+	return audioPosition(*b.AudioSeconds)
 }

@@ -46,14 +46,15 @@ type readingAttempt struct {
 // progressCheckpoint is one dated progress update. Value is nil when progress
 // was cleared. TotalPages is the book's page count then, for page updates.
 type progressCheckpoint struct {
-	ID         int64  `json:"id"`
-	AttemptID  int64  `json:"attempt_id"`
-	BookID     int64  `json:"book_id"`
-	Day        string `json:"day"`
-	Unit       string `json:"unit"`
-	Value      *int   `json:"value"`
-	TotalPages *int   `json:"total_pages"`
-	Version    int    `json:"-"`
+	ID           int64  `json:"id"`
+	AttemptID    int64  `json:"attempt_id"`
+	BookID       int64  `json:"book_id"`
+	Day          string `json:"day"`
+	Unit         string `json:"unit"`
+	Value        *int   `json:"value"`
+	TotalPages   *int   `json:"total_pages"`
+	TotalSeconds *int   `json:"total_seconds,omitempty"`
+	Version      int    `json:"-"`
 }
 
 // Text describes the update in words.
@@ -62,6 +63,9 @@ func (c progressCheckpoint) Text() string {
 	case c.Value == nil:
 		return "Progress cleared"
 	case c.Unit == "seconds":
+		if c.TotalSeconds != nil && *c.TotalSeconds > 0 {
+			return fmt.Sprintf("%s elapsed · %d%%", audioPosition(*c.Value), min(100, *c.Value*100 / *c.TotalSeconds))
+		}
 		return audioPosition(*c.Value) + " elapsed"
 	case c.Unit == "percent":
 		return fmt.Sprintf("%d%%", *c.Value)
@@ -146,14 +150,14 @@ func recordCheckpoint(q queryer, b Book, unit string, value *int, today time.Tim
 	if unit == "page" && b.Pages != nil {
 		total = *b.Pages
 	}
-	_, err = q.Exec(`INSERT INTO progress_checkpoints(attempt_id,book_id,day,unit,value,total_pages) VALUES(?,?,?,?,?,?)
-ON CONFLICT(attempt_id,day) DO UPDATE SET unit=excluded.unit,value=excluded.value,total_pages=excluded.total_pages,version=version+1`,
-		attempt, b.ID, today.Format(time.DateOnly), unit, value, total)
+	_, err = q.Exec(`INSERT INTO progress_checkpoints(attempt_id,book_id,day,unit,value,total_pages,total_seconds) VALUES(?,?,?,?,?,?,?)
+ON CONFLICT(attempt_id,day) DO UPDATE SET unit=excluded.unit,value=excluded.value,total_pages=excluded.total_pages,total_seconds=excluded.total_seconds,version=version+1`,
+		attempt, b.ID, today.Format(time.DateOnly), unit, value, total, b.AudioSeconds)
 	return err
 }
 
 func loadCheckpoints(q queryer, attemptID int64) ([]progressCheckpoint, error) {
-	rows, err := q.Query("SELECT id,attempt_id,book_id,day,unit,value,total_pages,version FROM progress_checkpoints WHERE attempt_id=? ORDER BY day,id", attemptID)
+	rows, err := q.Query("SELECT id,attempt_id,book_id,day,unit,value,total_pages,total_seconds,version FROM progress_checkpoints WHERE attempt_id=? ORDER BY day,id", attemptID)
 	if err != nil {
 		return nil, err
 	}
@@ -161,7 +165,7 @@ func loadCheckpoints(q queryer, attemptID int64) ([]progressCheckpoint, error) {
 	out := []progressCheckpoint{}
 	for rows.Next() {
 		var c progressCheckpoint
-		if err = rows.Scan(&c.ID, &c.AttemptID, &c.BookID, &c.Day, &c.Unit, &c.Value, &c.TotalPages, &c.Version); err != nil {
+		if err = rows.Scan(&c.ID, &c.AttemptID, &c.BookID, &c.Day, &c.Unit, &c.Value, &c.TotalPages, &c.TotalSeconds, &c.Version); err != nil {
 			return nil, err
 		}
 		out = append(out, c)
@@ -187,7 +191,7 @@ func loadAllAttempts(q queryer) ([]readingAttempt, error) {
 }
 
 func loadAllCheckpoints(q queryer) ([]progressCheckpoint, error) {
-	rows, err := q.Query("SELECT id,attempt_id,book_id,day,unit,value,total_pages FROM progress_checkpoints ORDER BY id")
+	rows, err := q.Query("SELECT id,attempt_id,book_id,day,unit,value,total_pages,total_seconds FROM progress_checkpoints ORDER BY id")
 	if err != nil {
 		return nil, err
 	}
@@ -195,7 +199,7 @@ func loadAllCheckpoints(q queryer) ([]progressCheckpoint, error) {
 	out := []progressCheckpoint{}
 	for rows.Next() {
 		var c progressCheckpoint
-		if err = rows.Scan(&c.ID, &c.AttemptID, &c.BookID, &c.Day, &c.Unit, &c.Value, &c.TotalPages); err != nil {
+		if err = rows.Scan(&c.ID, &c.AttemptID, &c.BookID, &c.Day, &c.Unit, &c.Value, &c.TotalPages, &c.TotalSeconds); err != nil {
 			return nil, err
 		}
 		out = append(out, c)
@@ -216,7 +220,7 @@ type paceInfo struct {
 }
 
 // estimatePace works out pace from the current attempt's checkpoints only.
-// It uses the newest unbroken run: same unit, same page count, and never
+// It uses the newest unbroken run: compatible units, same edition length, and never
 // going backward, so a correction or reset starts a fresh run and is never
 // read as negative speed. The run must end within paceStaleDays of today,
 // and only checkpoints within paceWindowDays count. It needs two dated
@@ -226,6 +230,37 @@ func estimatePace(cps []progressCheckpoint, b Book, loans []Loan, today time.Tim
 	none := paceInfo{Message: notEnoughProgress}
 	today = midnight(today)
 	if len(cps) == 0 || cps[len(cps)-1].Value == nil {
+		return none
+	}
+
+	// Compare percentages with elapsed positions using the current audiobook
+	// duration. Saved edition lengths prevent bridging incompatible editions.
+	cps = slices.Clone(cps)
+	audio := b.AudioSeconds != nil && *b.AudioSeconds > 0 && (b.ProgressSeconds != nil || b.ProgressPercent != nil)
+	if audio {
+		for i := range cps {
+			c := &cps[i]
+			if c.Value == nil || (c.Unit != "percent" && c.Unit != "seconds") {
+				continue
+			}
+			if c.TotalSeconds != nil && *c.TotalSeconds != *b.AudioSeconds {
+				c.Value = nil
+				continue
+			}
+			if c.Unit == "percent" {
+				n := int(math.Round(float64(*c.Value) * float64(*b.AudioSeconds) / 100))
+				c.Value = &n
+			}
+			c.Unit = "seconds"
+		}
+	} else if b.AudioSeconds == nil {
+		for i := 1; i < len(cps); i++ {
+			if cps[i-1].Value != nil && cps[i].Value != nil && ((cps[i-1].Unit == "seconds" && cps[i].Unit == "percent") || (cps[i-1].Unit == "percent" && cps[i].Unit == "seconds")) {
+				none.Message = "Add the total audiobook duration above to compare time and percentage updates and estimate pace."
+			}
+		}
+	}
+	if cps[len(cps)-1].Value == nil {
 		return none
 	}
 	run := []progressCheckpoint{cps[len(cps)-1]}
@@ -261,11 +296,22 @@ func estimatePace(cps []progressCheckpoint, b Book, loans []Loan, today time.Tim
 		info.Rate = "About " + perDayText(per/60) + " minutes of audio a day"
 	}
 	info.Basis = fmt.Sprintf("%d updates · %s to %s", len(run), first.Day, last.Day)
+	if audio {
+		info.Basis += " · using total audio " + b.AudioDuration()
+	}
 	// What is left, in the same unit the pace is in.
 	var left int
 	switch {
 	case last.Unit == "page" && b.ProgressPage != nil && b.ProgressPercent == nil && b.Pages != nil && *b.Pages > 0:
 		left = *b.Pages - *b.ProgressPage
+	case last.Unit == "seconds" && audio:
+		position := *last.Value
+		if b.ProgressSeconds != nil {
+			position = *b.ProgressSeconds
+		} else if b.ProgressPercent != nil {
+			position = int(math.Round(float64(*b.ProgressPercent) * float64(*b.AudioSeconds) / 100))
+		}
+		left = *b.AudioSeconds - position
 	case last.Unit == "percent" && b.ProgressPercent != nil:
 		left = 100 - *b.ProgressPercent
 	default:
@@ -441,7 +487,7 @@ func (a *App) editCheckpoint(w http.ResponseWriter, r *http.Request) error {
 	var bookID int64
 	err = a.store.Write(func(tx *sql.Tx) error {
 		var c progressCheckpoint
-		err := tx.QueryRow("SELECT id,attempt_id,book_id,day,unit,value,total_pages,version FROM progress_checkpoints WHERE id=?", cid).Scan(&c.ID, &c.AttemptID, &c.BookID, &c.Day, &c.Unit, &c.Value, &c.TotalPages, &c.Version)
+		err := tx.QueryRow("SELECT id,attempt_id,book_id,day,unit,value,total_pages,total_seconds,version FROM progress_checkpoints WHERE id=?", cid).Scan(&c.ID, &c.AttemptID, &c.BookID, &c.Day, &c.Unit, &c.Value, &c.TotalPages, &c.TotalSeconds, &c.Version)
 		if errors.Is(err, sql.ErrNoRows) {
 			return conflict("This update was already deleted. Reload the page.")
 		}

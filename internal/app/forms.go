@@ -14,6 +14,13 @@ func bookFields(r *http.Request) (Book, error) {
 	b := Book{Title: strings.TrimSpace(r.FormValue("title")), Author: strings.TrimSpace(r.FormValue("author")), Tags: strings.TrimSpace(r.FormValue("tags")), Status: r.FormValue("reading_status"), Series: strings.TrimSpace(r.FormValue("series")), Description: cleanText(r.FormValue("description"), maxDescription), Reason: noteText(r.FormValue("reason")), Owned: r.FormValue("owned") != "", Source: "manual"}
 	// A non-numeric interest stays 0, which checkBook rejects.
 	b.Interest, _ = strconv.Atoi(r.FormValue("interest"))
+	if raw := strings.TrimSpace(r.FormValue("audio_duration")); raw != "" {
+		n, err := parseAudioPosition(raw)
+		if err != nil {
+			return b, err
+		}
+		b.AudioSeconds = &n
+	}
 	if raw := r.FormValue("pages"); raw != "" {
 		n, e := strconv.Atoi(raw)
 		if e != nil {
@@ -58,6 +65,9 @@ func checkBook(b Book) string {
 	}
 	if b.Pages != nil && (*b.Pages < 1 || *b.Pages > 99999) {
 		return "Pages must be between 1 and 99,999."
+	}
+	if b.AudioSeconds != nil && (*b.AudioSeconds < 1 || *b.AudioSeconds > maxProgressSeconds) {
+		return "Total audiobook duration must be greater than 0:00 and at most 9999:59:59."
 	}
 	count := 0
 	for _, v := range []*int{b.ProgressPage, b.ProgressPercent, b.ProgressSeconds} {

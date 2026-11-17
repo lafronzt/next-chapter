@@ -40,9 +40,10 @@
   </select></label>
   <label class="span-2 check"><input type="checkbox" name="owned" value="1" {{if .Book.Owned}}checked{{end}}> I own a copy <span class="muted">your own flag; library loans and imports never change it</span></label>
   <label class="span-2">Why I want to read this <span class="muted">optional, private; never imported or sent to an AI</span><textarea name="reason" rows="3" maxlength="500" placeholder="Who recommended it, what you hope to find">{{.Book.Reason}}</textarea></label>
-  <details class="span-2 more-details" {{if or .Book.Pages .Book.Tags .Book.Series .Book.SeriesNumber .Book.Description}}open{{end}}>
-    <summary>Details <span class="muted">pages, tags, series, description</span></summary>
+  <details class="span-2 more-details" {{if or .Book.AudioSeconds .Book.Pages .Book.Tags .Book.Series .Book.SeriesNumber .Book.Description}}open{{end}}>
+    <summary>Details <span class="muted">pages, audio duration, tags, series, description</span></summary>
     <div class="form-grid">
+  <label>Total audiobook duration <span class="muted">optional · hours:minutes</span><input name="audio_duration" type="text" placeholder="e.g. 10:00" value="{{.Book.AudioDuration}}"></label>
   <label>Pages <span class="muted">optional</span><input name="pages" type="number" min="1" max="99999" value="{{pages .Book.Pages}}"></label>
   <label>Tags <span class="muted">comma separated</span><input name="tags" maxlength="500" value="{{.Book.Tags}}" placeholder="hopeful, nature, fiction"></label>
   <label>Series <span class="muted">optional</span><input name="series" maxlength="200" value="{{.Book.Series}}"></label>
