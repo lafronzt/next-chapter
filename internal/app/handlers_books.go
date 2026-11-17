@@ -21,6 +21,9 @@ func (a *App) newBook(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
+	if b.Status == "reading" && b.StartedAt == nil {
+		b.StartedAt = nullable(a.now().Format(time.DateOnly))
+	}
 	// Details a lookup filled in before the book was added: the description's source while the text is still theirs.
 	if looked := cleanText(r.FormValue("looked_up_description"), maxDescription); looked != "" && b.Description == looked {
 		b.DescriptionSource = truncate(strings.TrimSpace(r.FormValue("description_source")), 100)
@@ -207,7 +210,7 @@ func (a *App) editBook(w http.ResponseWriter, r *http.Request) error {
 		if r.Form.Has("started_at") && ((b.StartedAt == nil) != (old.StartedAt == nil) || b.StartedAt != nil && old.StartedAt != nil && *b.StartedAt != *old.StartedAt) {
 			manual = true
 		}
-		if b.Status == "reading" && old.Status != "reading" && b.StartedAt == nil && !r.Form.Has("started_at") {
+		if b.Status == "reading" && old.Status != "reading" && b.StartedAt == nil {
 			day := a.now().Format(time.DateOnly)
 			b.StartedAt = &day
 			manual = false

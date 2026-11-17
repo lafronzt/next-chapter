@@ -3313,3 +3313,40 @@ main section.hc-panel[aria-labelledby]>h2 {
 @media (prefers-color-scheme:dark) {
   .reading-progress .button { background:var(--sidebar); color:var(--ink); }
 }
+
+/* The book header keeps progress entry separate from metadata and sync tools. */
+.book-summary { align-items:flex-start; }
+.book-summary .next-up-body { flex:1; min-width:0; }
+.book-summary .reading-progress {
+  display:grid;
+  grid-template-columns:minmax(90px,1fr) minmax(130px,1.2fr) auto;
+  align-items:end;
+  gap:12px;
+  max-width:480px;
+  margin-top:16px;
+}
+.book-summary .reading-progress label,.start-date-form label {
+  flex-direction:column;
+  align-items:stretch;
+  gap:6px;
+}
+.book-summary .reading-progress input[name=progress],.book-summary .reading-progress select {
+  width:100%;
+  min-width:0;
+}
+.book-summary .reading-progress>.button { grid-column:auto; }
+.book-summary .progress-hint { margin-top:8px; overflow-wrap:anywhere; }
+.book-reading-dates { margin:20px 0 16px; }
+.book-reading-dates>summary { cursor:pointer; color:var(--muted); font-size:var(--text-sm); }
+.book-summary .start-date-form {
+  display:flex;
+  flex-wrap:wrap;
+  gap:12px;
+  align-items:flex-end;
+  margin-top:12px;
+}
+.start-date-form input { width:auto; max-width:100%; }
+@media(max-width:600px) {
+  .book-summary .reading-progress { grid-template-columns:minmax(0,1fr) minmax(0,1.2fr); max-width:none; }
+  .book-summary .reading-progress>.button { grid-column:1 / -1; }
+}

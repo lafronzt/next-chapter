@@ -23,20 +23,15 @@
         <input type="hidden" name="back" value="book">
         <label>Progress <input type="text" name="progress" inputmode="{{if eq .Book.ProgressUnit "seconds"}}text{{else}}numeric{{end}}" placeholder="{{if eq .Book.ProgressUnit "seconds"}}e.g. 2:30{{else if eq .Book.ProgressUnit "percent"}}e.g. 35{{else}}e.g. 120{{end}}" value="{{.Book.ProgressValue}}"></label>
         <label>Unit <select name="unit" aria-label="Progress unit"><option value="page" {{if eq .Book.ProgressUnit "page"}}selected{{end}}>pages</option><option value="percent" {{if eq .Book.ProgressUnit "percent"}}selected{{end}}>%</option><option value="seconds" {{if eq .Book.ProgressUnit "seconds"}}selected{{end}}>hours:minutes</option></select></label>
-        <label class="audio-duration">Total audio <input type="text" name="audio_duration" placeholder="e.g. 10:00" aria-label="Total audiobook duration in hours:minutes" value="{{.Book.AudioDuration}}"></label>
         <button class="button small"><span>Save</span></button>
       </form>
-      <p class="muted"><small>For audio, enter your position (2:30) and total duration (10:00) in hours:minutes to show 25% listened. Total duration also lets pace compare time and percentage updates.</small></p>
+      {{if eq .Book.ProgressUnit "seconds"}}<p class="muted progress-hint"><small>Enter your audiobook position as hours:minutes.{{if not .Book.AudioSeconds}} <a href="/books/{{.Book.ID}}/edit#audio_duration">Add its total duration in Edit details</a> to show a percentage.{{end}}</small></p>{{end}}
       {{if and .HardcoverReady .HardcoverLink}}
       <p class="muted sync-caption">Hardcover progress sync: <strong>{{if .HardcoverLink.ProgressSync}}on{{else}}off{{end}}</strong> · <a href="#hardcover">Manage sync</a></p>
       {{end}}
     </div>
     {{end}}
 
-    {{if eq .Book.Status "reading"}}
-    <p class="muted">Started: {{with .Book.StartedAt}}<time datetime="{{.}}">{{.}}</time>{{else}}not recorded{{end}} · <a href="/books/{{.Book.ID}}/edit">Edit start date</a></p>
-    {{if and .HardcoverReady .HardcoverLink}}<form method="post" action="/books/{{.Book.ID}}/hardcover/dates">{{template "fields" .}}<button class="button small">Sync start date with Hardcover…</button></form>{{end}}
-    {{end}}
     <div class="button-row primary-action">
       {{if eq .Book.Status "to-read"}}
       <form method="post" action="/books/{{.Book.ID}}/status">
@@ -65,6 +60,16 @@
       {{end}}
       <a class="button" href="/books/{{.Book.ID}}/edit"><span>Edit details</span></a>
     </div>
+    {{if eq .Book.Status "reading"}}
+    <details class="book-reading-dates" {{if not .Book.StartedAt}}open{{end}}>
+      <summary>{{with .Book.StartedAt}}Started <time datetime="{{.}}">{{.}}</time> · Edit{{else}}Add start date{{end}}</summary>
+      <form class="start-date-form" method="post" action="/books/{{.Book.ID}}/start-date">
+        {{template "fields" .}}
+        <label>Started<input type="date" name="started_at" value="{{with .Book.StartedAt}}{{.}}{{end}}"></label>
+        <button class="button small">Save start date</button>
+      </form>
+    </details>
+    {{end}}
     <details class="book-links">
       <summary class="button small">Open in <span aria-hidden="true">▾</span></summary>
       <ul class="book-link-menu" aria-label="Open this book on other sites">
@@ -186,6 +191,14 @@
         <button class="button small" data-busy-label="Reading Hardcover…">Pull progress from Hardcover…</button>
       </form>
       <p class="muted"><small>Sending needs an open read on Hardcover. Pulling always shows a preview.</small></p>
+    </div>
+    <div class="hc-book-action">
+      <h3>Reading dates</h3>
+      <p>{{with .Book.StartedAt}}Started here on {{.}}.{{else}}No start date recorded here.{{end}} Preview both apps’ dates before choosing which to keep.</p>
+      <form method="post" action="/books/{{.Book.ID}}/hardcover/dates">
+        {{template "fields" .}}
+        <button class="button small" data-busy-label="Reading Hardcover…">Sync start date with Hardcover…</button>
+      </form>
     </div>
     {{end}}
   </div>

@@ -41,7 +41,7 @@
   <label>Started this reading <span class="muted">optional; correct it here if you started earlier</span><input type="date" name="started_at" value="{{with .Book.StartedAt}}{{.}}{{end}}"></label>
   <label class="span-2 check"><input type="checkbox" name="owned" value="1" {{if .Book.Owned}}checked{{end}}> I own a copy <span class="muted">your own flag; library loans and imports never change it</span></label>
   <label class="span-2">Why I want to read this <span class="muted">optional, private; never imported or sent to an AI</span><textarea name="reason" rows="3" maxlength="500" placeholder="Who recommended it, what you hope to find">{{.Book.Reason}}</textarea></label>
-  <label>Total audiobook duration <span class="muted">optional · hours:minutes</span><input name="audio_duration" type="text" placeholder="e.g. 10:00" value="{{.Book.AudioDuration}}"></label>
+  <label>Total audiobook duration <span class="muted">optional · hours:minutes</span><input name="audio_duration" id="audio_duration" type="text" placeholder="e.g. 10:00" value="{{.Book.AudioDuration}}"></label>
   <label>Pages <span class="muted">optional</span><input name="pages" type="number" min="1" max="99999" value="{{pages .Book.Pages}}"></label>
   <p class="span-2 muted"><small>Use the full length of your audiobook edition. Hardcover imports can fill an empty duration from your selected edition. Goodreads CSV exports do not include audio duration or start dates.</small></p>
   <details class="span-2 more-details" {{if or .Book.AudioSeconds .Book.Pages .Book.Tags .Book.Series .Book.SeriesNumber .Book.Description}}open{{end}}>
@@ -72,8 +72,8 @@
   {{end}}
 </section>
 <section class="section-heading" id="reading">
-  <h2>When you read it</h2>
-  <p>Your start dates, finish dates, and ratings. Changing them here keeps them yours: later imports leave them alone. Reading history never changes this book’s status or want-to-read.</p>
+  <h2>Completed readings</h2>
+  <p>Each entry records a completed reading. Save dates &amp; rating updates that entry; it does not change your current reading’s start date. For a book you are reading now, save its start with the book details above or on the book page. Later imports leave your corrections alone.</p>
 </section>
 {{range .Readings}}
 <form class="panel form-grid reading-entry" method="post" action="/readings/{{.ID}}">
@@ -84,7 +84,7 @@
   <p class="span-2 muted"><small>{{if .AddedByHand}}Logged by you.{{else if eq .Source "manual"}}Imported, edited by you.{{else if eq .Source "hardcover"}}From Hardcover.{{else}}From Goodreads.{{end}}{{if .Review}} Your review is below.{{else if .ReviewChars}} You wrote a {{.ReviewChars}}-character review on Goodreads; its text is not kept here (see Preferences).{{end}}</small></p>
   {{with .Review}}<blockquote class="span-2 review">{{.}}</blockquote>{{end}}
   <div class="span-2 button-row">
-    <button class="button" name="action" value="save">Save reading</button>
+    <button class="button" name="action" value="save">Save dates &amp; rating</button>
     {{if .AddedByHand}}<button class="button danger" name="action" value="delete">Delete reading</button>{{end}}
   </div>
 </form>
