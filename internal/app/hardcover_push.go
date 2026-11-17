@@ -299,7 +299,7 @@ func loadPushBooks(q queryer, ids []int64) (books []hcLocalBook, unlinked []int6
 		}
 		l.EditionID = edition.Int64
 		var rating sql.NullFloat64
-		err = q.QueryRow("SELECT rating FROM reading_log WHERE book_id=? AND rating IS NOT NULL ORDER BY finished_at IS NULL, finished_at DESC, id DESC LIMIT 1", id).Scan(&rating)
+		err = q.QueryRow("SELECT rating FROM reading_log WHERE book_id=? AND rating IS NOT NULL ORDER BY finished_at IS NULL, substr(finished_at,1,4) DESC, finished_precision=3, finished_at DESC, id DESC LIMIT 1", id).Scan(&rating)
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			return nil, nil, err
 		}

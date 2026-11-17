@@ -63,7 +63,7 @@ const (
 	// maxRestoreSchema is the newest export this build can restore. A test
 	// fails when a migration is added, so the restore code is checked against
 	// the new schema before this is raised.
-	maxRestoreSchema = 20
+	maxRestoreSchema = 21
 	maxRestoreUpload = 10_000_000
 	maxRestoreEvents = 100_000
 	maxRestoreAlias  = 20_000
@@ -299,7 +299,7 @@ func validateExport(f *exportFile) []string {
 		add("The export has %d Hardcover sync rows; restore at most %d.", len(f.HardcoverSync), maxRestoreSync)
 	}
 	for i, x := range f.HardcoverSync {
-		if !ids[x.BookID] || !in(x.Field, []string{"status", "rating", "read"}) || !in(x.Direction, []string{"push", "pull"}) || len(x.Local) > 64 || len(x.Remote) > 64 || len(x.At) > 64 {
+		if !ids[x.BookID] || !in(x.Field, []string{"status", "rating", "read", "progress", "dates"}) || !in(x.Direction, []string{"push", "pull"}) || len(x.Local) > 64 || len(x.Remote) > 64 || len(x.At) > 64 {
 			add("Hardcover sync row %d is not valid.", i+1)
 		}
 	}
@@ -573,7 +573,7 @@ func restoreExport(q queryer, f exportFile) (restorePlan, error) {
 		return result, err
 	}
 	for _, l := range f.HardcoverBooks {
-		if _, err = q.Exec("INSERT INTO book_hardcover(book_id,hardcover_book_id,hardcover_edition_id,slug,linked_at) VALUES(?,?,?,?,?)", newID[l.BookID], l.HardcoverBookID, l.EditionID, l.Slug, l.LinkedAt); err != nil {
+		if _, err = q.Exec("INSERT INTO book_hardcover(book_id,hardcover_book_id,hardcover_edition_id,slug,linked_at,progress_sync) VALUES(?,?,?,?,?,?)", newID[l.BookID], l.HardcoverBookID, l.EditionID, l.Slug, l.LinkedAt, l.ProgressSync); err != nil {
 			return result, err
 		}
 	}

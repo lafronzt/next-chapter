@@ -152,8 +152,12 @@ func queryReadings(q queryer, tail string, args ...any) ([]readingEntry, error) 
 	return result, rows.Err()
 }
 
-// readingOrder lists the newest readings first, undated ones last.
-const readingOrder = " ORDER BY l.finished_at IS NULL, l.finished_at DESC, l.id DESC"
+// readingOrder lists the newest readings first, undated ones last. A
+// year-only date is stored as 1 January, which would sort it after every
+// other reading that year, and sorting it at the end of the year would invent
+// a December date. It is a bucket of its own instead: within its year, after
+// the readings whose day or month is known, before any earlier year.
+const readingOrder = " ORDER BY l.finished_at IS NULL, substr(l.finished_at,1,4) DESC, l.finished_precision=3, l.finished_at DESC, l.id DESC"
 
 func bookReadings(q queryer, bookID int64) ([]readingEntry, error) {
 	return queryReadings(q, "WHERE l.book_id=?"+readingOrder, bookID)

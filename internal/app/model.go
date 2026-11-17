@@ -223,6 +223,10 @@ type Plan struct {
 	HardcoverPull *hcPullPlan `json:"hardcover_pull,omitempty"`
 	// HardcoverPush is a previewed send of shelf status and ratings (kind "hc-push").
 	HardcoverPush *hcPushPlan `json:"hardcover_push,omitempty"`
+	// HardcoverProgress and HardcoverRead are previewed pulls of progress and
+	// sends of a reading's date (kinds "hc-progress" and "hc-read").
+	HardcoverProgress *hcProgressPlan `json:"hardcover_progress,omitempty"`
+	HardcoverRead     *hcReadPlan     `json:"hardcover_read,omitempty"`
 	// Intent is the reader's optional note for an AI suggestion; it lives
 	// only as long as the plan. AIRows is the AI-suggested order, applied
 	// instead of Rows when the reader chooses it; AINotice explains why an AI

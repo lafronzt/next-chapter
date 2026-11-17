@@ -263,10 +263,22 @@ func (a *App) bookProgress(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
-	if r.FormValue("back") == "book" {
-		return redirect(w, r, fmt.Sprintf("/books/%d?notice=saved", id))
+	// A book the reader opted in also sends its progress to Hardcover, after
+	// the local save; whatever happens there, the save stands.
+	notice := "saved"
+	if value != nil {
+		if n := a.pushProgress(r.Context(), id); n != "" {
+			notice = n
+		}
 	}
-	return redirect(w, r, listReturn(r))
+	if r.FormValue("back") == "book" {
+		return redirect(w, r, fmt.Sprintf("/books/%d?notice=%s", id, notice))
+	}
+	dest := listReturn(r)
+	if notice != "saved" {
+		dest += map[bool]string{true: "&", false: "?"}[strings.Contains(dest, "?")] + "notice=" + notice
+	}
+	return redirect(w, r, dest)
 }
 
 // readingGoal is the reader's yearly target against what they have finished,

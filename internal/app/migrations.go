@@ -27,6 +27,7 @@ var migrations = []migration{
 	{18, "Hardcover book links", migrateHardcoverBookLinks},
 	{19, "Hardcover readings: source, precision, read id", migrateHardcoverReadings},
 	{20, "Hardcover sync history", migrateHardcoverSync},
+	{21, "Hardcover progress opt-in and sync fields", migrateHardcoverProgress},
 }
 
 func migrateBaseline(tx *sql.Tx) error {
@@ -383,6 +384,30 @@ func migrateHardcoverSync(tx *sql.Tx) error {
  local_value TEXT NOT NULL DEFAULT '', remote_value TEXT NOT NULL DEFAULT '',
  direction TEXT NOT NULL CHECK(direction IN ('push','pull')), at TEXT NOT NULL
 );
+CREATE INDEX hardcover_sync_book ON hardcover_sync(book_id, id);`)
+	return err
+}
+
+// book_hardcover gains progress_sync, the reader's per-book opt-in to send
+// reading progress to Hardcover (off for every existing link), and the sync
+// history accepts the fields progress and dates. SQLite cannot change a CHECK,
+// so hardcover_sync is rebuilt with its rows.
+//
+// Backup: <database>.pre-v21.bak. Rollback: stop the app, restore that file,
+// remove stray WAL/SHM files, and start the previous image; opt-ins and
+// progress history made since are lost, and an older image refuses to open
+// this schema.
+func migrateHardcoverProgress(tx *sql.Tx) error {
+	_, err := tx.Exec(`ALTER TABLE book_hardcover ADD COLUMN progress_sync INTEGER NOT NULL DEFAULT 0 CHECK(progress_sync IN (0,1));
+CREATE TABLE hardcover_sync_new (
+ id INTEGER PRIMARY KEY, book_id INTEGER NOT NULL REFERENCES books(id),
+ field TEXT NOT NULL CHECK(field IN ('status','rating','read','progress','dates')),
+ local_value TEXT NOT NULL DEFAULT '', remote_value TEXT NOT NULL DEFAULT '',
+ direction TEXT NOT NULL CHECK(direction IN ('push','pull')), at TEXT NOT NULL
+);
+INSERT INTO hardcover_sync_new SELECT id,book_id,field,local_value,remote_value,direction,at FROM hardcover_sync;
+DROP TABLE hardcover_sync;
+ALTER TABLE hardcover_sync_new RENAME TO hardcover_sync;
 CREATE INDEX hardcover_sync_book ON hardcover_sync(book_id, id);`)
 	return err
 }

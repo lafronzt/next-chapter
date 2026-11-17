@@ -22,6 +22,18 @@
         <select name="unit" aria-label="Progress unit"><option value="page" {{if eq .Book.ProgressUnit "page"}}selected{{end}}>pages</option><option value="percent" {{if eq .Book.ProgressUnit "percent"}}selected{{end}}>%</option></select>
         <button class="button small"><span>Save</span></button>
       </form>
+      {{if and .HardcoverReady .HardcoverLink}}
+      <form method="post" action="/books/{{.Book.ID}}/hardcover/progress-sync" class="stack">
+        {{template "fields" .}}
+        <label class="checkbox"><input type="checkbox" name="enabled" value="1" {{if .HardcoverLink.ProgressSync}}checked{{end}}> Also update Hardcover progress when I save</label>
+        <p class="muted"><small>Off by default, per book. Each save then sends one page or length to Hardcover, and only if it has a read in progress. Nothing is sent from Hardcover to here unless you press Pull progress.</small></p>
+        <button class="button small">Save this choice</button>
+      </form>
+      <form method="post" action="/books/{{.Book.ID}}/hardcover/progress/pull">
+        {{template "fields" .}}
+        <button class="button small" data-busy-label="Reading Hardcover…">Pull progress from Hardcover…</button>
+      </form>
+      {{end}}
     </div>
     {{end}}
     <div class="button-row primary-action">
@@ -193,6 +205,9 @@
   {{range .Readings}}{{$e := .}}
   <div class="event"><span>{{with .FinishedAt}}<time datetime="{{.}}">{{$e.When}}</time>{{else}}Date not recorded{{end}}</span><strong>{{if .Rating}}{{stars .Rating}}{{else}}Unrated{{end}}</strong><span>{{if .AddedByHand}}Logged by you{{else if eq .Source "manual"}}Edited by you{{else if eq .Source "hardcover"}}Hardcover{{else}}Goodreads{{end}}</span></div>
   {{with .Review}}<blockquote class="review">{{.}}</blockquote>{{end}}
+  {{if and $.HardcoverReady $.HardcoverLink .FinishedAt}}
+  <form method="post" action="/readings/{{.ID}}/hardcover/send">{{template "fields" $}}<button class="button small">Send this reading to Hardcover…</button></form>
+  {{end}}
   {{end}}
 </div>
 {{else}}
