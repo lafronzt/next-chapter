@@ -42,6 +42,12 @@ type exportFile struct {
 	// EventCorrections are the reader's edits and voids of library events,
 	// from schema version 16. The events themselves are exported as imported.
 	EventCorrections []eventCorrection `json:"event_corrections"`
+	// HardcoverBooks and HardcoverAliases are the links to Hardcover books and
+	// the ids remembered for deleted or merged books, from schema version 18.
+	// Older exports have neither. Hardcover book ids are global, so they are
+	// restored, unlike the account link.
+	HardcoverBooks   []hcBookLink `json:"hardcover_books,omitempty"`
+	HardcoverAliases []hcAlias    `json:"hardcover_aliases,omitempty"`
 }
 
 // savedViewExport is a saved view as exported.
@@ -56,7 +62,7 @@ const (
 	// maxRestoreSchema is the newest export this build can restore. A test
 	// fails when a migration is added, so the restore code is checked against
 	// the new schema before this is raised.
-	maxRestoreSchema = 17
+	maxRestoreSchema = 18
 	maxRestoreUpload = 10_000_000
 	maxRestoreEvents = 100_000
 	maxRestoreAlias  = 20_000
@@ -271,6 +277,28 @@ func validateExport(f *exportFile) []string {
 		}
 		if x.TargetBookID != nil && !ids[*x.TargetBookID] {
 			add("%s refers to a book that is not in the file.", label)
+		}
+	}
+	hcBooks, hcLocal := map[int64]bool{}, map[int64]bool{}
+	for i, l := range f.HardcoverBooks {
+		label := fmt.Sprintf("Hardcover link %d", i+1)
+		if !ids[l.BookID] || hcLocal[l.BookID] {
+			add("%s refers to a book that is not in the file, or repeats one.", label)
+		}
+		if l.HardcoverBookID < 1 || hcBooks[l.HardcoverBookID] {
+			add("%s: the Hardcover book id is missing or repeated.", label)
+		}
+		if (l.EditionID != nil && *l.EditionID < 1) || len(l.Slug) > 200 || len(l.LinkedAt) > 64 {
+			add("%s: the edition, slug, or time is not valid.", label)
+		}
+		hcBooks[l.HardcoverBookID], hcLocal[l.BookID] = true, true
+	}
+	if len(f.HardcoverAliases) > maxRestoreAlias {
+		add("The export has %d Hardcover aliases; restore at most 20,000.", len(f.HardcoverAliases))
+	}
+	for i, x := range f.HardcoverAliases {
+		if x.Identity == "" || len(x.Identity) > 2000 || x.HardcoverBookID < 1 {
+			add("Hardcover alias %d: the identity or Hardcover book id is not valid.", i+1)
 		}
 	}
 	readingFingerprints := map[string]bool{}
@@ -525,6 +553,16 @@ func restoreExport(q queryer, f exportFile) (restorePlan, error) {
 	if err = q.QueryRow("SELECT count(*) FROM loans").Scan(&result.Loans); err != nil {
 		return result, err
 	}
+	for _, l := range f.HardcoverBooks {
+		if _, err = q.Exec("INSERT INTO book_hardcover(book_id,hardcover_book_id,hardcover_edition_id,slug,linked_at) VALUES(?,?,?,?,?)", newID[l.BookID], l.HardcoverBookID, l.EditionID, l.Slug, l.LinkedAt); err != nil {
+			return result, err
+		}
+	}
+	for _, x := range f.HardcoverAliases {
+		if _, err = q.Exec("INSERT OR IGNORE INTO hardcover_alias(identity,hardcover_book_id) VALUES(?,?)", x.Identity, x.HardcoverBookID); err != nil {
+			return result, err
+		}
+	}
 	for _, x := range f.Aliases {
 		var target *int64
 		if x.TargetBookID != nil {
@@ -644,6 +682,12 @@ func exportLibrary(tx *sql.Tx) (exportFile, error) {
 		return f, err
 	}
 	if f.Aliases, err = loadAliases(tx); err != nil {
+		return f, err
+	}
+	if f.HardcoverBooks, err = loadBookLinks(tx); err != nil {
+		return f, err
+	}
+	if f.HardcoverAliases, err = loadHardcoverAliases(tx); err != nil {
 		return f, err
 	}
 	if f.ReadingLog, err = loadReadingLog(tx); err != nil {

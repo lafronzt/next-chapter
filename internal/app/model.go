@@ -212,6 +212,9 @@ type Plan struct {
 	// Alias a previewed removal of a remembered merge or deletion.
 	Correction *correctionPlan `json:"correction,omitempty"`
 	Alias      *aliasPlan      `json:"alias,omitempty"`
+	// HardcoverLinks is a previewed set of Hardcover link changes (kind
+	// "hc-link"); they are previewed and applied on the Hardcover pages.
+	HardcoverLinks *hcLinkPlan `json:"hardcover_links,omitempty"`
 	// Intent is the reader's optional note for an AI suggestion; it lives
 	// only as long as the plan. AIRows is the AI-suggested order, applied
 	// instead of Rows when the reader chooses it; AINotice explains why an AI

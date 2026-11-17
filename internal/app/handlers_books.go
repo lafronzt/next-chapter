@@ -112,7 +112,15 @@ func (a *App) bookPageData(id int64) (page, error) {
 	if err = a.progressPageData(history, b); err != nil {
 		return nil, err
 	}
-	data := page{"Title": b.Title, "Book": b, "LookupOn": lookupOn, "Editing": true, "Events": events, "EventTotal": total, "Readings": readings, "Estimate": estimate, "Notes": notes, "MaxNote": maxNote}
+	prefs, err := readMeta(a.store.DB, "preferences", defaultPreferences)
+	if err != nil {
+		return nil, err
+	}
+	hcLink, err := getBookLink(a.store.DB, id)
+	if err != nil {
+		return nil, err
+	}
+	data := page{"HardcoverReady": prefs.Hardcover && a.hardcover != nil, "HardcoverLink": hcLink, "Title": b.Title, "Book": b, "LookupOn": lookupOn, "Editing": true, "Events": events, "EventTotal": total, "Readings": readings, "Estimate": estimate, "Notes": notes, "MaxNote": maxNote}
 	for k, v := range history {
 		data[k] = v
 	}

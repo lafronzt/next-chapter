@@ -110,6 +110,10 @@ func deleteBook(q queryer, id int64) error {
 	if err = setAlias(q, b, nil); err != nil {
 		return err
 	}
+	// The Hardcover id stays with the tombstone so a pull cannot recreate it.
+	if err = rememberHardcover(q, b); err != nil {
+		return err
+	}
 	if _, err = q.Exec("DELETE FROM books WHERE id=?", id); err != nil {
 		return err
 	}
@@ -163,6 +167,19 @@ func mergeBooks(q queryer, sourceID, targetID int64, apply bool) (mergePreview, 
 			return p, conflict(p.Refusal)
 		}
 		return p, nil
+	}
+	if p.Refusal == "" {
+		reason, err := hardcoverMergeConflict(q, sourceID, targetID)
+		if err != nil {
+			return p, err
+		}
+		if reason != "" {
+			p.Refusal = reason
+			if apply {
+				return p, conflict(reason)
+			}
+			return p, nil
+		}
 	}
 	p.OwnedFilled = source.Owned && !target.Owned
 	p.ISBNConflict = source.ISBN != "" && target.ISBN != "" && source.ISBN != target.ISBN
@@ -254,6 +271,9 @@ func mergeBooks(q queryer, sourceID, targetID int64, apply bool) (mergePreview, 
 	}
 
 	if err = rebuildLoans(q, sourceID, targetID); err != nil {
+		return p, err
+	}
+	if err = mergeHardcover(q, source, targetID); err != nil {
 		return p, err
 	}
 	if _, err = q.Exec("UPDATE book_aliases SET target_book_id=? WHERE target_book_id=?", targetID, sourceID); err != nil {

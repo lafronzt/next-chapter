@@ -1,0 +1,51 @@
+{{template "top" .}}
+<a class="back" href="/hardcover"><span aria-hidden="true">←</span> Back to Hardcover</a>
+<header class="page-heading"><div>
+  <h1>Link to Hardcover</h1>
+  <p>Check each match. Nothing is saved until you confirm, and a link never changes status, queue order, pins, ratings, or reading history.</p>
+</div></header>
+{{if .Stale}}<div class="notice error" role="alert">Your library has changed since this preview. Run the search again before applying it.</div>{{end}}
+{{with .Links.Stopped}}<div class="notice" role="status">{{.}}</div>{{end}}
+<form method="post" action="/hardcover/links/{{.PlanID}}" class="stack">
+  {{template "fields" .}}
+  {{range .Links.Items}}
+  <section class="panel stack hc-item" aria-labelledby="hc-{{.BookID}}">
+    <h2 id="hc-{{.BookID}}">{{.Title}} <span class="muted">· {{.Author}}</span></h2>
+    {{if eq .Action "unlink"}}
+      <p>Remove the link to Hardcover book {{with .Current}}{{.HardcoverBookID}}{{end}}. The book, its status, and its history stay as they are. Sync history for this book will be reset.</p>
+    {{else}}
+      {{if .Current}}<p class="notice" role="status">Currently linked to Hardcover book {{.Current.HardcoverBookID}}. Choosing a different one resets the sync history for this book.</p>{{end}}
+      {{if eq .Match.Class "none"}}
+        <p class="muted">No Hardcover match found by {{if .Match.Key}}{{.Match.Key}}{{else}}title and author{{end}}.</p>
+      {{else}}
+        <p class="muted">{{if eq .Match.Class "confident"}}One Hardcover book has this {{.Match.Key}}.{{else}}Matched by {{.Match.Key}}. Pick the right book, or skip.{{end}}</p>
+        <fieldset class="hc-candidates">
+          <legend class="sr-only">Hardcover match for {{.Title}}</legend>
+          {{$book := .BookID}}{{$conf := eq .Match.Class "confident"}}
+          {{range .Match.Candidates}}
+          <label class="checkbox">
+            <input type="radio" name="choice_{{$book}}" value="{{.BookID}}" {{if .LinkedTo}}disabled{{end}} {{if and $conf (not .LinkedTo)}}checked{{end}}>
+            <span><strong>{{.Title}}</strong> · {{.Author}}{{if .Year}} · {{.Year}}{{end}}{{if .Pages}} · {{.Pages}} pages{{end}}{{if .IsCurrentLink}} · current link{{end}}
+            {{if .LinkedTo}}<br><small class="muted">Already linked to “{{.LinkedTo}}”. Unlink or merge that book first.</small>{{end}}</span>
+          </label>
+          {{end}}
+          <label class="checkbox"><input type="radio" name="choice_{{$book}}" value="" {{if not $conf}}checked{{end}}> <span>Skip this book</span></label>
+        </fieldset>
+      {{end}}
+    {{end}}
+  </section>
+  {{end}}
+  <div class="panel actions">
+    <strong>Save these links?</strong>
+    <button class="button primary" {{if .Stale}}disabled title="Run the search again first."{{end}}>Save links</button>
+  </div>
+</form>
+{{if .Links.Remaining}}
+<form method="post" action="/hardcover/match" class="panel stack">
+  {{template "fields" .}}
+  <input type="hidden" name="after" value="{{.Links.NextAfter}}">
+  <p>{{.Links.Remaining}} more {{if eq .Links.Remaining 1}}book has{{else}}books have{{end}} not been checked. Save or discard this page first, then continue.</p>
+  <button class="button">Check the next books</button>
+</form>
+{{end}}
+{{template "bottom" .}}

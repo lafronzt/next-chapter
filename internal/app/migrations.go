@@ -24,6 +24,7 @@ var migrations = []migration{
 	{15, "reading attempts and dated progress updates", migrateProgressHistory},
 	{16, "reader corrections to library events", migrateEventCorrections},
 	{17, "Hardcover account link", migrateHardcoverLink},
+	{18, "Hardcover book links", migrateHardcoverBookLinks},
 }
 
 func migrateBaseline(tx *sql.Tx) error {
@@ -312,5 +313,25 @@ func migrateHardcoverLink(tx *sql.Tx) error {
  id INTEGER PRIMARY KEY CHECK(id=1), hardcover_user_id INTEGER NOT NULL,
  username TEXT NOT NULL, linked_at TEXT NOT NULL
  );`)
+	return err
+}
+
+// book_hardcover links a local book to its Hardcover book (and edition when
+// known). It is a side table, not columns on books, so ranking, listing and
+// plan code that read books never see it. The unique hardcover_book_id keeps
+// two local books from claiming one Hardcover book. hardcover_alias remembers
+// the Hardcover id of a deleted or merged book under its identity, so a later
+// pull cannot recreate or relink it wrongly. Existing books are unlinked.
+//
+// Backup: <database>.pre-v18.bak. Rollback: stop the app, restore that file,
+// remove stray WAL/SHM files, and start the previous image; links made since
+// are lost, and an older image refuses to open this schema.
+func migrateHardcoverBookLinks(tx *sql.Tx) error {
+	_, err := tx.Exec(`CREATE TABLE book_hardcover (
+ book_id INTEGER PRIMARY KEY REFERENCES books(id), hardcover_book_id INTEGER NOT NULL UNIQUE,
+ hardcover_edition_id INTEGER NULL, slug TEXT NOT NULL DEFAULT '', linked_at TEXT NOT NULL
+);
+CREATE TABLE hardcover_alias (identity TEXT PRIMARY KEY, hardcover_book_id INTEGER NOT NULL);
+CREATE INDEX hardcover_alias_book ON hardcover_alias(hardcover_book_id);`)
 	return err
 }
