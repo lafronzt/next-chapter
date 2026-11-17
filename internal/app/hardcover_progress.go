@@ -73,27 +73,21 @@ func (c *hardcoverClient) openRead(ctx context.Context, userID, hcBook int64) (*
 	}
 	u := out.UserBooks[0]
 	r := &hcOpenRead{UserBookID: int64(u.ID), StatusID: int(u.Status)}
-	if u.Book != nil {
-		r.EdPages = int(u.Book.Pages)
+	// Lengths belong to one edition. In particular, an audiobook must not
+	// inherit the book's print page count, or progress would be sent as pages.
+	useLength := func(ed *hcLength) {
+		if ed != nil {
+			r.EdPages, r.EdAudio = int(ed.Pages), int(ed.Audio)
+		}
 	}
-	if u.Ed != nil {
-		r.EdPages, r.EdAudio = cmpNonZero(int(u.Ed.Pages), r.EdPages), int(u.Ed.Audio)
-	}
+	useLength(u.Book)
+	useLength(u.Ed)
 	if len(u.Reads) > 0 {
 		rd := u.Reads[0]
 		r.ReadID, r.Pages, r.Seconds = int64(rd.ID), int(rd.Pages), int(rd.Seconds)
-		if rd.Ed != nil {
-			r.EdPages, r.EdAudio = cmpNonZero(int(rd.Ed.Pages), r.EdPages), cmpNonZero(int(rd.Ed.Audio), r.EdAudio)
-		}
+		useLength(rd.Ed)
 	}
 	return r, nil
-}
-
-func cmpNonZero(a, b int) int {
-	if a != 0 {
-		return a
-	}
-	return b
 }
 
 // ---- conversion: pure ----
@@ -111,7 +105,7 @@ func localProgressKey(b Book) string {
 }
 
 func remoteProgressKey(r hcOpenRead) string {
-	if r.Seconds > 0 && r.Pages == 0 {
+	if r.EdAudio > 0 || r.Seconds > 0 && r.Pages == 0 {
 		return "s:" + strconv.Itoa(r.Seconds)
 	}
 	if r.Pages > 0 {
@@ -123,6 +117,7 @@ func remoteProgressKey(r hcOpenRead) string {
 // remoteProgress is what would be sent: pages or, for an audiobook, seconds.
 type remoteProgress struct {
 	Pages, Seconds int
+	Audio          bool
 	Note, Skip     string
 }
 
@@ -132,7 +127,11 @@ func ceilDiv(pct float64, whole int) int { return int(math.Ceil(pct * float64(wh
 // Hardcover has no percent field, so a percentage, or pages in an edition of a
 // different length, is converted through the percentage and the preview says so.
 func progressToRemote(b Book, r hcOpenRead) remoteProgress {
-	var out remoteProgress
+	if r.EdAudio > 0 {
+		// Audio length identifies an audiobook even if catalog data also has pages.
+		r.EdPages = 0
+	}
+	out := remoteProgress{Audio: r.EdAudio > 0}
 	local := 0
 	if b.Pages != nil {
 		local = *b.Pages
@@ -194,7 +193,7 @@ func progressFromRemote(b Book, r hcOpenRead) localProgress {
 	}
 	pct := -1.0
 	switch {
-	case r.Seconds > 0 && r.EdAudio > 0 && r.Pages == 0:
+	case r.EdAudio > 0 && (r.Seconds > 0 || r.Pages > 0):
 		pct = math.Min(100, float64(r.Seconds)*100/float64(r.EdAudio))
 	case r.Pages > 0 && r.EdPages > 0:
 		pct = math.Min(100, float64(r.Pages)*100/float64(r.EdPages))
@@ -328,7 +327,7 @@ const errHardcoverRefused = hardcoverError("Hardcover did not accept this change
 // progress, and, only when the update is dated earlier than now, action_at.
 func progressVars(readID int64, p remoteProgress, actionAt string) map[string]any {
 	read := map[string]any{}
-	if p.Seconds > 0 {
+	if p.Audio || p.Seconds > 0 {
 		read["progress_seconds"] = p.Seconds
 	} else {
 		read["progress_pages"] = p.Pages

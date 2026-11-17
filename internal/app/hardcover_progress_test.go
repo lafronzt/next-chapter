@@ -93,6 +93,9 @@ func (f *progFake) handle(query string, vars map[string]any, n int) (int, map[st
 				f.status, f.hasRead = 3, false
 			}
 		}
+		if v, ok := read["progress_seconds"].(float64); ok {
+			f.seconds = int(v)
+		}
 		return 200, nil, fmt.Sprintf(`{"data":{%q:{"id":%d,"error":null,"user_book_read":{"id":%d}}}}`, key, id, id)
 	}
 	return 500, nil, `{}`
@@ -172,6 +175,8 @@ func TestProgressConversion(t *testing.T) {
 		{"other length", Book{Pages: p(300), ProgressPage: p(10)}, hcOpenRead{Pages: 200, EdPages: 400}, 150, 0, false, true},
 		{"percent unit", Book{ProgressPercent: p(10)}, hcOpenRead{Pages: 200, EdPages: 400}, 0, 50, false, false},
 		{"audiobook seconds", Book{ProgressPercent: p(10)}, hcOpenRead{Seconds: 9000, EdAudio: 36000}, 0, 25, false, false},
+		{"audiobook ignores stale pages", Book{ProgressPercent: p(10)}, hcOpenRead{Pages: 300, EdPages: 300, Seconds: 9000, EdAudio: 36000}, 0, 25, false, false},
+		{"audiobook reset ignores stale pages", Book{ProgressPercent: p(10)}, hcOpenRead{Pages: 300, EdPages: 300, EdAudio: 36000}, 0, 0, false, false},
 		{"nothing on Hardcover", Book{Pages: p(300)}, hcOpenRead{EdPages: 300}, 0, 0, true, false},
 	} {
 		got := progressFromRemote(c.book, c.remote)
@@ -250,6 +255,46 @@ func TestProgressPushIsOptInAndOneMutation(t *testing.T) {
 	}
 	if dbValue[string](t, a, "SELECT reading_status FROM books WHERE id=?", id) != "reading" {
 		t.Fatal("Hardcover finishing the read finished the book here")
+	}
+}
+
+func TestProgressPushUsesReadEditionLength(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name, shelf, read, progress, want string
+	}{
+		{"audio shelf with print book fallback", `{"pages":null,"audio_seconds":36000}`, `null`, "50", `{"progress_seconds":18000}`},
+		{"audio read with print shelf", `{"pages":300,"audio_seconds":null}`, `{"pages":null,"audio_seconds":36000}`, "50", `{"progress_seconds":18000}`},
+		{"print read with audio shelf", `{"pages":null,"audio_seconds":36000}`, `{"pages":400,"audio_seconds":null}`, "50", `{"progress_pages":200}`},
+		{"audio with catalog pages", `null`, `{"pages":300,"audio_seconds":36000}`, "50", `{"progress_seconds":18000}`},
+		{"audio reset to zero", `null`, `{"pages":null,"audio_seconds":36000}`, "0", `{"progress_seconds":0}`},
+		{"selected edition length unknown", `{"pages":300,"audio_seconds":null}`, `{"pages":null,"audio_seconds":null}`, "50", ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			f := &progFake{hasRead: true, status: 2, ub: 61, readID: 71}
+			f.fail = func(query string) (int, string, bool) {
+				if strings.Contains(query, "NextChapterOpenRead") {
+					return 200, fmt.Sprintf(`{"data":{"user_books":[{"id":61,"status_id":2,"book":{"pages":300},"edition":%s,"user_book_reads":[{"id":71,"progress_pages":0,"progress_seconds":20,"edition":%s}]}]}}`, tc.shelf, tc.read), true
+				}
+				return 0, "", false
+			}
+			a, b, id := progApp(t, f, "reading")
+			optIn(t, b, id)
+			loc := saveProgress(t, a, b, id, "percent", tc.progress)
+			if tc.want == "" {
+				if !strings.HasSuffix(loc, "notice=hc-progress-skip") || len(f.mutations) != 0 {
+					t.Fatalf("unknown edition length should not borrow another edition's length: %s", loc)
+				}
+				return
+			}
+			if !strings.HasSuffix(loc, "notice=hc-progress-sent") || len(f.mutations) != 1 {
+				t.Fatalf("expected progress mutation: %s, %v", loc, f.mutations)
+			}
+			raw, _ := json.Marshal(f.mutations[0]["read"])
+			if string(raw) != tc.want {
+				t.Fatalf("got %s, want %s", raw, tc.want)
+			}
+		})
 	}
 }
 

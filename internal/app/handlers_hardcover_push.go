@@ -85,6 +85,12 @@ func (a *App) hardcoverSend(w http.ResponseWriter, r *http.Request) error {
 // previewSend reads Hardcover's rows for the books and stores what sending
 // would do as a preview. It sends nothing.
 func (a *App) previewSend(r *http.Request, link *hardcoverLink, ids []int64) (string, error) {
+	return a.previewSendChecked(r, link, ids, func(q queryer) error { return current(q, r) })
+}
+
+// check binds the preview to either the submitted revision or a local start
+// committed by this request. A concurrent library change invalidates both.
+func (a *App) previewSendChecked(r *http.Request, link *hardcoverLink, ids []int64, check func(queryer) error) (string, error) {
 	books, unlinked, err := loadPushBooks(a.store.DB, ids)
 	if err != nil {
 		return "", err
@@ -109,7 +115,7 @@ func (a *App) previewSend(r *http.Request, link *hardcoverLink, ids []int64) (st
 	plan := buildPushPlan(books, remote, link.UserID, hcPrivacy(prefs))
 	var id string
 	err = a.store.Write(func(tx *sql.Tx) error {
-		if err := current(tx, r); err != nil {
+		if err := check(tx); err != nil {
 			return err
 		}
 		var err error
