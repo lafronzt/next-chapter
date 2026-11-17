@@ -114,7 +114,8 @@
   <form method="post" action="/books/{{.Book.ID}}/lookup" class="stack">
     {{template "fields" .}}
     <p class="muted"><small>What gets sent: this book’s {{if .Book.ISBN}}title, author, and ISBN{{else}}title and author{{end}} to Open Library and Google Books. Never your ratings, reviews, tags, or reading history. You choose what to keep before anything is saved.</small></p>
-    <div><button class="button">Look up details</button></div>
+    <div><button class="button" data-busy-label="Looking up…">Look up details</button></div>
+    <p class="notice" role="status" data-busy-status hidden>Checking Open Library and Google Books. This can take several seconds.</p>
   </form>
   {{else}}
   <p class="muted"><small>Book lookup is off, so nothing is sent anywhere. Turn it on in <a href="/settings?open=privacy#privacy">Preferences</a> to fill in a description and missing details from a book database.</small></p>

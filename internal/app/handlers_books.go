@@ -21,12 +21,7 @@ func (a *App) newBook(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
-	// Details a lookup filled in before the book was added: the ISBN and year
-	// it carried, and the description's source while the text is still theirs.
-	b.ISBN = cleanISBN(r.FormValue("isbn"))
-	if y, e := strconv.Atoi(r.FormValue("published_year")); e == nil && y > 0 && y <= 9999 {
-		b.PublishedYear = &y
-	}
+	// Details a lookup filled in before the book was added: the description's source while the text is still theirs.
 	if looked := cleanText(r.FormValue("looked_up_description"), maxDescription); looked != "" && b.Description == looked {
 		b.DescriptionSource = truncate(strings.TrimSpace(r.FormValue("description_source")), 100)
 	}
@@ -189,7 +184,7 @@ func (a *App) editBook(w http.ResponseWriter, r *http.Request) error {
 		if err = noteStatusChange(tx, id, old.Status, b.Status, midnight(a.now()), false); err != nil {
 			return err
 		}
-		_, err = tx.Exec(`UPDATE books SET title=?,author=?,identity=?,interest=?,reading_status=?,pages=?,tags=?,series=?,series_number=?,description_source=CASE WHEN description=? THEN description_source ELSE '' END,description=?,reason=?,owned=?,pinned=?,needs_placement=?,position=? WHERE id=?`, b.Title, b.Author, identity(b.Title, b.Author), b.Interest, b.Status, b.Pages, b.Tags, b.Series, b.SeriesNumber, b.Description, b.Description, b.Reason, b.Owned, pin, needs, position, id)
+		_, err = tx.Exec(`UPDATE books SET title=?,author=?,identity=?,interest=?,reading_status=?,pages=?,isbn=?,published_year=?,tags=?,series=?,series_number=?,description_source=CASE WHEN description=? THEN description_source ELSE '' END,description=?,reason=?,owned=?,pinned=?,needs_placement=?,position=? WHERE id=?`, b.Title, b.Author, identity(b.Title, b.Author), b.Interest, b.Status, b.Pages, b.ISBN, b.PublishedYear, b.Tags, b.Series, b.SeriesNumber, b.Description, b.Description, b.Reason, b.Owned, pin, needs, position, id)
 		if err != nil {
 			return err
 		}
