@@ -231,7 +231,10 @@ func (a *App) lookupDetails(w http.ResponseWriter, r *http.Request) error {
 	}
 	q := LookupQuery{Title: b.Title, Author: b.Author, ISBN: b.ISBN}
 	started := time.Now()
-	found, err := a.finder.Find(r.Context(), q)
+	// Hardcover joins a single-book lookup when it is on and configured; it
+	// then receives the same title, author, and ISBN (or the linked id).
+	hc, hcFirst := a.hardcoverLookupSource(id)
+	found, err := a.finder.FindWith(r.Context(), q, hc, hcFirst)
 	a.logLookup(r, id, found, err, time.Since(started))
 	if err != nil {
 		// A book the databases do not know, or cannot tell apart, is a normal

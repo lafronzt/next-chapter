@@ -487,8 +487,10 @@ func loadHardcoverSync(q queryer) ([]hcSyncRow, error) {
 // resetSync forgets what was sent for a book. It is called when the link
 // changes, because history about one Hardcover book says nothing of another.
 func resetSync(q queryer, bookID int64) error {
-	_, err := q.Exec("DELETE FROM hardcover_sync WHERE book_id=?", bookID)
-	return err
+	if _, err := q.Exec("DELETE FROM hardcover_sync WHERE book_id=?", bookID); err != nil {
+		return err
+	}
+	return dropCatalog(q, bookID)
 }
 
 // recordPush remembers what a successful send changed, so a later pull can

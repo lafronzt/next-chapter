@@ -50,3 +50,10 @@ function openSettingsSection() {
 }
 window.addEventListener('hashchange', openSettingsSection);
 openSettingsSection();
+
+// A Hardcover cover that fails to load is removed, which shows the title tile
+// beneath it. Error events do not bubble, so listen while they are captured.
+document.addEventListener('error', function (e) {
+  var t = e.target;
+  if (t && t.tagName === 'IMG' && t.classList.contains('hc-cover')) t.remove();
+}, true);

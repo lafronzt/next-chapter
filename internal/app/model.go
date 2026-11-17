@@ -132,6 +132,12 @@ type Preferences struct {
 	// private) of library rows this app creates on Hardcover. 0 means the
 	// default, private.
 	HardcoverPrivacy int `json:"hardcover_privacy,omitempty"`
+	// HardcoverCovers shows a linked book's Hardcover cover by loading it from
+	// Hardcover's image host in the reader's browser. HardcoverRating shows
+	// the Hardcover community average. Both are off by default and neither is
+	// used for ranking.
+	HardcoverCovers bool `json:"hardcover_covers,omitempty"`
+	HardcoverRating bool `json:"hardcover_rating,omitempty"`
 	// ReadingGoal is the number of books to finish this year; 0 means no goal.
 	ReadingGoal int `json:"reading_goal,omitempty"`
 	// ProgressHistory keeps a dated checkpoint with each progress update. Off
@@ -227,6 +233,8 @@ type Plan struct {
 	// sends of a reading's date (kinds "hc-progress" and "hc-read").
 	HardcoverProgress *hcProgressPlan `json:"hardcover_progress,omitempty"`
 	HardcoverRead     *hcReadPlan     `json:"hardcover_read,omitempty"`
+	// HardcoverSeries is a previewed addition of unowned series volumes (kind "hc-series").
+	HardcoverSeries *hcSeriesPlan `json:"hardcover_series,omitempty"`
 	// Intent is the reader's optional note for an AI suggestion; it lives
 	// only as long as the plan. AIRows is the AI-suggested order, applied
 	// instead of Rows when the reader chooses it; AINotice explains why an AI

@@ -60,6 +60,9 @@ type seriesGroup struct {
 	// have a finished reading in their history.
 	Read, Reading, Queued, SetAside, ToReview, EverFinished int
 	Books                                                   int
+	// Hardcover is the cached complete series, when a linked book of this
+	// series was refreshed. It never adds or changes a book.
+	Hardcover *seriesCatalog
 }
 
 type seriesRow struct {
@@ -244,6 +247,11 @@ func (a *App) seriesPage(w http.ResponseWriter, r *http.Request) error {
 	shown := []seriesGroup{}
 	if len(groups) > 0 {
 		shown = groups[pages.offset():min(pages.offset()+pages.PerPage, len(groups))]
+	}
+	for i := range shown {
+		if shown[i].Hardcover, err = catalogFor(a.store.DB, shown[i]); err != nil {
+			return err
+		}
 	}
 	var standalone int
 	if err = a.store.DB.QueryRow("SELECT count(*) FROM books WHERE trim(series)=''").Scan(&standalone); err != nil {
