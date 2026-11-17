@@ -2951,3 +2951,34 @@ form.search:not(.list-toolbar .search) {
   background:var(--surface);
   padding:0 4px 0 14px;
 }
+
+/* Guard against horizontal overflow: a flex or grid child never sizes the page
+   past the viewport, long words wrap, and one oversized element cannot make a
+   phone zoom the whole layout out (which shrinks every margin). */
+main {
+  min-width:0;
+  overflow-wrap:break-word;
+}
+
+main>* {
+  min-width:0;
+  max-width:100%;
+}
+
+.next-up-body,.note,.panel>* {
+  min-width:0;
+}
+
+.next-up .button,.panel .button {
+  white-space:normal;
+  text-align:center;
+}
+
+@media(max-width:760px) {
+  html,body {
+    overflow-x:clip;
+  }
+  .next-up {
+    align-items:stretch;
+  }
+}
