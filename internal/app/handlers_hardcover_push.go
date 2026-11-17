@@ -145,6 +145,10 @@ func (a *App) hardcoverPushPlan(w http.ResponseWriter, r *http.Request) error {
 	if err := a.hardcoverReady(); err != nil {
 		return err
 	}
+	// One send at a time: the plan is read, sent, and saved under this lock, so a
+	// double press cannot send the same books twice.
+	a.hardcoverMu.Lock()
+	defer a.hardcoverMu.Unlock()
 	p, rev, err := a.pushPlan(a.store.DB, id)
 	if err != nil {
 		return err
@@ -171,25 +175,20 @@ func (a *App) hardcoverPushPlan(w http.ResponseWriter, r *http.Request) error {
 	plan.Stopped = ""
 	// A request that timed out may have been applied. Look before sending again;
 	// the check and the next send are separate presses so each stays in budget.
-	a.hardcoverMu.Lock()
 	var sendErr error
 	if len(unknown) > 0 {
 		sendErr = a.hardcover.verifyUnknown(r.Context(), plan.UserID, unknown)
 	} else {
 		sendErr = a.hardcover.pushBatch(r.Context(), pending)
 	}
-	a.hardcoverMu.Unlock()
 	if sendErr != nil {
 		plan.Stopped = hardcoverHTTPError(sendErr).Error()
 	}
 	err = a.store.Write(func(tx *sql.Tx) error {
-		// A change here since the preview does not undo what was already sent, so
-		// record it; but nothing is bumped: sending changes no ranking input.
-		if now, err := revision(tx); err != nil {
-			return err
-		} else if now != rev {
-			return conflict("Your library changed while sending. What was sent is recorded; generate a fresh preview for the rest.")
-		}
+		// A change here since the preview does not undo what was already sent, so it
+		// is recorded whatever the revision is now; a refusal here would forget
+		// books Hardcover already has. Nothing is bumped: sending changes no
+		// ranking input.
 		at := canonicalTime(a.now())
 		// Only books sent or confirmed by this press are recorded.
 		var details []hcHistoryDetail

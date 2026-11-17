@@ -408,6 +408,10 @@ func (a *App) hardcoverReadPlan(w http.ResponseWriter, r *http.Request) error {
 	if err := a.hardcoverReady(); err != nil {
 		return err
 	}
+	// One apply at a time: the plan is read, sent, and deleted under this lock,
+	// so a double press finds it gone instead of adding the read twice.
+	a.hardcoverMu.Lock()
+	defer a.hardcoverMu.Unlock()
 	p, rev, err := read(a.store.DB)
 	if err != nil {
 		return err
@@ -434,9 +438,7 @@ func (a *App) hardcoverReadPlan(w http.ResponseWriter, r *http.Request) error {
 		if p.Action == "update" {
 			query, vars = hcUpdateReadMutation, map[string]any{"id": p.RemoteReadID, "read": read}
 		}
-		a.hardcoverMu.Lock()
 		got, ambiguous, err := a.hardcover.readMutation(r.Context(), query, vars)
-		a.hardcoverMu.Unlock()
 		if err != nil {
 			if ambiguous {
 				return httpError{Status: http.StatusBadGateway, Message: "Hardcover did not answer, so it may or may not have saved this. Nothing was recorded here. Preview the reading again to see what Hardcover has before sending."}
