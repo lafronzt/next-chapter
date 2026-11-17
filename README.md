@@ -7,7 +7,7 @@ Next Chapter is a **single-reader web app** with two ways to organize your list:
 - **Find its place:** suggest where one book belongs, preserving the relative order of every other book.
 - **Rethink my queue:** reconsider the entire queue using your want-to-read, library timing, preferred length, tags, and series order.
 
-Every suggestion has a preview and reasons. Pinned books keep their positions. You decide whether to apply a suggestion, and can undo it until another library change occurs. No AI service, API key, or subscription is required, and [book lookup](#book-details-lookup-optional) is off unless you switch it on; [AI assistance](#ai-assistance-optional) is off unless you connect a hosted model with your own key or a model on your own hardware, and switch it on.
+Every suggestion has a preview and reasons. Pinned books keep their positions. You decide whether to apply a suggestion, and can undo it until another library change occurs. No AI service, API key, or subscription is required, and [book lookup](#book-details-lookup-optional) is off unless you switch it on; [AI assistance](#ai-assistance-optional) is off unless you connect a hosted model with your own key or a model on your own hardware, and switch it on; the [Hardcover](#hardcover-optional) connection is off unless you give the server a token and switch it on.
 
 <p align="center">
   <picture>
@@ -37,6 +37,7 @@ Every suggestion has a preview and reasons. Pinned books keep their positions. Y
 - **Borrowing calendar**: due dates, pickup deadlines, and your own hold estimates in one agenda, with an optional one-time `.ics` download. See [Borrowing calendar](#borrowing-calendar).
 - **Progress history and pace** (optional, off by default): dated progress updates for each reading attempt, a rough pace, and an approximate finish date. See [Progress history and pace](#progress-history-and-pace).
 - **Import reconciliation**: record-by-record import details, corrections to library events, and a list of remembered merges and deletions. See [Import details, corrections, and remembered records](#import-details-corrections-and-remembered-records).
+- **Hardcover** (optional, off by default): link books to your Hardcover account, then pull your library, send status, ratings, progress and read dates, fill details and complete series, and check for changes in both directions. Every step is a button you press, with a preview. See [Hardcover](#hardcover-optional).
 - **Yearly reading goal**: set a target on Reading history and see whether you are ahead, on, or behind pace. It only measures.
 - Goodreads CSV imports that keep your `to-read` shelf order and are safe to repeat: export again from Goodreads whenever you want to bring in new books.
 - **Estimated ratings**: “what might I give this?” for an unread book, from your own ratings, with an optional AI second opinion and a running check of how accurate past estimates were.
@@ -65,20 +66,25 @@ Every screenshot here uses made-up example data. Light and dark themes follow yo
 
 ![Reading history with a yearly goal, rating breakdown, and books per year](docs/reading-history.png)
 
+**Hardcover, only when you ask.** One page holds the connection, the sync switches, and a "Check for changes" button that sorts differences into what Hardcover is ahead on, what is local, and what both changed. Nothing moves until you preview and confirm it.
+
+![The Hardcover sync center on desktop](docs/hardcover-desktop-light.png)
+
 **Phone friendly.** A bottom tab bar and larger touch targets. Use your browser's Add to Home Screen to open it like an app.
 
 <p>
   <img alt="Home screen on a phone, light theme" src="docs/mobile.png" width="280">
   <img alt="Home screen on a phone, dark theme" src="docs/mobile-dark.png" width="280">
+  <img alt="The Hardcover sync center on a phone, dark theme" src="docs/hardcover-mobile-dark.png" width="280">
 </p>
 
 ## Integration boundaries
 
 **This app owns the ordered queue. It does not write order, reading status, ratings, reviews, or reading history back to Goodreads.** Goodreads stopped issuing public API keys; this project does not depend on that API or request a Goodreads password.
 
-Goodreads turned off its public shelf feeds in 2026, so CSV import is the only Goodreads path. Export your library from Goodreads (My Books → Import and export → Export Library) and import the file as often as you like. Each export is matched against what you already have: by ISBN when the row has one, otherwise by normalized title and author, and by Goodreads Book ID as a last resort for a book whose title or author you edited. Books you deleted stay deleted, and merged books update their target. New books are appended, oldest first, and marked **Needs placement**; imports never silently reorder your queue.
+Goodreads turned off its public shelf feeds in 2026, so CSV import is the only Goodreads path. [Hardcover](#hardcover-optional) is an optional alternative that has a real API: it can pull your library without a CSV round trip, and, unlike Goodreads, accept status and ratings back. Export your library from Goodreads (My Books → Import and export → Export Library) and import the file as often as you like. Each export is matched against what you already have: by ISBN when the row has one, otherwise by normalized title and author, and by Goodreads Book ID as a last resort for a book whose title or author you edited. Books you deleted stay deleted, and merged books update their target. New books are appended, oldest first, and marked **Needs placement**; imports never silently reorder your queue.
 
-Importing makes no network requests: the file you upload is the only input, and nothing is sent to Goodreads. The one optional exception is [book lookup](#book-details-lookup-optional), which is off by default and runs only when you press its button.
+A CSV import makes no network requests: the file you upload is the only input, and nothing is sent to Goodreads. The optional exceptions are [book lookup](#book-details-lookup-optional) and [Hardcover](#hardcover-optional), both off by default and run only when you press a button.
 
 Libby supports exporting timeline activity but does not provide a direct Goodreads integration. Export column names and activity labels can vary. The parser accepts common variants and rejects unsupported rows with an actionable error; normalize those rows to the provided sample CSV before importing. There is no authenticated Libby connection.
 
@@ -142,7 +148,7 @@ Download a database backup, stop the old container, and start v0.2 with the same
 
 ## Kubernetes
 
-Use a cluster with a default StorageClass and a local/block-backed persistent volume. The deployment intentionally uses **one replica** and **Recreate** updates to avoid overlapping SQLite writers; upgrades have brief downtime.
+Use a cluster with a default StorageClass and a local/block-backed persistent volume. The plain manifest intentionally uses **one replica** and **Recreate** updates to avoid overlapping SQLite writers; upgrades have brief downtime.
 
 1. Build and push your image, or publish a release tag with the included GitHub workflow.
 2. Replace the image in `deploy/kubernetes/app.yaml` with your registry image and version.
@@ -156,7 +162,7 @@ kubectl port-forward service/next-chapter 8000:80
 
 ### Helm
 
-`deploy/helm/next-chapter` is a chart with the same hardening (one replica, Recreate, non-root) plus an optional cert-manager Ingress. Set options in a values file or with `--set`; see `values.yaml` for all of them.
+`deploy/helm/next-chapter` is a chart with the same hardening (one replica, non-root) plus an optional cert-manager Ingress. Unlike the plain manifest, the chart uses a `RollingUpdate` strategy with `maxUnavailable: 0` and `maxSurge: 1`, so an upgrade starts the new pod before the old one stops and the two briefly share the database volume. That keeps the app available during upgrades but is a deliberate trade against the single-writer rule above: it needs a volume both pods can mount (`ReadWriteMany`, or the same node), and you should back up before a release that migrates the schema. Set options in a values file or with `--set`; see `values.yaml` for all of them.
 
 ```sh
 helm upgrade --install next-chapter deploy/helm/next-chapter \
@@ -514,12 +520,12 @@ token into a page. The test needs `read:me` and checks that the library and read
 Testing sends a bearer token and an account/schema query to the fixed endpoint
 `https://api.hardcover.app/v1/graphql`. It reads your own id and username and
 checks the library/read schema; no titles, ratings, reviews, private notes,
-reasons, queue order, pins, loans, or AI data are sent. Future matching requests
-may send book ids, ISBNs, titles and authors, and will be described before use.
-No calls run on page load, import, startup, or a timer. Credentials stay in the
+reasons, queue order, pins, loans, or AI data are sent. The other actions below
+send only what their section lists (book ids, ISBNs, titles and authors, status,
+ratings, progress, dates). No calls run on page load, import, startup, or a timer. Credentials stay in the
 environment: never in the database, export, HTML, or application logs. Responses
 are capped at 1 MB, redirects are refused, and calls time out after 30 seconds
-(3 seconds for future search requests).
+(3 seconds for search requests).
 
 Hardcover's beta API can change, and tokens may be reset. The connection test
 checks required fields before saving a link. Free-plan limits are 5,000
@@ -557,7 +563,7 @@ The JSON export can also be loaded back, for example to move to a new instance w
 - Restored: books with their status, want-to-read, pins, **Needs placement**, queue positions and order, series, tags, pages, identifiers, added date, and source; reading history (review text only if the restored preferences keep reviews); library events with their fingerprints, so re-importing the same CSV adds no duplicates; current loans, rebuilt from the events with the same newest-wins rule as imports; merge and deletion aliases; ranking preferences; and Goodreads settings.
 - Exports from older versions carry retired Goodreads feed settings; they are accepted and ignored.
 - Not restored: previews, undo, sign-in state, and the session key. Books and events get new ID numbers.
-- Validation is strict and uses the same limits as the forms and CSV imports. Unknown fields, malformed JSON, out-of-range values, duplicate titles or Goodreads IDs, and exports from a newer schema version than this build supports are refused, and nothing is written. The export's `schema_version` is the database schema version it came from; this build restores versions 1 to 16. An export from before version 6 has no reading history, and its Goodreads connection starts following the `read` shelf.
+- Validation is strict and uses the same limits as the forms and CSV imports. Unknown fields, malformed JSON, out-of-range values, duplicate titles or Goodreads IDs, and exports from a newer schema version than this build supports are refused, and nothing is written. The export's `schema_version` is the database schema version it came from; this build restores versions 1 to 22. An export from before version 6 has no reading history, and its Goodreads connection starts following the `read` shelf.
 - The file is limited to 10 MB, 10,000 books, and 100,000 events. A 10,000-book export is typically about 6 MB; a library too large for JSON restore can still use the database backup.
 
 ### Schema upgrades and rollback
@@ -700,7 +706,7 @@ Then switch AI on in Preferences. Tests never contact a real provider; they use 
 
 For production, set `APP_PASSWORD` and `APP_SECRET_KEY` and omit `LOCAL_DEMO`. `DATABASE_PATH` defaults to `data/next-chapter.sqlite3`; `LISTEN_ADDR` defaults to `:8000`. `TRUSTED_PROXY_HOPS` (default `0`) is described under Docker Compose. The executable includes `version` and `healthcheck` commands.
 
-The application uses Go’s HTTP server, escaped HTML templates, plain CSS, and a pure-Go SQLite driver. Templates, assets, and CSV examples are embedded in the executable. No font, analytics, or cover-image service receives reading data. The app makes outbound requests only if the operator configures a provider and the reader switches it on, for [AI assistance](#ai-assistance-optional) that the reader requests and confirms one request at a time. Optional [Hardcover](#hardcover-optional) connection tests send only an account/schema query when explicitly requested. With Ollama or another self-hosted model, those requests can stay on your own machine or network.
+The application uses Go’s HTTP server, escaped HTML templates, plain CSS, and a pure-Go SQLite driver. Templates, assets, and CSV examples are embedded in the executable. No font, analytics, or cover-image service receives reading data. The app makes outbound requests only if the operator configures a provider and the reader switches it on, for [AI assistance](#ai-assistance-optional) that the reader requests and confirms one request at a time. Optional [Hardcover](#hardcover-optional) requests go only to its fixed API endpoint and only when a button is pressed (covers, if switched on, are loaded by your browser from `assets.hardcover.app`). With Ollama or another self-hosted model, those requests can stay on your own machine or network.
 
 ## Project layout
 
@@ -712,7 +718,14 @@ The application uses Go’s HTTP server, escaped HTML templates, plain CSS, and 
 - `internal/app/records.go`: matching imported records and event reconciliation.
 - `internal/app/progress.go`: page progress and pace, expected hold dates, and the yearly reading goal.
 - `internal/app/plans.go`: compact storage for previews.
-- `internal/app/merge.go`: deleting and merging books, aliases that stop re-imports from recreating them.
+- `internal/app/merge.go`, `aliases.go`: deleting and merging books, aliases that stop re-imports from recreating them, and the page that lists and removes them.
+- `internal/app/corrections.go`, `import_details.go`: event corrections and the record-by-record import details page.
+- `internal/app/restore.go`: JSON export validation and restore.
+- `internal/app/reasons.go`: the short reason shown for a book's place; it explains order and never changes it.
+- `internal/app/reading_page.go`, `history.go`, `progress_history.go`: reading history, the yearly goal, and optional progress history and pace.
+- `internal/app/series.go`, `calendar.go`, `views.go`, `notes.go`: series dashboard, borrowing calendar, saved views, and private notes.
+- `internal/app/lookup.go`, `cover.go`: optional book-details lookup and cover tiles.
+- `internal/app/hardcover*.go`, `handlers_hardcover*.go`: the optional Hardcover client with its rate budget, book linking, pull, push, progress and dates, catalog and series cache, and sync center.
 - `internal/app/estimate.go`, `handlers_estimate.go`: estimated ratings, the deterministic baseline, the optional AI estimate, and accuracy tracking.
 - `internal/app/rerank.go`: AI-suggested queue orders and placements, validated and merged through the ranking constraints.
 - `internal/app/ai.go`, `handlers_ai.go`: the optional AI provider layer (Anthropic, OpenAI, Ollama, and OpenAI-compatible servers over `net/http`), its monthly limit, strict answer parsing, the exact-prompt preview, and the Preferences switch.
@@ -726,7 +739,8 @@ The application uses Go’s HTTP server, escaped HTML templates, plain CSS, and 
 ## Next steps
 
 - Validate import adapters against anonymized real exports from more Libby locales.
-- Add editable library-event corrections, and a way to review or clear aliases left by merges and deletions.
+- Hardcover: publish the queue as a private list, OAuth instead of a personal access token, and an optional scheduled check for changes (prompt 46 and `HARDCOVER_SYNC_INTERVAL`, not started).
+- Run a live check of the Hardcover calls against the real API; so far they are covered by synthetic servers and request shapes from Hardcover's official SDK.
 - Explore opt-in NYPL receipt/email ingestion or an authorized account connector.
 - Add optional Goodreads writeback only if a supported integration becomes available.
 - Consider multiple reader accounts and PostgreSQL after the personal workflow is proven.
