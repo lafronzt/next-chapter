@@ -11,10 +11,10 @@
     {{template "fields" .}}
     <input type="hidden" name="section" value="ranking">
     <label>Library timing<select name="library_weight">
-      <option value="0" {{if eq .Prefs.LibraryWeight 0.0}}selected{{end}}>Ignore deadlines for ranking</option>
-      <option value="0.5" {{if eq .Prefs.LibraryWeight 0.5}}selected{{end}}>A gentle nudge</option>
-      <option value="1" {{if eq .Prefs.LibraryWeight 1.0}}selected{{end}}>Balance with my want-to-read</option>
-      <option value="2" {{if eq .Prefs.LibraryWeight 2.0}}selected{{end}}>Prioritize loans and pickup deadlines</option>
+      <option value="0" {{if eq .Prefs.LibraryWeight 0.0}}selected{{end}}>Ignore deadlines</option>
+      <option value="0.5" {{if eq .Prefs.LibraryWeight 0.5}}selected{{end}}>Gentle nudge</option>
+      <option value="1" {{if eq .Prefs.LibraryWeight 1.0}}selected{{end}}>Balanced (default)</option>
+      <option value="2" {{if eq .Prefs.LibraryWeight 2.0}}selected{{end}}>Prioritize deadlines</option>
     </select><small>How much a library loan or pickup deadline lifts a book. Default: Balance with my want-to-read.</small></label>
     <label>Preferred length<select name="length">
       <option value="any" {{if eq .Prefs.Length "any"}}selected{{end}}>Any length</option>

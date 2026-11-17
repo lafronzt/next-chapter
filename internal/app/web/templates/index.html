@@ -36,11 +36,11 @@
       <div class="strip-title"><a href="/books/{{.ID}}">{{.Title}}</a> <span class="muted">{{.Author}}</span>
         {{if .HasProgress}}<meter class="progress-meter" min="0" max="100" value="{{.Percent}}" aria-label="Progress in {{.Title}}"></meter>{{end}}
         {{with .ProgressText}}<span class="muted progress-text">{{.}}</span>{{end}}
-        <form class="progress-form" method="post" action="/books/{{.ID}}/progress">
+        <form class="progress-form reading-progress" method="post" action="/books/{{.ID}}/progress">
           {{template "fields" $}}
           <input type="hidden" name="return" value="{{$.Pager.Self}}">
-          <label>Progress <input type="text" name="progress" placeholder="e.g. 2:30" value="{{.ProgressValue}}" aria-label="How far you are in {{.Title}}"></label>
-          <select name="unit" aria-label="Unit for {{.Title}}"><option value="page" {{if eq .ProgressUnit "page"}}selected{{end}}>pages</option><option value="percent" {{if eq .ProgressUnit "percent"}}selected{{end}}>%</option><option value="seconds" {{if eq .ProgressUnit "seconds"}}selected{{end}}>hours:minutes</option></select>
+          <label>Progress <input type="text" name="progress" inputmode="{{if eq .ProgressUnit "seconds"}}text{{else}}numeric{{end}}" placeholder="{{if eq .ProgressUnit "seconds"}}e.g. 2:30{{else if eq .ProgressUnit "percent"}}e.g. 35{{else}}e.g. 120{{end}}" value="{{.ProgressValue}}" aria-label="How far you are in {{.Title}}"></label>
+          <label>Unit <select name="unit" aria-label="Unit for {{.Title}}"><option value="page" {{if eq .ProgressUnit "page"}}selected{{end}}>pages</option><option value="percent" {{if eq .ProgressUnit "percent"}}selected{{end}}>%</option><option value="seconds" {{if eq .ProgressUnit "seconds"}}selected{{end}}>hours:minutes</option></select></label>
           <button class="button small"><span>Save</span></button>
         </form>
       </div>

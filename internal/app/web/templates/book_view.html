@@ -8,19 +8,21 @@
     {{if .ShowHardcoverCover}}<img class="hc-cover" src="{{.HardcoverCatalog.ImageURL}}" alt="Cover of {{.Book.Title}}" referrerpolicy="no-referrer" loading="lazy" width="72" height="108">{{end}}
   </div>
   <div class="next-up-body">
+    <div class="book-heading">
     <h1 id="book-title">{{.Book.Title}}</h1>
     <p class="author">{{.Book.Author}}{{if .Book.Pages}}<span> · {{pages .Book.Pages}} pages</span>{{end}}{{with .Book.Series}}<span> · {{.}}{{with $.Book.SeriesNumber}} #{{seriesNumber .}}{{end}}</span>{{end}}</p>
+    </div>
     <p class="book-meta">{{pips .Book.Interest}}{{if .Book.Tags}}<span> · {{.Book.Tags}}</span>{{end}}</p>
     <p><span class="badge">{{status .Book.Status}}</span>{{if .Book.Pinned}} <span class="badge pin"><span aria-hidden="true">◆</span> Pinned</span>{{end}}{{if .Book.Owned}} <span class="badge">Owned</span>{{end}}</p>
     {{if eq .Book.Status "reading"}}
     <div class="progress-block">
       {{if .Book.HasProgress}}<meter class="progress-meter" min="0" max="100" value="{{.Book.Percent}}" aria-label="Progress in {{.Book.Title}}"></meter>{{end}}
       {{with .Book.ProgressText}}<p class="muted">{{.}}</p>{{end}}
-      <form class="progress-form" method="post" action="/books/{{.Book.ID}}/progress">
+      <form class="progress-form reading-progress" method="post" action="/books/{{.Book.ID}}/progress">
         {{template "fields" .}}
         <input type="hidden" name="back" value="book">
-        <label>Progress <input type="text" name="progress" placeholder="e.g. 2:30" value="{{.Book.ProgressValue}}"></label>
-        <select name="unit" aria-label="Progress unit"><option value="page" {{if eq .Book.ProgressUnit "page"}}selected{{end}}>pages</option><option value="percent" {{if eq .Book.ProgressUnit "percent"}}selected{{end}}>%</option><option value="seconds" {{if eq .Book.ProgressUnit "seconds"}}selected{{end}}>hours:minutes</option></select>
+        <label>Progress <input type="text" name="progress" inputmode="{{if eq .Book.ProgressUnit "seconds"}}text{{else}}numeric{{end}}" placeholder="{{if eq .Book.ProgressUnit "seconds"}}e.g. 2:30{{else if eq .Book.ProgressUnit "percent"}}e.g. 35{{else}}e.g. 120{{end}}" value="{{.Book.ProgressValue}}"></label>
+        <label>Unit <select name="unit" aria-label="Progress unit"><option value="page" {{if eq .Book.ProgressUnit "page"}}selected{{end}}>pages</option><option value="percent" {{if eq .Book.ProgressUnit "percent"}}selected{{end}}>%</option><option value="seconds" {{if eq .Book.ProgressUnit "seconds"}}selected{{end}}>hours:minutes</option></select></label>
         <button class="button small"><span>Save</span></button>
       </form>
       <p class="muted"><small>For audio, choose hours:minutes and enter your elapsed position, such as 2:30.</small></p>

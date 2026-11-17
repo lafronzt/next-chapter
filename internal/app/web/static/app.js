@@ -57,3 +57,43 @@ document.addEventListener('error', function (e) {
   var t = e.target;
   if (t && t.tagName === 'IMG' && t.classList.contains('hc-cover')) t.remove();
 }, true);
+
+
+// Keep the selected library view visible inside the horizontally scrolling tabs.
+var libraryTabs = document.querySelector('.tabs');
+var selectedTab = libraryTabs && libraryTabs.querySelector('.selected');
+if (selectedTab) {
+  var selectedLeft = selectedTab.getBoundingClientRect().left - libraryTabs.getBoundingClientRect().left;
+  libraryTabs.scrollLeft += selectedLeft - (libraryTabs.clientWidth - selectedTab.offsetWidth) / 2;
+}
+
+// Disclosure menus remain usable without JavaScript; enhance dismissal for
+// keyboard users and when the reader taps elsewhere or opens an outbound link.
+var menuSelector = 'details.book-links, details.tab-more, details.row-more';
+document.addEventListener('click', function (event) {
+  if (!(event.target instanceof Element)) return;
+  document.querySelectorAll(menuSelector).forEach(function (menu) {
+    if (menu.open && (!menu.contains(event.target) || event.target.closest('a'))) menu.open = false;
+  });
+});
+document.addEventListener('keydown', function (event) {
+  if (event.key !== 'Escape') return;
+  document.querySelectorAll(menuSelector).forEach(function (menu) {
+    if (!menu.open) return;
+    var containedFocus = menu.contains(document.activeElement);
+    menu.open = false;
+    if (containedFocus) menu.querySelector('summary').focus();
+  });
+});
+
+
+// Match the keypad and example to the chosen progress unit without changing
+// what the reader has typed.
+document.querySelectorAll('.reading-progress').forEach(function (form) {
+  var unit = form.querySelector('select[name=unit]');
+  var input = form.querySelector('input[name=progress]');
+  unit.addEventListener('change', function () {
+    input.inputMode = unit.value === 'seconds' ? 'text' : 'numeric';
+    input.placeholder = unit.value === 'seconds' ? 'e.g. 2:30' : unit.value === 'percent' ? 'e.g. 35' : 'e.g. 120';
+  });
+});
