@@ -8,13 +8,15 @@ import (
 )
 
 type Book struct {
-	ID          int64  `json:"id"`
-	Title       string `json:"title"`
-	Author      string `json:"author"`
-	Identity    string `json:"identity"`
-	ISBN        string `json:"isbn"`
-	GoodreadsID string `json:"goodreads_id"`
-	Pages       *int   `json:"pages"`
+	ID            int64   `json:"id"`
+	Title         string  `json:"title"`
+	Author        string  `json:"author"`
+	Identity      string  `json:"identity"`
+	ISBN          string  `json:"isbn"`
+	GoodreadsID   string  `json:"goodreads_id"`
+	Pages         *int    `json:"pages"`
+	StartedAt     *string `json:"started_at,omitempty"`     // Start of the current or most recent attempt.
+	StartedManual bool    `json:"started_manual,omitempty"` // Includes an explicitly cleared start.
 	// ProgressPage is the page reached while reading; nil when not tracked.
 	ProgressPage *int `json:"progress_page,omitempty"`
 	// ProgressSeconds is elapsed audiobook position, not listening time.

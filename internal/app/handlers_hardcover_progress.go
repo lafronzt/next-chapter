@@ -3,17 +3,20 @@ package app
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 )
 
 // hcProgressPlan is a previewed pull of the current read's progress.
 type hcProgressPlan struct {
-	BookID     int64  `json:"book_id"`
-	Title      string `json:"title"`
-	LocalText  string `json:"local_text"`
-	RemoteText string `json:"remote_text"`
+	AudioSeconds *int   `json:"audio_seconds,omitempty"`
+	BookID       int64  `json:"book_id"`
+	Title        string `json:"title"`
+	LocalText    string `json:"local_text"`
+	RemoteText   string `json:"remote_text"`
 	// State is same, remote, local, both, or none (nothing usable).
 	State     string `json:"state"`
 	Page      *int   `json:"page,omitempty"`
@@ -25,6 +28,12 @@ type hcProgressPlan struct {
 
 // hcReadPlan is a previewed send of one finished reading's date.
 type hcReadPlan struct {
+	StartedAt       string `json:"started_at,omitempty"`
+	RemoteStartedAt string `json:"remote_started_at,omitempty"`
+	UserID          int64  `json:"user_id"`
+	RemoteSnapshot  string `json:"remote_snapshot"`
+	Current         bool   `json:"current,omitempty"`
+
 	BookID          int64  `json:"book_id"`
 	Title           string `json:"title"`
 	ReadingID       int64  `json:"reading_id"`
@@ -165,6 +174,12 @@ func (a *App) hardcoverProgressPull(w http.ResponseWriter, r *http.Request) erro
 	}
 	conv := progressFromRemote(b, *open)
 	plan := hcProgressPlan{BookID: id, Title: b.Title, LocalText: b.ProgressText(), RemoteText: remoteProgressText(*open), Page: conv.Page, Percent: conv.Percent, Seconds: conv.Seconds, Note: conv.Note, RemoteKey: remoteProgressKey(*open)}
+
+	if b.AudioSeconds == nil && open.EdAudio > 0 && open.EdAudio <= maxProgressSeconds {
+		n := open.EdAudio
+		plan.AudioSeconds = &n
+		plan.Note += " Total audiobook duration (" + audioPosition(n) + ") will also be filled from Hardcover's selected edition."
+	}
 	if plan.LocalText == "" {
 		plan.LocalText = "none saved"
 	}
@@ -175,6 +190,9 @@ func (a *App) hardcoverProgressPull(w http.ResponseWriter, r *http.Request) erro
 			conv.Percent != nil && b.ProgressPercent != nil && *conv.Percent == *b.ProgressPercent ||
 			conv.Seconds != nil && b.ProgressSeconds != nil && *conv.Seconds == *b.ProgressSeconds
 		plan.State = progressState(last, localProgressKey(b), plan.RemoteKey, equal)
+		if plan.State == "same" && plan.AudioSeconds != nil {
+			plan.State = "remote"
+		}
 	}
 	var planID string
 	err = a.store.Write(func(tx *sql.Tx) error {
@@ -266,6 +284,16 @@ func (a *App) hardcoverProgressPlan(w http.ResponseWriter, r *http.Request) erro
 		} else {
 			seconds = value
 		}
+
+		if p.AudioSeconds != nil && b.AudioSeconds == nil {
+			if _, err = tx.Exec("UPDATE books SET audio_seconds=? WHERE id=?", p.AudioSeconds, p.BookID); err != nil {
+				return err
+			}
+			b.AudioSeconds = p.AudioSeconds
+			if err = bump(tx); err != nil {
+				return err
+			}
+		}
 		if _, err = tx.Exec("UPDATE books SET progress_page=?,progress_percent=?,progress_seconds=? WHERE id=?", page, percent, seconds, p.BookID); err != nil {
 			return err
 		}
@@ -294,10 +322,23 @@ func (a *App) hardcoverProgressPlan(w http.ResponseWriter, r *http.Request) erro
 
 // ---- send a reading's date ----
 
-func (a *App) hardcoverSendRead(w http.ResponseWriter, r *http.Request) error {
-	if err := a.hardcoverReady(); err != nil {
+// hardcoverCurrentDates previews the start date of the current reading.
+func (a *App) hardcoverCurrentDates(w http.ResponseWriter, r *http.Request) error {
+	id, err := requestID(r)
+	if err != nil {
 		return err
 	}
+	b, err := getBook(a.store.DB, id)
+	if err != nil {
+		return err
+	}
+	if b.Status != "reading" {
+		return bad("Only a book you are reading has a current start date to sync.")
+	}
+	return a.previewReadDates(w, r, readingEntry{BookID: id, Title: b.Title, StartedAt: b.StartedAt}, true)
+}
+
+func (a *App) hardcoverSendRead(w http.ResponseWriter, r *http.Request) error {
 	rid, err := strconv.ParseInt(r.PathValue("rid"), 10, 64)
 	if err != nil || rid < 1 {
 		return bad("Choose a valid reading.")
@@ -309,7 +350,28 @@ func (a *App) hardcoverSendRead(w http.ResponseWriter, r *http.Request) error {
 	if len(entries) == 0 {
 		return sql.ErrNoRows
 	}
-	e := entries[0]
+	return a.previewReadDates(w, r, entries[0], false)
+}
+
+func readDatesText(started, finished string, precision int) string {
+	text := periodText(finished, precision)
+	if text == "" {
+		text = "finish not recorded"
+	}
+	if started != "" {
+		text = "Started " + started + " · " + text
+	}
+	return text
+}
+
+func readDatesKey(readID int64, started, finished string, precision int) string {
+	return strconv.FormatInt(readID, 10) + ":" + started + ":" + dateKey(finished, precision)
+}
+
+func (a *App) previewReadDates(w http.ResponseWriter, r *http.Request, e readingEntry, currentRead bool) error {
+	if err := a.hardcoverReady(); err != nil {
+		return err
+	}
 	link, err := getBookLink(a.store.DB, e.BookID)
 	if err != nil {
 		return err
@@ -318,13 +380,23 @@ func (a *App) hardcoverSendRead(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
-	switch {
-	case link == nil || acct == nil:
+	if link == nil || acct == nil {
 		return bad("Link this book to Hardcover, and test the connection, first.")
-	case e.FinishedAt == nil || len(*e.FinishedAt) < 10:
+	}
+	if !currentRead && e.FinishedAt == nil {
 		return bad("This reading has no finish date to send.")
 	}
-	date, prec := (*e.FinishedAt)[:10], max(1, e.FinishedPrecision)
+	date, started := "", ""
+	if e.FinishedAt != nil {
+		date = *e.FinishedAt
+	}
+	if e.StartedAt != nil {
+		started = *e.StartedAt
+	}
+	prec := max(1, e.FinishedPrecision)
+	if err := checkReadingDates(e.StartedAt, e.FinishedAt, prec); err != nil {
+		return err
+	}
 	a.hardcoverMu.Lock()
 	remote, err := a.hardcover.shelf(r.Context(), acct.UserID, []int64{link.HardcoverBookID})
 	a.hardcoverMu.Unlock()
@@ -335,46 +407,70 @@ func (a *App) hardcoverSendRead(w http.ResponseWriter, r *http.Request) error {
 	if !ok {
 		return bad("This book is not on your Hardcover shelves yet. Send its status first, from the book page.")
 	}
-	plan := hcReadPlan{BookID: e.BookID, Title: e.Title, ReadingID: rid, HardcoverBookID: link.HardcoverBookID, UserBookID: int64(u.ID), Date: date, Precision: prec, LocalText: periodText(date, prec), Action: "insert"}
+	snapshot, _ := json.Marshal(u.Reads)
+	plan := hcReadPlan{BookID: e.BookID, Title: e.Title, ReadingID: e.ID, HardcoverBookID: link.HardcoverBookID, UserBookID: int64(u.ID), UserID: acct.UserID, Date: date, Precision: prec, StartedAt: started, LocalText: readDatesText(started, date, prec), Action: "insert", Current: currentRead, RemoteSnapshot: string(snapshot)}
 	type remoteRead struct {
-		id        int64
-		date      string
-		precision int
+		id            int64
+		started, date string
+		precision     int
 	}
-	var reads []remoteRead
+	var match *remoteRead
 	for _, rd := range u.Reads {
-		if d, p, ok := periodStart(rd.FinishedAt, int(rd.Precision)); ok {
-			reads = append(reads, remoteRead{int64(rd.ID), d, p})
+		d, p, finished := periodStart(rd.FinishedAt, int(rd.Precision))
+		start, _, _ := periodStart(rd.StartedAt, 1)
+		candidate := remoteRead{int64(rd.ID), start, d, max(1, p)}
+		if currentRead {
+			if !finished && u.StatusID == 2 {
+				match = &candidate
+			}
+			continue
 		}
-	}
-	find := func(f func(remoteRead) bool) *remoteRead {
-		for i := range reads {
-			if f(reads[i]) {
-				return &reads[i]
+		if e.HardcoverReadID != nil {
+			if candidate.id == *e.HardcoverReadID && finished {
+				match = &candidate
+				break
+			}
+			continue
+		}
+		if finished && dateKey(d, p) == dateKey(date, prec) {
+			var n int
+			if err := a.store.DB.QueryRow("SELECT count(*) FROM reading_log WHERE hardcover_read_id=? AND id!=?", candidate.id, e.ID).Scan(&n); err != nil {
+				return err
+			}
+			if n == 0 {
+				match = &candidate
+				break
 			}
 		}
-		return nil
 	}
-	if e.HardcoverReadID != nil {
-		m := find(func(x remoteRead) bool { return x.id == *e.HardcoverReadID })
-		if m == nil {
-			plan.Action, plan.Note = "missing", "Hardcover no longer has the read this entry was tied to, or it has no finish date there. Nothing is sent."
+	if match != nil {
+		plan.RemoteReadID, plan.RemoteDate, plan.RemotePrec, plan.RemoteStartedAt = match.id, match.date, match.precision, match.started
+		plan.RemoteText = readDatesText(match.started, match.date, match.precision)
+		localKey := readDatesKey(match.id, started, date, prec)
+		remoteKey := readDatesKey(match.id, match.started, match.date, match.precision)
+		if localKey == remoteKey {
+			if e.HardcoverReadID == nil && !currentRead {
+				plan.Action = "map"
+				plan.Note = "Hardcover already has this reading. Nothing is sent; this entry is tied to it, so later edits update that read instead of adding another."
+			} else {
+				plan.Action = "none"
+			}
 		} else {
-			plan.RemoteReadID, plan.RemoteDate, plan.RemotePrec, plan.RemoteText = m.id, m.date, m.precision, periodText(m.date, m.precision)
+			plan.Action = "update"
 			last, err := lastSync(a.store.DB, e.BookID, "dates")
 			if err != nil {
 				return err
 			}
-			if dateKey(date, prec) == dateKey(m.date, m.precision) {
-				plan.Action = "none"
-			} else {
-				plan.Action = "update"
-				plan.State = progressState(last, dateKey(date, prec), dateKey(m.date, m.precision), false)
+			// A different reread's sync is not a baseline for this reading.
+			if last != nil && !strings.HasPrefix(last.Local, strconv.FormatInt(match.id, 10)+":") {
+				last = nil
 			}
+			plan.State = progressState(last, localKey, remoteKey, false)
 		}
-	} else if m := find(func(x remoteRead) bool { return dateKey(x.date, x.precision) == dateKey(date, prec) }); m != nil {
-		plan.Action, plan.RemoteReadID, plan.RemoteDate, plan.RemotePrec, plan.RemoteText = "map", m.id, m.date, m.precision, plan.LocalText
-		plan.Note = "Hardcover already has a read finished on this date. Nothing is sent; this entry is tied to it, so later edits update that read instead of adding another."
+	} else if currentRead {
+		plan.Action, plan.Note = "missing", "Hardcover has no read in progress. Send its Currently Reading status first, then sync the start date."
+	} else if e.HardcoverReadID != nil {
+		plan.Action, plan.Note = "missing", "Hardcover no longer has the finished read this entry was tied to. Nothing is sent."
 	} else {
 		plan.Note = "A new finished read is added on Hardcover. Its shelf status is not changed."
 	}
@@ -438,9 +534,40 @@ func (a *App) hardcoverReadPlan(w http.ResponseWriter, r *http.Request) error {
 	if choice == "theirs" && p.Action != "update" {
 		return bad("There is no Hardcover date to take for this reading.")
 	}
+
+	acct, err := loadHardcoverLink(a.store.DB)
+	if err != nil {
+		return err
+	}
+	link, err := getBookLink(a.store.DB, p.BookID)
+	if err != nil {
+		return err
+	}
+	if acct == nil || link == nil || acct.UserID != p.UserID || link.HardcoverBookID != p.HardcoverBookID {
+		return conflict("The Hardcover account or book link changed. Preview the reading again.")
+	}
+	remote, err := a.hardcover.shelf(r.Context(), acct.UserID, []int64{link.HardcoverBookID})
+	if err != nil {
+		return hardcoverHTTPError(err)
+	}
+	u, ok := remote[link.HardcoverBookID]
+	snapshot, _ := json.Marshal(u.Reads)
+	if !ok || int64(u.ID) != p.UserBookID || string(snapshot) != p.RemoteSnapshot {
+		return conflict("Hardcover's reading dates changed. Preview this reading again.")
+	}
 	remoteID := p.RemoteReadID
 	if choice == "mine" && (p.Action == "insert" || p.Action == "update") {
-		read := map[string]any{"finished_at": p.Date, "finished_at_precision": p.Precision}
+
+		read := map[string]any{}
+		if !p.Current {
+			read["finished_at"], read["finished_at_precision"] = p.Date, p.Precision
+		}
+		if p.StartedAt != "" {
+			read["started_at"] = p.StartedAt
+		} else if p.RemoteStartedAt != "" {
+			read["started_at"] = nil
+		}
+
 		query, vars := hcInsertReadMutation, map[string]any{"ub": p.UserBookID, "read": read}
 		if p.Action == "update" {
 			query, vars = hcUpdateReadMutation, map[string]any{"id": p.RemoteReadID, "read": read}
@@ -456,27 +583,49 @@ func (a *App) hardcoverReadPlan(w http.ResponseWriter, r *http.Request) error {
 	}
 	// The send has happened: record it whatever else changed meanwhile.
 	err = a.store.Write(func(tx *sql.Tx) error {
+
+		if err := current(tx, r); err != nil && choice == "theirs" {
+			return err
+		}
 		entries, err := queryReadings(tx, "WHERE l.id=?", p.ReadingID)
 		if err != nil {
 			return err
 		}
-		if len(entries) == 0 {
+		if len(entries) == 0 && !p.Current {
 			return nil
 		}
-		localKey, remoteKey := dateKey(p.Date, p.Precision), dateKey(p.Date, p.Precision)
+		localKey, remoteKey := readDatesKey(remoteID, p.StartedAt, p.Date, p.Precision), readDatesKey(remoteID, p.StartedAt, p.Date, p.Precision)
 		switch {
 		case choice == "theirs":
-			localKey, remoteKey = dateKey(p.RemoteDate, p.RemotePrec), dateKey(p.RemoteDate, p.RemotePrec)
-			if _, err = tx.Exec("UPDATE reading_log SET finished_at=?,finished_precision=?,source=CASE WHEN source='goodreads' THEN 'manual' ELSE source END WHERE id=?", p.RemoteDate, p.RemotePrec, p.ReadingID); err != nil {
+			localKey, remoteKey = readDatesKey(remoteID, p.RemoteStartedAt, p.RemoteDate, p.RemotePrec), readDatesKey(remoteID, p.RemoteStartedAt, p.RemoteDate, p.RemotePrec)
+
+			if p.Current {
+				_, err = tx.Exec("UPDATE books SET started_at=?,started_manual=1 WHERE id=?", nullable(p.RemoteStartedAt), p.BookID)
+			} else {
+				if err = checkReadingDates(nullable(p.RemoteStartedAt), nullable(p.RemoteDate), p.RemotePrec); err != nil {
+					return err
+				}
+				_, err = tx.Exec("UPDATE reading_log SET started_at=?,finished_at=?,finished_precision=?,source='manual' WHERE id=?", nullable(p.RemoteStartedAt), p.RemoteDate, p.RemotePrec, p.ReadingID)
+			}
+			if err != nil {
 				return err
 			}
-		case remoteID > 0:
+
+			if !p.Current {
+				if _, err = tx.Exec("UPDATE reading_log SET hardcover_read_id=? WHERE id=? AND hardcover_read_id IS NULL", remoteID, p.ReadingID); err != nil {
+					return err
+				}
+			}
+			if err = bump(tx); err != nil {
+				return err
+			}
+		case remoteID > 0 && !p.Current:
 			if _, err = tx.Exec("UPDATE reading_log SET hardcover_read_id=? WHERE id=? AND hardcover_read_id IS NULL", remoteID, p.ReadingID); err != nil {
 				return conflict("Another reading here is already tied to that Hardcover read.")
 			}
 		}
 		dir := map[bool]string{true: "pull", false: "push"}[choice == "theirs"]
-		if err = addHistory(tx, hcHistoryEntry{At: canonicalTime(a.now()), Direction: dir, Summary: "A reading's finish date was synced.", Details: []hcHistoryDetail{{BookID: p.BookID, Title: p.Title, What: "finish date " + p.LocalText}}}); err != nil {
+		if err = addHistory(tx, hcHistoryEntry{At: canonicalTime(a.now()), Direction: dir, Summary: "A reading's dates were synced.", Details: []hcHistoryDetail{{BookID: p.BookID, Title: p.Title, What: "reading dates " + map[bool]string{true: p.RemoteText, false: p.LocalText}[choice == "theirs"]}}}); err != nil {
 			return err
 		}
 		if err = addSync(tx, p.BookID, "dates", localKey, remoteKey, map[bool]string{true: "pull", false: "push"}[choice == "theirs"], canonicalTime(a.now())); err != nil {

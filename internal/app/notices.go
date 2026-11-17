@@ -124,12 +124,14 @@ func (a *App) resolveNotice(q queryer, v string, revision int64) (text, undoLabe
 
 // bookState is the part of a book a covered action can change.
 type bookState struct {
-	ID             int64  `json:"id"`
-	Status         string `json:"status"`
-	Position       int    `json:"position"`
-	Pinned         bool   `json:"pinned"`
-	NeedsPlacement bool   `json:"needs_placement"`
-	MovedByHand    bool   `json:"moved_by_hand"`
+	StartedAt      *string `json:"started_at,omitempty"`
+	StartedManual  bool    `json:"started_manual,omitempty"`
+	ID             int64   `json:"id"`
+	Status         string  `json:"status"`
+	Position       int     `json:"position"`
+	Pinned         bool    `json:"pinned"`
+	NeedsPlacement bool    `json:"needs_placement"`
+	MovedByHand    bool    `json:"moved_by_hand"`
 }
 
 // undoSnapshot is the single-slot Undo for moves, pins, and status changes.
@@ -141,7 +143,7 @@ type undoSnapshot struct {
 
 // snapshotBooks captures bookStates for the books a WHERE clause selects.
 func snapshotBooks(q queryer, where string, args ...any) ([]bookState, error) {
-	rows, err := q.Query("SELECT id,reading_status,position,pinned,needs_placement,moved_by_hand FROM books WHERE "+where, args...)
+	rows, err := q.Query("SELECT id,reading_status,position,pinned,needs_placement,moved_by_hand,started_at,started_manual FROM books WHERE "+where, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -149,7 +151,7 @@ func snapshotBooks(q queryer, where string, args ...any) ([]bookState, error) {
 	var out []bookState
 	for rows.Next() {
 		var s bookState
-		if err = rows.Scan(&s.ID, &s.Status, &s.Position, &s.Pinned, &s.NeedsPlacement, &s.MovedByHand); err != nil {
+		if err = rows.Scan(&s.ID, &s.Status, &s.Position, &s.Pinned, &s.NeedsPlacement, &s.MovedByHand, &s.StartedAt, &s.StartedManual); err != nil {
 			return nil, err
 		}
 		out = append(out, s)
@@ -200,7 +202,7 @@ func restoreStates(q queryer, books []bookState) error {
 		if err := noteStatusChange(q, s.ID, was, s.Status, midnight(time.Now()), true); err != nil {
 			return err
 		}
-		if _, err := q.Exec("UPDATE books SET reading_status=?,position=?,pinned=?,needs_placement=?,moved_by_hand=? WHERE id=?", s.Status, s.Position, s.Pinned, s.NeedsPlacement, s.MovedByHand, s.ID); err != nil {
+		if _, err := q.Exec("UPDATE books SET reading_status=?,position=?,pinned=?,needs_placement=?,moved_by_hand=?,started_at=?,started_manual=? WHERE id=?", s.Status, s.Position, s.Pinned, s.NeedsPlacement, s.MovedByHand, s.StartedAt, s.StartedManual, s.ID); err != nil {
 			return err
 		}
 	}

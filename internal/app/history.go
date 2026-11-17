@@ -17,6 +17,7 @@ import (
 type readingEntry struct {
 	ID          int64    `json:"id"`
 	BookID      int64    `json:"book_id"`
+	StartedAt   *string  `json:"started_at,omitempty"`
 	FinishedAt  *string  `json:"finished_at"` // YYYY-MM-DD, or nil when unknown
 	Rating      *float64 `json:"rating"`
 	Source      string   `json:"source"` // goodreads or manual
@@ -133,7 +134,7 @@ func logsHistory(r Record) bool {
 	return r.Source == "goodreads" && r.Event == nil && r.Status == "read"
 }
 
-const readingColumns = "l.id,l.book_id,l.finished_at,l.rating,l.source,l.review_chars,l.review,l.fingerprint,l.finished_precision,l.hardcover_read_id,b.title,b.author"
+const readingColumns = "l.id,l.book_id,l.finished_at,l.rating,l.source,l.review_chars,l.review,l.fingerprint,l.finished_precision,l.hardcover_read_id,l.started_at,b.title,b.author"
 
 func queryReadings(q queryer, tail string, args ...any) ([]readingEntry, error) {
 	rows, err := q.Query("SELECT "+readingColumns+" FROM reading_log l JOIN books b ON b.id=l.book_id "+tail, args...)
@@ -144,7 +145,7 @@ func queryReadings(q queryer, tail string, args ...any) ([]readingEntry, error) 
 	result := []readingEntry{}
 	for rows.Next() {
 		var e readingEntry
-		if err = rows.Scan(&e.ID, &e.BookID, &e.FinishedAt, &e.Rating, &e.Source, &e.ReviewChars, &e.Review, &e.Fingerprint, &e.FinishedPrecision, &e.HardcoverReadID, &e.Title, &e.Author); err != nil {
+		if err = rows.Scan(&e.ID, &e.BookID, &e.FinishedAt, &e.Rating, &e.Source, &e.ReviewChars, &e.Review, &e.Fingerprint, &e.FinishedPrecision, &e.HardcoverReadID, &e.StartedAt, &e.Title, &e.Author); err != nil {
 			return nil, err
 		}
 		result = append(result, e)

@@ -9,11 +9,11 @@ import (
 
 // bookColumns are the books columns scanBook reads, in order. Queries alias
 // the table as b.
-const bookColumns = "b.id,b.title,b.author,b.identity,b.isbn,b.goodreads_id,b.pages,b.progress_page,b.progress_percent,b.progress_seconds,b.audio_seconds,b.tags,b.interest,b.reading_status,b.position,b.pinned,b.needs_placement,b.moved_by_hand,b.series,b.series_number,b.published_year,b.avg_rating,b.added_at,b.source,b.description,b.description_source,b.reason,b.owned"
+const bookColumns = "b.id,b.title,b.author,b.identity,b.isbn,b.goodreads_id,b.pages,b.progress_page,b.progress_percent,b.progress_seconds,b.audio_seconds,b.started_at,b.started_manual,b.tags,b.interest,b.reading_status,b.position,b.pinned,b.needs_placement,b.moved_by_hand,b.series,b.series_number,b.published_year,b.avg_rating,b.added_at,b.source,b.description,b.description_source,b.reason,b.owned"
 
 func scanBook(rows *sql.Rows, extra ...any) (Book, error) {
 	b := Book{Loans: []Loan{}}
-	dest := append([]any{&b.ID, &b.Title, &b.Author, &b.Identity, &b.ISBN, &b.GoodreadsID, &b.Pages, &b.ProgressPage, &b.ProgressPercent, &b.ProgressSeconds, &b.AudioSeconds, &b.Tags, &b.Interest, &b.Status, &b.Position, &b.Pinned, &b.NeedsPlacement, &b.MovedByHand, &b.Series, &b.SeriesNumber, &b.PublishedYear, &b.AvgRating, &b.AddedAt, &b.Source, &b.Description, &b.DescriptionSource, &b.Reason, &b.Owned}, extra...)
+	dest := append([]any{&b.ID, &b.Title, &b.Author, &b.Identity, &b.ISBN, &b.GoodreadsID, &b.Pages, &b.ProgressPage, &b.ProgressPercent, &b.ProgressSeconds, &b.AudioSeconds, &b.StartedAt, &b.StartedManual, &b.Tags, &b.Interest, &b.Status, &b.Position, &b.Pinned, &b.NeedsPlacement, &b.MovedByHand, &b.Series, &b.SeriesNumber, &b.PublishedYear, &b.AvgRating, &b.AddedAt, &b.Source, &b.Description, &b.DescriptionSource, &b.Reason, &b.Owned}, extra...)
 	return b, rows.Scan(dest...)
 }
 

@@ -38,6 +38,7 @@ const hardcoverPagesPerRun = 8
 
 // hcPullRead is one read of a book on Hardcover.
 type hcPullRead struct {
+	StartedAt  string `json:"started_at,omitempty"`
 	ID         int64  `json:"id"`
 	FinishedAt string `json:"finished_at,omitempty"`
 	Precision  int    `json:"precision,omitempty"`
@@ -52,6 +53,7 @@ type hcPullItem struct {
 	Author          string       `json:"author"`
 	ISBN            string       `json:"isbn,omitempty"`
 	Pages           int          `json:"pages,omitempty"`
+	AudioSeconds    int          `json:"audio_seconds,omitempty"`
 	StatusID        int          `json:"status_id"`
 	Rating          float64      `json:"rating,omitempty"`
 	UpdatedAt       string       `json:"updated_at,omitempty"`
@@ -72,8 +74,8 @@ type hcPullPlan struct {
 
 const hcLibraryFields = `id status_id rating updated_at
   book { id title slug pages contributions { author { name } } }
-  edition { id isbn_13 isbn_10 pages }
-  user_book_reads(order_by: {id: asc}) { id finished_at finished_at_precision }`
+  edition { id isbn_13 isbn_10 pages audio_seconds }
+  user_book_reads(order_by: {id: asc}) { id started_at finished_at finished_at_precision edition { pages audio_seconds } }`
 
 // hardcoverLibraryQuery reads one page of the reader's own library. The
 // where clause names the reader's user id and nothing else.
@@ -104,11 +106,14 @@ type hcUserBookJSON struct {
 		ISBN13 string  `json:"isbn_13"`
 		ISBN10 string  `json:"isbn_10"`
 		Pages  flexInt `json:"pages"`
+		Audio  flexInt `json:"audio_seconds"`
 	} `json:"edition"`
 	Reads []struct {
-		ID         flexInt `json:"id"`
-		FinishedAt string  `json:"finished_at"`
-		Precision  flexInt `json:"finished_at_precision"`
+		ID         flexInt   `json:"id"`
+		FinishedAt string    `json:"finished_at"`
+		StartedAt  string    `json:"started_at"`
+		Edition    *hcLength `json:"edition"`
+		Precision  flexInt   `json:"finished_at_precision"`
 	} `json:"user_book_reads"`
 }
 
@@ -154,6 +159,9 @@ func (u hcUserBookJSON) item() (hcPullItem, bool) {
 	}
 	if e := u.Edition; e != nil {
 		it.EditionID = int64(e.ID)
+		if n := int(e.Audio); n > 0 && n <= maxProgressSeconds {
+			it.AudioSeconds = n
+		}
 		it.ISBN = cmp.Or(cleanISBN(e.ISBN13), cleanISBN(e.ISBN10))
 		if it.Pages == 0 {
 			it.Pages = int(e.Pages)
@@ -163,7 +171,20 @@ func (u hcUserBookJSON) item() (hcPullItem, bool) {
 		if r.ID < 1 {
 			continue
 		}
+
 		read := hcPullRead{ID: int64(r.ID)}
+		if start, _, ok := periodStart(r.StartedAt, 1); ok {
+			read.StartedAt = start
+		}
+		// The newest read's selected edition overrides the shelf edition as a
+		// whole, including unknown length or a print edition.
+		if r.Edition != nil {
+			it.AudioSeconds = 0
+			if n := int(r.Edition.Audio); n > 0 && n <= maxProgressSeconds {
+				it.AudioSeconds = n
+			}
+		}
+
 		if _, p, ok := periodStart(r.FinishedAt, int(r.Precision)); ok {
 			read.FinishedAt, read.Precision = r.FinishedAt[:10], p
 		}
@@ -347,12 +368,32 @@ func applyPull(q queryer, items []hcPullItem, opt pullOptions, onDecision func(p
 			done()
 			continue
 		}
+		if err = pullFill(q, id, it, &d, &out); err != nil {
+			return out, err
+		}
 		if d.Outcome == "matched" {
-			if err = pullFill(q, id, it, &d, &out); err != nil {
-				return out, err
-			}
 			if err = pullStatus(q, id, status.Local, status.Why, &d, &out); err != nil {
 				return out, err
+			}
+		}
+
+		if it.StatusID == 2 {
+			for i := len(it.Reads) - 1; i >= 0; i-- {
+				rd := it.Reads[i]
+				if rd.FinishedAt != "" {
+					continue
+				}
+				if rd.StartedAt != "" {
+					changed, e := execChanged(q, "UPDATE books SET started_at=? WHERE id=? AND reading_status='reading' AND started_manual=0 AND started_at IS NOT ?", rd.StartedAt, id, rd.StartedAt)
+					if e != nil {
+						return out, e
+					}
+					if changed {
+						out.Changed = true
+						d.change("current reading start date updated from Hardcover")
+					}
+				}
+				break
 			}
 		}
 		if err = pullReadings(q, id, it, opt, &d, &out); err != nil {
@@ -422,6 +463,17 @@ func pullLink(q queryer, id int64, it hcPullItem, at string) (string, error) {
 
 // pullFill fills only empty local fields.
 func pullFill(q queryer, id int64, it hcPullItem, d *pullDecision, out *pullResult) error {
+	if it.AudioSeconds > 0 && it.AudioSeconds <= maxProgressSeconds {
+		changed, err := execChanged(q, "UPDATE books SET audio_seconds=? WHERE id=? AND audio_seconds IS NULL", it.AudioSeconds, id)
+		if err != nil {
+			return err
+		}
+		if changed {
+			out.Changed = true
+			d.change("total audiobook duration filled from Hardcover's selected edition")
+		}
+	}
+
 	if it.ISBN != "" {
 		changed, err := execChanged(q, "UPDATE books SET isbn=? WHERE id=? AND isbn=''", it.ISBN, id)
 		if err != nil {
@@ -535,6 +587,21 @@ func pullReadings(q queryer, bookID int64, it hcPullItem, opt pullOptions, d *pu
 		}
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			return err
+		}
+
+		start := nullable(f.read.StartedAt)
+		if checkReadingDates(start, &f.date, f.precision) != nil {
+			start = nil
+		}
+		{
+			changed, e := execChanged(q, "UPDATE reading_log SET started_at=? WHERE id=? AND source!='manual' AND (source='hardcover' OR (started_at IS NULL AND ? IS NOT NULL)) AND started_at IS NOT ?", start, rowID, start, start)
+			if e != nil {
+				return e
+			}
+			if changed {
+				out.Changed = true
+				d.change("reading start date saved from Hardcover")
+			}
 		}
 		lastRow = rowID
 	}

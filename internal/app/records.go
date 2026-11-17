@@ -191,9 +191,12 @@ func setStatus(q queryer, old Book, status string) error {
 		return err
 	}
 	_, err = q.Exec("UPDATE books SET reading_status=?,pinned=?,needs_placement=?,position=? WHERE id=?", status, pinned, needs, position, old.ID)
+	if err == nil && status == "reading" && old.Status != "reading" {
+		_, err = q.Exec("UPDATE books SET started_at=NULL,started_manual=0 WHERE id=?", old.ID)
+	}
 	if err == nil && status == "read" {
 		// A finished book has no page to resume at.
-		_, err = q.Exec("UPDATE books SET progress_page=NULL,progress_percent=NULL,progress_seconds=NULL WHERE id=?", old.ID)
+		_, err = q.Exec("UPDATE books SET progress_page=NULL,progress_percent=NULL,progress_seconds=NULL,started_at=NULL,started_manual=0 WHERE id=?", old.ID)
 	}
 	if err != nil {
 		return err

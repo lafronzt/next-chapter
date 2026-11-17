@@ -63,7 +63,7 @@ const (
 	// maxRestoreSchema is the newest export this build can restore. A test
 	// fails when a migration is added, so the restore code is checked against
 	// the new schema before this is raised.
-	maxRestoreSchema = 25
+	maxRestoreSchema = 26
 	maxRestoreUpload = 10_000_000
 	maxRestoreEvents = 100_000
 	maxRestoreAlias  = 20_000
@@ -318,6 +318,12 @@ func validateExport(f *exportFile) []string {
 		if !ids[e.BookID] {
 			add("%s refers to a book that is not in the file.", label)
 		}
+		if e.StartedAt != nil && !validFinishDate(*e.StartedAt) {
+			add("%s: started_at must be YYYY-MM-DD.", label)
+		}
+		if err := checkReadingDates(e.StartedAt, e.FinishedAt, e.FinishedPrecision); err != nil {
+			add("%s: the start must be on or before the finish.", label)
+		}
 		if e.FinishedAt != nil && !validFinishDate(*e.FinishedAt) {
 			add("%s: finished_at must be YYYY-MM-DD.", label)
 		}
@@ -535,6 +541,9 @@ func restoreExport(q queryer, f exportFile) (restorePlan, error) {
 		if newID[b.ID], err = res.LastInsertId(); err != nil {
 			return result, err
 		}
+		if _, err = q.Exec("UPDATE books SET started_at=?,started_manual=? WHERE id=?", b.StartedAt, b.StartedManual, newID[b.ID]); err != nil {
+			return result, err
+		}
 		if b.Status == "to-read" {
 			result.Queue++
 		} else {
@@ -631,7 +640,7 @@ func restoreExport(q queryer, f exportFile) (restorePlan, error) {
 		if !prefs.KeepReviews {
 			review = nil
 		}
-		if _, err = q.Exec("INSERT INTO reading_log(book_id,finished_at,rating,source,review_chars,review,fingerprint,finished_precision,hardcover_read_id) VALUES(?,?,?,?,?,?,?,?,?)", newID[e.BookID], e.FinishedAt, e.Rating, e.Source, e.ReviewChars, review, e.Fingerprint, max(1, e.FinishedPrecision), e.HardcoverReadID); err != nil {
+		if _, err = q.Exec("INSERT INTO reading_log(book_id,started_at,finished_at,rating,source,review_chars,review,fingerprint,finished_precision,hardcover_read_id) VALUES(?,?,?,?,?,?,?,?,?,?)", newID[e.BookID], e.StartedAt, e.FinishedAt, e.Rating, e.Source, e.ReviewChars, review, e.Fingerprint, max(1, e.FinishedPrecision), e.HardcoverReadID); err != nil {
 			return result, err
 		}
 		result.Readings++

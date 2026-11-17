@@ -256,8 +256,8 @@ func trimStars(r float64) string { return strconv.FormatFloat(r, 'f', -1, 64) }
 
 const hcShelfFields = `id book_id status_id rating privacy_setting_id updated_at
   book { id title slug pages contributions { author { name } } }
-  edition { id isbn_13 isbn_10 pages }
-  user_book_reads(order_by: {id: asc}) { id finished_at finished_at_precision }`
+  edition { id isbn_13 isbn_10 pages audio_seconds }
+  user_book_reads(order_by: {id: asc}) { id started_at finished_at finished_at_precision edition { pages audio_seconds } }`
 
 const hcShelfQuery = `query NextChapterShelf($uid: Int!, $ids: [Int!]!) {
  user_books(where: {user_id: {_eq: $uid}, book_id: {_in: $ids}}, limit: 50) {

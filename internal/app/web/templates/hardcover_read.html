@@ -2,7 +2,7 @@
 <a class="back" href="/books/{{.Plan.BookID}}"><span aria-hidden="true">←</span> Back to {{.Plan.Title}}</a>
 <header class="page-heading"><div>
   <h1>Send a reading to Hardcover</h1>
-  <p>Only this reading’s finish date is involved. Your status, queue, and ratings here never change, and no journal entry is written.</p>
+  <p>Only this reading’s start{{if not .Plan.Current}} and finish{{end}} dates are involved. Your status, queue, and ratings here never change, and no journal entry is written.</p>
 </div></header>
 {{if .Stale}}
 <div class="notice error" role="alert">Your library has changed since this preview. Preview this reading again.</div>
@@ -10,7 +10,7 @@
 <section class="panel stack hc-panel" aria-labelledby="read-compare">
   <h2 id="read-compare">{{.Plan.Title}}</h2>
   <dl class="facts">
-    <dt>Finished here</dt><dd>{{.Plan.LocalText}}</dd>
+    <dt>Here</dt><dd>{{.Plan.LocalText}}</dd>
     <dt>On Hardcover</dt><dd>{{if .Plan.RemoteText}}{{.Plan.RemoteText}}{{else}}no matching read{{end}}</dd>
   </dl>
   {{with .Plan.Note}}<p class="muted">{{.}}</p>{{end}}
@@ -21,7 +21,7 @@
   {{template "fields" .}}
   {{if eq .Plan.Action "update"}}
   <fieldset>
-    <legend>Which date is right?</legend>
+    <legend>Which dates are right?</legend>
     <label class="checkbox"><input type="radio" name="use" value="keep" {{if eq .Plan.State "both"}}checked{{end}}> Leave both as they are.</label>
     <label class="checkbox"><input type="radio" name="use" value="mine" {{if eq .Plan.State "local"}}checked{{end}}> Send mine ({{.Plan.LocalText}}) to Hardcover.</label>
     <label class="checkbox"><input type="radio" name="use" value="theirs" {{if eq .Plan.State "remote"}}checked{{end}}> Use Hardcover’s ({{.Plan.RemoteText}}) here. Month-only and year-only dates stay that way.</label>

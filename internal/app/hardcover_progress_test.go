@@ -22,6 +22,7 @@ type progFake struct {
 	readID           int
 	pages, seconds   int // progress on the open read
 	edPages, edAudio int
+	starts           map[int]string
 	finished         []fakeRead
 	mutations        []map[string]any // variables of each mutation
 	mutationQueries  []string
@@ -47,7 +48,10 @@ func (f *progFake) handle(query string, vars map[string]any, n int) (int, map[st
 	reads := func() string {
 		out := []string{}
 		for _, r := range f.finished {
-			out = append(out, fmt.Sprintf(`{"id":%d,"finished_at":%q,"finished_at_precision":%d}`, r.ID, r.Date, r.Precision))
+			out = append(out, fmt.Sprintf(`{"id":%d,"started_at":%q,"finished_at":%q,"finished_at_precision":%d}`, r.ID, f.starts[r.ID], r.Date, r.Precision))
+		}
+		if f.hasRead {
+			out = append(out, fmt.Sprintf(`{"id":%d,"started_at":%q,"finished_at":null}`, f.readID, f.starts[f.readID]))
 		}
 		return strings.Join(out, ",")
 	}
@@ -85,6 +89,12 @@ func (f *progFake) handle(query string, vars map[string]any, n int) (int, map[st
 					}
 				}
 			}
+		}
+		if start, ok := read["started_at"]; ok {
+			if f.starts == nil {
+				f.starts = map[int]string{}
+			}
+			f.starts[id], _ = start.(string)
 		}
 		if v, ok := read["progress_pages"].(float64); ok {
 			f.pages = int(v)

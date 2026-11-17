@@ -12,6 +12,10 @@ import (
 
 func bookFields(r *http.Request) (Book, error) {
 	b := Book{Title: strings.TrimSpace(r.FormValue("title")), Author: strings.TrimSpace(r.FormValue("author")), Tags: strings.TrimSpace(r.FormValue("tags")), Status: r.FormValue("reading_status"), Series: strings.TrimSpace(r.FormValue("series")), Description: cleanText(r.FormValue("description"), maxDescription), Reason: noteText(r.FormValue("reason")), Owned: r.FormValue("owned") != "", Source: "manual"}
+	var err error
+	if b.StartedAt, err = startDateField(r); err != nil {
+		return b, err
+	}
 	// A non-numeric interest stays 0, which checkBook rejects.
 	b.Interest, _ = strconv.Atoi(r.FormValue("interest"))
 	if raw := strings.TrimSpace(r.FormValue("audio_duration")); raw != "" {
@@ -65,6 +69,9 @@ func checkBook(b Book) string {
 	}
 	if b.Pages != nil && (*b.Pages < 1 || *b.Pages > 99999) {
 		return "Pages must be between 1 and 99,999."
+	}
+	if b.StartedAt != nil && !validFinishDate(*b.StartedAt) {
+		return "Enter a valid start date, or leave it blank."
 	}
 	if b.AudioSeconds != nil && (*b.AudioSeconds < 1 || *b.AudioSeconds > maxProgressSeconds) {
 		return "Total audiobook duration must be greater than 0:00 and at most 9999:59:59."
