@@ -18,6 +18,15 @@
   </form>
 </section>
 <section class="panel settings-section">
+  <h2>Link books</h2>
+  <p>{{.Linked}} of {{.Total}} books are linked to a Hardcover book. Links let later features match by id instead of guessing by title.</p>
+  <form method="post" action="/hardcover/match">
+    {{template "fields" .}}
+    <p class="muted"><small>Checks up to 5 unlinked books per run. It sends only each book’s ISBN, title, and author, and only when you press the button. You confirm every link on the next page.</small></p>
+    <button class="button" {{if or (not .Configured) (not .Enabled)}}disabled{{end}}>Find Hardcover matches</button>
+  </form>
+</section>
+<section class="panel settings-section">
   <h2>Disconnect</h2>
   <p>Removes the local account link and test history and turns off requests. Keeps every book and leaves Hardcover untouched. To revoke the token, visit <a href="https://hardcover.app/account/api" rel="noreferrer">your Hardcover API settings</a> and remove it from the server environment.</p>
   <form method="post" action="/hardcover/disconnect">

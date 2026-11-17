@@ -121,6 +121,31 @@
   <p class="muted"><small>Book lookup is off, so nothing is sent anywhere. Turn it on in <a href="/settings?open=privacy#privacy">Preferences</a> to fill in a description and missing details from a book database.</small></p>
   {{end}}
 </div>
+<section class="section-heading" id="hardcover">
+  <h2>Hardcover</h2>
+</section>
+<div class="panel stack">
+  {{with .HardcoverLink}}
+  <p>Linked to Hardcover book {{.HardcoverBookID}}{{if .Slug}} (<code>{{.Slug}}</code>){{end}}. Linked {{.LinkedAt}}. A link never changes status, order, ratings, or reading history.</p>
+  {{else}}
+  <p class="muted">Not linked to a Hardcover book.</p>
+  {{end}}
+  {{if .HardcoverReady}}
+  <form method="post" action="/books/{{.Book.ID}}/hardcover" class="stack">
+    {{template "fields" .}}
+    <p class="muted"><small>What gets sent: this book’s {{if .Book.ISBN}}ISBN, {{end}}title and author to Hardcover, and only when you press the button. You choose a match before anything is saved.</small></p>
+    <div><button class="button" data-busy-label="Searching…">{{if .HardcoverLink}}Find a different Hardcover book{{else}}Link to Hardcover{{end}}</button></div>
+  </form>
+  {{if .HardcoverLink}}
+  <form method="post" action="/books/{{.Book.ID}}/hardcover/unlink">
+    {{template "fields" .}}
+    <button class="button">Unlink from Hardcover</button>
+  </form>
+  {{end}}
+  {{else}}
+  <p class="muted"><small>Hardcover is off or not configured. See the <a href="/hardcover">Hardcover page</a>.</small></p>
+  {{end}}
+</div>
 <section class="section-heading" id="notes">
   <h2>Your notes</h2>
   <p>Private writing for you alone. Notes are never imported, looked up, sent to an AI, or used for ranking, and they never change your reading progress or status.</p>
