@@ -78,3 +78,20 @@ These prompts extend the implemented Go app. They can be used independently; ins
 | 38 | [Import reconciliation and corrections](38-import-reconciliation-and-corrections.md) | Match explanations, durable event corrections, and alias management | Done |
 
 Suggested order: 33 → 34 → 36 → 35 → 37 → 38. Calendar and series views can also be built first without the other additions. Keep 38's three parts as focused implementation steps. These prompts do not authorize external messaging or automatic library-account access.
+
+## Hardcover integration (39–46)
+
+Two-way integration with [Hardcover](https://hardcover.app) through its GraphQL API (`docs.hardcover.app/api`). Optional, off by default, bring-your-own token, every sync reader-initiated and previewed. The API is in beta, so 39 verifies the schema at connect time. Hardcover must never be required, and these prompts never touch other users' data, reviews, or private notes. Apply migrations using the next available version at implementation time.
+
+| # | Prompt | Scope | Status |
+|---|--------|-------|--------|
+| 39 | [Connection and API client](39-hardcover-connection.md) | Env token, rate-limited client, status page, privacy wording | Not started |
+| 40 | [Book linking](40-hardcover-book-linking.md) | Reader-confirmed `hardcover_book_id` links by ISBN, then title+author | Not started |
+| 41 | [Pull library](41-hardcover-pull-library.md) | Import shelves, ratings, finish dates as a previewed, idempotent import | Not started |
+| 42 | [Push status and ratings](42-hardcover-push-status-and-ratings.md) | Previewed outbound updates, conflict handling, private by default | Not started |
+| 43 | [Progress and read dates](43-hardcover-progress-and-dates.md) | Two-way current-read progress, re-reads, date precision | Not started |
+| 44 | [Catalog details and series](44-hardcover-catalog-details-and-series.md) | Hardcover as a `BookSource`, complete series, optional covers | Not started |
+| 45 | [Sync center](45-hardcover-sync-center.md) | One page for changes in both directions, conflicts, history, disconnect | Not started |
+| 46 | [Queue list and OAuth](46-hardcover-queue-list-and-oauth.md) | Optional: publish the queue as a private list; OAuth instead of a PAT | Not started |
+
+Order: 39 → 40 → 41 → 42 → 43 → 44 → 45, with 44 able to follow 40 at any point. 46 is optional. 41 alone gives a one-way import that replaces the Goodreads CSV round trip.
