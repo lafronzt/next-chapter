@@ -1,0 +1,8 @@
+mutation UpdateUserBook($id: Int!, $object: UserBookUpdateInput!) {
+  update_user_book(id: $id, object: $object) {
+    id
+    error
+    user_book { id status_id rating privacy_setting_id }
+  }
+}
+# object: { status_id, rating }. The server starts or finishes a read itself.

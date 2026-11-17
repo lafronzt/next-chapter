@@ -110,6 +110,9 @@ func checkPreferences(p Preferences) string {
 	if p.ReadingGoal < 0 || p.ReadingGoal > maxReadingGoal {
 		return "Choose a yearly reading goal from 1 to 1000 books, or none."
 	}
+	if p.HardcoverPrivacy < 0 || p.HardcoverPrivacy > 3 {
+		return "Choose a Hardcover privacy setting."
+	}
 	return ""
 }
 

@@ -1,0 +1,9 @@
+mutation AddUserBook($object: UserBookCreateInput!) {
+  insert_user_book(object: $object) {
+    id
+    error
+    user_book { id status_id rating privacy_setting_id }
+  }
+}
+# object: { book_id, status_id, rating (0.5 steps), privacy_setting_id, edition_id }
+# This app sends only those five keys.

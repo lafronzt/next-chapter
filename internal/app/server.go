@@ -176,6 +176,8 @@ func (a *App) Handler() http.Handler {
 		"GET /hardcover": a.hardcoverPage, "POST /hardcover/test": a.hardcoverTest, "POST /hardcover/disconnect": a.hardcoverDisconnect,
 		"POST /books/{id}/hardcover": a.hardcoverFindBook, "POST /books/{id}/hardcover/unlink": a.hardcoverUnlinkBook, "POST /hardcover/match": a.hardcoverMatchBatch,
 		"GET /hardcover/links/{id}": a.hardcoverLinkPlan, "POST /hardcover/links/{id}": a.hardcoverLinkPlan,
+		"POST /books/{id}/hardcover/send": a.hardcoverSend, "POST /hardcover/send": a.hardcoverSend,
+		"GET /hardcover/pushes/{id}": a.hardcoverPushPlan, "POST /hardcover/pushes/{id}": a.hardcoverPushPlan, "POST /hardcover/pushes/{id}/take": a.hardcoverTakeBook,
 		"POST /hardcover/pull": a.hardcoverPull, "GET /hardcover/pulls/{id}": a.hardcoverPullPlan, "POST /hardcover/pulls/{id}": a.hardcoverPullPlan,
 		"GET /settings": a.settings, "POST /settings": a.settings, "POST /sessions/revoke": a.revokeSessions,
 		"POST /books/{id}/triage": a.triageBook, "POST /triage": a.triageAll,

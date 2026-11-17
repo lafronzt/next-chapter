@@ -88,7 +88,7 @@ Two-way integration with [Hardcover](https://hardcover.app) through its GraphQL 
 | 39 | [Connection and API client](39-hardcover-connection.md) | Env token, rate-limited client, status page, privacy wording | Foundation implemented on `feat/hardcover-integration-39-46`; synthetic-server coverage, live authenticated schema capture pending |
 | 40 | [Book linking](40-hardcover-book-linking.md) | Reader-confirmed `hardcover_book_id` links by ISBN, then title+author | Implemented on `feat/hardcover-40-book-linking`; synthetic-server coverage, live API check pending |
 | 41 | [Pull library](41-hardcover-pull-library.md) | Import shelves, ratings, finish dates as a previewed, idempotent import | Implemented on `feat/hardcover-41-pull-library`; synthetic-server coverage, live API check pending |
-| 42 | [Push status and ratings](42-hardcover-push-status-and-ratings.md) | Previewed outbound updates, conflict handling, private by default | Not started |
+| 42 | [Push status and ratings](42-hardcover-push-status-and-ratings.md) | Previewed outbound updates, conflict handling, private by default | Implemented on `feat/hardcover-42-push-status-and-ratings`; synthetic-server coverage, request shapes taken from the official SDK, live API check pending |
 | 43 | [Progress and read dates](43-hardcover-progress-and-dates.md) | Two-way current-read progress, re-reads, date precision | Not started |
 | 44 | [Catalog details and series](44-hardcover-catalog-details-and-series.md) | Hardcover as a `BookSource`, complete series, optional covers | Not started |
 | 45 | [Sync center](45-hardcover-sync-center.md) | One page for changes in both directions, conflicts, history, disconnect | Not started |

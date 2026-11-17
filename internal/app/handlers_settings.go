@@ -3,6 +3,7 @@ package app
 import (
 	"database/sql"
 	"net/http"
+	"strconv"
 	"strings"
 )
 
@@ -43,6 +44,9 @@ func (a *App) saveSettings(w http.ResponseWriter, r *http.Request) error {
 	case "privacy":
 		prefs = stored
 		prefs.KeepReviews, prefs.BookLookup, prefs.ProgressHistory, prefs.Hardcover = form.KeepReviews, form.BookLookup, form.ProgressHistory, form.Hardcover
+		if v, err := strconv.Atoi(r.FormValue("hardcover_privacy")); err == nil && v >= 1 && v <= 3 {
+			prefs.HardcoverPrivacy = v
+		}
 		// Turning review text off deletes it, so ask first.
 		if stored.KeepReviews && !prefs.KeepReviews && r.FormValue("confirm") != "yes" {
 			var kept int
