@@ -2,7 +2,7 @@ mutation AddUserBookRead($ub: Int!, $read: DatesReadInput!) {
   insert_user_book_read(user_book_id: $ub, user_book_read: $read) {
     id
     error
-    user_book_read { id finished_at finished_at_precision }
+    user_book_read { id started_at finished_at finished_at_precision }
   }
 }
 # read: { finished_at, finished_at_precision }. This app never sends started_at.

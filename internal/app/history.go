@@ -254,3 +254,13 @@ func historyStats(q queryer) (readingStats, error) {
 	s.TopTags = s.TopTags[:min(5, len(s.TopTags))]
 	return s, rows.Err()
 }
+
+// saveCurrentStart keeps an optional progress attempt aligned with the book's
+// date. It never creates progress history or changes reading status.
+func saveCurrentStart(q queryer, bookID int64, started *string, manual bool) error {
+	if _, err := q.Exec("UPDATE books SET started_at=?,started_manual=? WHERE id=?", started, manual, bookID); err != nil {
+		return err
+	}
+	_, err := q.Exec("UPDATE reading_attempts SET started_on=COALESCE(?,'') WHERE book_id=? AND ended_on IS NULL", started, bookID)
+	return err
+}

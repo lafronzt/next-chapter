@@ -391,6 +391,9 @@ func applyPull(q queryer, items []hcPullItem, opt pullOptions, onDecision func(p
 					if changed {
 						out.Changed = true
 						d.change("current reading start date updated from Hardcover")
+						if e := saveCurrentStart(q, id, nullable(rd.StartedAt), false); e != nil {
+							return out, e
+						}
 					}
 				}
 				break

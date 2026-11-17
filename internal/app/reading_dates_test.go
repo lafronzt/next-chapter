@@ -60,7 +60,7 @@ func TestReadingStartDatesFinishAndRestore(t *testing.T) {
 func TestHardcoverImportStartDatesAndAudioDuration(t *testing.T) {
 	a := testApp(t, true)
 	importResultFor(t, a, []Record{finished("From Goodreads", "2026-10-31", 4)})
-	item := hcPullItem{HardcoverBookID: 500, Title: "From Goodreads", Author: "Writer", StatusID: 3, AudioSeconds: 36000, Reads: []hcPullRead{{ID: 801, StartedAt: "2026-10-03", FinishedAt: "2026-10-31", Precision: 1}}}
+	item := hcPullItem{HardcoverBookID: 500, Title: "From Goodreads", Author: "Author", StatusID: 3, AudioSeconds: 36000, Reads: []hcPullRead{{ID: 801, StartedAt: "2026-10-03", FinishedAt: "2026-10-31", Precision: 1}}}
 	pull := func() pullResult {
 		t.Helper()
 		var result pullResult
@@ -227,7 +227,9 @@ func TestMigrateReadingStartDates(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, err = db.Exec(`INSERT INTO books(id,title,author,identity,position,added_at,source,reading_status,audio_seconds) VALUES(1,'Audio','A','audio|a',0,'x','manual','reading',36000);
- INSERT INTO reading_log(book_id,finished_at,source,fingerprint) VALUES(1,'2026-10-01','manual','manual:migration');`)
+ INSERT INTO reading_log(book_id,finished_at,source,fingerprint) VALUES(1,'2026-10-01','manual','manual:migration');
+ INSERT INTO books(id,title,author,identity,position,added_at,source,reading_status) VALUES(2,'Known','B','known|b',1,'x','manual','reading');
+ INSERT INTO reading_attempts(book_id,started_on) VALUES(2,'2026-11-01');`)
 	db.Close()
 	if err != nil {
 		t.Fatal(err)
@@ -235,10 +237,66 @@ func TestMigrateReadingStartDates(t *testing.T) {
 	if err := migrateFile(path, migrations); err != nil {
 		t.Fatal(err)
 	}
-	if scalar[int](t, path, "SELECT audio_seconds FROM books") != 36000 || scalar[int](t, path, "SELECT count(*) FROM reading_log WHERE started_at IS NULL") != 1 || scalar[int](t, path, "SELECT count(*) FROM books WHERE started_at IS NULL AND started_manual=0") != 1 {
+	if scalar[int](t, path, "SELECT audio_seconds FROM books WHERE id=1") != 36000 || scalar[int](t, path, "SELECT count(*) FROM reading_log WHERE started_at IS NULL") != 1 || scalar[int](t, path, "SELECT count(*) FROM books WHERE started_at IS NULL AND started_manual=0") != 1 || scalar[string](t, path, "SELECT started_at FROM books WHERE id=2") != "2026-11-01" {
 		t.Fatal("migration lost data or invented starts")
 	}
 	if got := backups(t, path); len(got) != 1 || got[0] != path+".pre-v26.bak" {
 		t.Fatal(got)
+	}
+}
+
+func TestCurrentStartHistoryAndRestore(t *testing.T) {
+	a, b, _, id := readingApp(t)
+	prefs, _ := readMeta(a.store.DB, "preferences", defaultPreferences)
+	prefs.ProgressHistory = true
+	if err := setMeta(a.store.DB, "preferences", prefs); err != nil {
+		t.Fatal(err)
+	}
+	// Turning progress history on after entering the start should keep that
+	// known date, without inventing an earlier progress update.
+	if err := a.store.Write(func(tx *sql.Tx) error { return saveCurrentStart(tx, id, nullable("2026-11-02"), true) }); err != nil {
+		t.Fatal(err)
+	}
+	expect(t, b.form(bookPath(id)+"/progress", url.Values{"unit": {"percent"}, "progress": {"10"}}), 303)
+	if dbValue[string](t, a, "SELECT started_on FROM reading_attempts WHERE book_id=? AND ended_on IS NULL", id) != "2026-11-02" {
+		t.Fatal("progress history lost known start")
+	}
+	target := testApp(t, true)
+	tb := &browser{t: t, handler: target.Handler()}
+	tb.request("GET", "/", nil)
+	loc := locationOf(t, uploadRestore(tb, exportOf(t, a)))
+	expect(t, tb.form(loc, nil), 303)
+	restored := bookNamed(t, target, "Reading")
+	if restored.StartedAt == nil || *restored.StartedAt != "2026-11-02" || !restored.StartedManual {
+		t.Fatal("restore lost current start or protection")
+	}
+	// Hardcover must not refill an explicitly cleared local current start.
+	if err := a.store.Write(func(tx *sql.Tx) error { return saveCurrentStart(tx, id, nil, true) }); err != nil {
+		t.Fatal(err)
+	}
+	it := hcPullItem{HardcoverBookID: 500, Title: "Reading", Author: bookNamed(t, a, "Reading").Author, StatusID: 2, Reads: []hcPullRead{{ID: 801, StartedAt: "2026-11-05"}}}
+	if err := a.store.Write(func(tx *sql.Tx) error { _, err := applyPull(tx, []hcPullItem{it}, pullOptions{}, nil); return err }); err != nil {
+		t.Fatal(err)
+	}
+	if bookNamed(t, a, "Reading").StartedAt != nil || dbValue[string](t, a, "SELECT started_on FROM reading_attempts WHERE book_id=? AND ended_on IS NULL", id) != "" {
+		t.Fatal("import undid explicit clear")
+	}
+}
+
+func TestHardcoverProgressPullFillsDuration(t *testing.T) {
+	f := &progFake{status: 2, ub: 65, hasRead: true, readID: 801, seconds: 9000, edAudio: 36000}
+	a, b, id := progApp(t, f, "reading")
+	if _, err := a.store.DB.Exec("UPDATE books SET progress_seconds=9000 WHERE id=?", id); err != nil {
+		t.Fatal(err)
+	}
+	refill(a)
+	loc := locationOf(t, b.form(bookPath(id)+"/hardcover/progress/pull", nil))
+	if body := b.request("GET", loc, nil).Body.String(); !strings.Contains(body, "Total audiobook duration (10:00)") {
+		t.Fatal("duration missing from preview")
+	}
+	expect(t, b.request("POST", loc, url.Values{"use": {"hardcover"}}), 303)
+	book, _ := getBook(a.store.DB, id)
+	if book.AudioSeconds == nil || *book.AudioSeconds != 36000 || *book.ProgressSeconds != 9000 || book.Status != "reading" {
+		t.Fatal("pull did not fill duration safely")
 	}
 }

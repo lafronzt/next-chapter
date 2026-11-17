@@ -135,7 +135,7 @@ func (a *App) bookStatus(w http.ResponseWriter, r *http.Request) error {
 			return err
 		}
 		if action == "start" {
-			if _, err = tx.Exec("UPDATE books SET started_at=?,started_manual=0 WHERE id=?", a.now().Format(time.DateOnly), id); err != nil {
+			if err = saveCurrentStart(tx, id, nullable(a.now().Format(time.DateOnly)), false); err != nil {
 				return err
 			}
 		}

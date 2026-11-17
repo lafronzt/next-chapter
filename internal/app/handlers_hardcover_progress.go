@@ -552,7 +552,7 @@ func (a *App) hardcoverReadPlan(w http.ResponseWriter, r *http.Request) error {
 	}
 	u, ok := remote[link.HardcoverBookID]
 	snapshot, _ := json.Marshal(u.Reads)
-	if !ok || int64(u.ID) != p.UserBookID || string(snapshot) != p.RemoteSnapshot {
+	if !ok || int64(u.ID) != p.UserBookID || string(snapshot) != p.RemoteSnapshot || p.Current && u.StatusID != 2 {
 		return conflict("Hardcover's reading dates changed. Preview this reading again.")
 	}
 	remoteID := p.RemoteReadID
@@ -600,7 +600,7 @@ func (a *App) hardcoverReadPlan(w http.ResponseWriter, r *http.Request) error {
 			localKey, remoteKey = readDatesKey(remoteID, p.RemoteStartedAt, p.RemoteDate, p.RemotePrec), readDatesKey(remoteID, p.RemoteStartedAt, p.RemoteDate, p.RemotePrec)
 
 			if p.Current {
-				_, err = tx.Exec("UPDATE books SET started_at=?,started_manual=1 WHERE id=?", nullable(p.RemoteStartedAt), p.BookID)
+				err = saveCurrentStart(tx, p.BookID, nullable(p.RemoteStartedAt), true)
 			} else {
 				if err = checkReadingDates(nullable(p.RemoteStartedAt), nullable(p.RemoteDate), p.RemotePrec); err != nil {
 					return err
@@ -620,9 +620,17 @@ func (a *App) hardcoverReadPlan(w http.ResponseWriter, r *http.Request) error {
 				return err
 			}
 		case remoteID > 0 && !p.Current:
-			if _, err = tx.Exec("UPDATE reading_log SET hardcover_read_id=? WHERE id=? AND hardcover_read_id IS NULL", remoteID, p.ReadingID); err != nil {
+
+			changed, e := execChanged(tx, "UPDATE reading_log SET hardcover_read_id=? WHERE id=? AND hardcover_read_id IS NULL", remoteID, p.ReadingID)
+			if e != nil {
 				return conflict("Another reading here is already tied to that Hardcover read.")
 			}
+			if changed {
+				if err = bump(tx); err != nil {
+					return err
+				}
+			}
+
 		}
 		dir := map[bool]string{true: "pull", false: "push"}[choice == "theirs"]
 		if err = addHistory(tx, hcHistoryEntry{At: canonicalTime(a.now()), Direction: dir, Summary: "A reading's dates were synced.", Details: []hcHistoryDetail{{BookID: p.BookID, Title: p.Title, What: "reading dates " + map[bool]string{true: p.RemoteText, false: p.LocalText}[choice == "theirs"]}}}); err != nil {
