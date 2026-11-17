@@ -1,0 +1,15 @@
+{
+  "data": {
+    "me": [{"id": 123, "username": "example-reader"}],
+    "library": {"fields": [
+      {"name": "id"}, {"name": "user_id"}, {"name": "book_id"},
+      {"name": "edition_id"}, {"name": "status_id"}, {"name": "rating"},
+      {"name": "updated_at"}
+    ]},
+    "reads": {"fields": [
+      {"name": "id"}, {"name": "user_book_id"}, {"name": "started_at"},
+      {"name": "finished_at"}, {"name": "finished_at_precision"},
+      {"name": "progress_pages"}, {"name": "progress_seconds"}
+    ]}
+  }
+}

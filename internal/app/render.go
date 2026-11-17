@@ -78,7 +78,7 @@ func (a *App) render(w http.ResponseWriter, r *http.Request, name string, data p
 }
 
 // notices are the confirmations a redirect can request with ?notice=.
-var notices = map[string]string{"requeued": "Back in your queue, marked Needs placement. Nothing else moved.", "started": "Started. Nothing else in your queue moved.", "stopped": "Set aside. You can bring it back from its book page.", "finished": "Marked finished and logged in your reading history. Your queue is unchanged.", "triaged": "Sorted. Only reading status changed; books you want to read wait at the end of your queue for placement.", "saved": "Saved to your library.", "ordered": "Your new order is saved. You can undo it until your next library change.", "undone": "Previous order restored.", "imported": "Import complete. Existing reading status and queue order were preserved.", "loan": "Library event recorded. Reading status stays the same.", "signedout": "Signed out on every device. Sign in again to continue.", "deleted": "Book deleted. Future imports will skip it.", "merged": "Books merged. Future imports of the merged book will update this one.", "restored": "Library restored from your JSON export.", "reading": "Reading history saved. Your queue is unchanged.", "ai-on": "AI assistance is on. Nothing is sent until you ask for a suggestion and confirm what gets shared.", "ai-off": "AI assistance is off. Nothing will be sent to the AI provider.", "estimated": "The AI’s estimate is saved next to the baseline. Your library did not change.", "ai-tested": "The AI provider answered the test prompt. No library data was sent."}
+var notices = map[string]string{"requeued": "Back in your queue, marked Needs placement. Nothing else moved.", "started": "Started. Nothing else in your queue moved.", "stopped": "Set aside. You can bring it back from its book page.", "finished": "Marked finished and logged in your reading history. Your queue is unchanged.", "triaged": "Sorted. Only reading status changed; books you want to read wait at the end of your queue for placement.", "saved": "Saved to your library.", "ordered": "Your new order is saved. You can undo it until your next library change.", "undone": "Previous order restored.", "imported": "Import complete. Existing reading status and queue order were preserved.", "loan": "Library event recorded. Reading status stays the same.", "signedout": "Signed out on every device. Sign in again to continue.", "deleted": "Book deleted. Future imports will skip it.", "merged": "Books merged. Future imports of the merged book will update this one.", "restored": "Library restored from your JSON export. Hardcover is disconnected; test the connection to link the current account.", "reading": "Reading history saved. Your queue is unchanged.", "ai-on": "AI assistance is on. Nothing is sent until you ask for a suggestion and confirm what gets shared.", "ai-off": "AI assistance is off. Nothing will be sent to the AI provider.", "estimated": "The AI’s estimate is saved next to the baseline. Your library did not change.", "ai-tested": "The AI provider answered the test prompt. No library data was sent."}
 
 func (a *App) fail(w http.ResponseWriter, r *http.Request, err error) {
 	var h httpError
@@ -262,7 +262,7 @@ func navCurrent(path string, data page) (key string, exact bool) {
 			return view, true
 		}
 		return "queue", false
-	case path == "/history" || path == "/series" || path == "/calendar" || path == "/reading" || path == "/imports" || path == "/settings":
+	case path == "/history" || path == "/series" || path == "/calendar" || path == "/reading" || path == "/imports" || path == "/settings" || path == "/hardcover":
 		return path[1:], true
 	case strings.HasPrefix(path, "/plans/"):
 		switch data["Kind"] {
@@ -289,7 +289,7 @@ func tabCurrent(path string, data page) string {
 	switch key {
 	case "queue", "unreviewed", "reading":
 		return key
-	case "all", "series", "calendar", "history", "imports", "settings":
+	case "all", "series", "calendar", "history", "imports", "settings", "hardcover":
 		return "more"
 	}
 	return ""

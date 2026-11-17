@@ -85,7 +85,7 @@ Two-way integration with [Hardcover](https://hardcover.app) through its GraphQL 
 
 | # | Prompt | Scope | Status |
 |---|--------|-------|--------|
-| 39 | [Connection and API client](39-hardcover-connection.md) | Env token, rate-limited client, status page, privacy wording | Not started |
+| 39 | [Connection and API client](39-hardcover-connection.md) | Env token, rate-limited client, status page, privacy wording | Foundation implemented on `feat/hardcover-integration-39-46`; synthetic-server coverage, live authenticated schema capture pending |
 | 40 | [Book linking](40-hardcover-book-linking.md) | Reader-confirmed `hardcover_book_id` links by ISBN, then title+author | Not started |
 | 41 | [Pull library](41-hardcover-pull-library.md) | Import shelves, ratings, finish dates as a previewed, idempotent import | Not started |
 | 42 | [Push status and ratings](42-hardcover-push-status-and-ratings.md) | Previewed outbound updates, conflict handling, private by default | Not started |

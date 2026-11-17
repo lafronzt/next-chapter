@@ -89,7 +89,7 @@ func preferenceFields(r *http.Request) (Preferences, error) {
 	if err != nil {
 		weight = -1
 	}
-	p := Preferences{LibraryWeight: weight, Length: r.FormValue("length"), Mood: truncate(strings.TrimSpace(r.FormValue("mood")), 100), KeepReviews: r.FormValue("keep_reviews") != "", UseEstimates: r.FormValue("use_estimates") != "", BookLookup: r.FormValue("book_lookup") != ""}
+	p := Preferences{LibraryWeight: weight, Length: r.FormValue("length"), Mood: truncate(strings.TrimSpace(r.FormValue("mood")), 100), KeepReviews: r.FormValue("keep_reviews") != "", UseEstimates: r.FormValue("use_estimates") != "", BookLookup: r.FormValue("book_lookup") != "", Hardcover: r.FormValue("hardcover") != ""}
 	if message := checkPreferences(p); message != "" {
 		return Preferences{}, bad(message)
 	}

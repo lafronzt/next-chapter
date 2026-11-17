@@ -127,6 +127,7 @@ type Preferences struct {
 	// default; nothing is looked up unless the reader asks for one book or one
 	// import, and then only title, author, and ISBN are sent.
 	BookLookup bool `json:"book_lookup,omitempty"`
+	Hardcover  bool `json:"hardcover,omitempty"`
 	// ReadingGoal is the number of books to finish this year; 0 means no goal.
 	ReadingGoal int `json:"reading_goal,omitempty"`
 	// ProgressHistory keeps a dated checkpoint with each progress update. Off

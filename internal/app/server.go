@@ -29,7 +29,8 @@ type Config struct {
 	// AI is the optional AI provider; see ai.go.
 	AI AIConfig
 	// Lookup holds the optional keys for book lookup (see lookup.go).
-	Lookup LookupConfig
+	Lookup    LookupConfig
+	Hardcover HardcoverConfig
 }
 type App struct {
 	store       *Store
@@ -41,6 +42,9 @@ type App struct {
 	// ai is nil unless the operator configured a provider. aiMu allows one
 	// AI request at a time.
 	ai Completer
+	// hardcover serves manual requests only; the mutex serializes account changes.
+	hardcover   *hardcoverClient
+	hardcoverMu sync.Mutex
 	// finder looks books up in global databases, only when the reader asks.
 	finder *Finder
 	aiMu   sync.Mutex
@@ -116,6 +120,7 @@ func New(c Config) (*App, error) {
 	if client := newAIClient(c.AI, nil); client != nil {
 		a.ai = client
 	}
+	a.hardcover = newHardcoverClient(c.Hardcover, nil, "")
 	a.finder = newFinder(c.Lookup, lookupHosts{}, nil)
 	a.jobCtx, a.stopJobs = context.WithCancel(context.Background())
 	return a, nil
@@ -168,6 +173,7 @@ func (a *App) Handler() http.Handler {
 		"GET /books/{id}/delete": a.deleteBook, "POST /books/{id}/delete": a.deleteBook, "GET /books/{id}/merge": a.mergeBook, "POST /books/{id}/merge": a.mergeBook,
 		"POST /suggest": a.suggest, "GET /plans/{id}": a.plan, "POST /plans/{id}": a.plan, "POST /plans/{id}/ai": a.planAI, "POST /undo": a.undo,
 		"GET /imports": a.importPage, "POST /imports": a.importPage, "POST /imports/restore": a.restoreUpload, "GET /examples/{name}": a.example,
+		"GET /hardcover": a.hardcoverPage, "POST /hardcover/test": a.hardcoverTest, "POST /hardcover/disconnect": a.hardcoverDisconnect,
 		"GET /settings": a.settings, "POST /settings": a.settings, "POST /sessions/revoke": a.revokeSessions,
 		"POST /books/{id}/triage": a.triageBook, "POST /triage": a.triageAll,
 		"GET /history": a.history, "GET /reading": a.readingHistory, "POST /books/{id}/readings": a.addReading, "POST /readings/{rid}": a.editReading, "GET /export.json": a.export, "GET /backup.sqlite3": a.backup, "POST /demo": a.demo,

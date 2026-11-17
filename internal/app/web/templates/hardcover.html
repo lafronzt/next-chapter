@@ -1,0 +1,28 @@
+{{template "top" .}}
+<header class="page-heading"><div>
+  <h1>Hardcover</h1>
+  <p>An optional connection to your own account. No books are synced yet.</p>
+</div></header>
+<section class="panel settings-section">
+  <h2>Connection</h2>
+  <p>{{if .Configured}}A token is configured on this server.{{else}}Not configured. Set HARDCOVER_API_TOKEN in the server environment to connect.{{end}}</p>
+  <p>{{if .Enabled}}Manual requests are enabled.{{else}}Hardcover is off. Enable it in <a href="/settings?open=privacy#privacy">Preferences → Privacy</a> to test a connection.{{end}}</p>
+  {{with .Link}}<p>Linked account: <strong>{{.Username}}</strong>. Linked {{.LinkedAt}}.</p>{{else}}<p>No account linked.</p>{{end}}
+  {{with .Last}}{{if .At}}<p role="status">Last test ({{.At}}): {{.Message}}</p>{{end}}{{end}}
+  <p>Scopes verified: {{if and .Link .Last.OK}}read:me. Other scopes have not been tested.{{else}}none.{{end}}</p>
+  <p>Last reported rate-limit remaining: {{if ge .Remaining 0}}{{.Remaining}}{{else}}unknown{{end}}.</p>
+  <p class="muted">Testing sends your bearer token and a query for your account id, username, and two schema types to api.hardcover.app. It costs 3 top-level fields. Nothing runs on page load or on a timer.</p>
+  <form method="post" action="/hardcover/test">
+    {{template "fields" .}}
+    <button class="button primary" {{if or (not .Configured) (not .Enabled)}}disabled{{end}}>Test connection</button>
+  </form>
+</section>
+<section class="panel settings-section">
+  <h2>Disconnect</h2>
+  <p>Removes the local account link and test history and turns off requests. Keeps every book and leaves Hardcover untouched. To revoke the token, visit <a href="https://hardcover.app/account/api" rel="noreferrer">your Hardcover API settings</a> and remove it from the server environment.</p>
+  <form method="post" action="/hardcover/disconnect">
+    {{template "fields" .}}
+    <button class="button">Disconnect Hardcover</button>
+  </form>
+</section>
+{{template "bottom" .}}

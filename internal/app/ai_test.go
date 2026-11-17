@@ -400,7 +400,7 @@ func TestAIInertWhenOff(t *testing.T) {
 		}
 		b := &browser{t: t, handler: a.Handler()}
 		page := b.request("GET", "/settings", nil).Body.String()
-		if !strings.Contains(page, "Turn AI assistance on") || strings.Contains(page, "Test connection") {
+		if !strings.Contains(page, "Turn AI assistance on") || strings.Contains(page, `action="/ai/test"`) {
 			t.Fatal("settings should offer to turn AI on, and no test")
 		}
 		expect(t, b.request("POST", "/ai/test", nil), 400)

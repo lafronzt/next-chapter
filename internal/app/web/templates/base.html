@@ -32,6 +32,7 @@
     <a href="/history" {{if eq .Nav "history"}}class="active" aria-current="{{if .NavPage}}page{{else}}true{{end}}"{{end}}><span aria-hidden="true">{{template "icon" "history"}}</span> Library history</a>
     <span class="nav-label second">MAKE IT YOURS</span>
     <a href="/imports" {{if eq .Nav "imports"}}class="active" aria-current="{{if .NavPage}}page{{else}}true{{end}}"{{end}}><span aria-hidden="true">{{template "icon" "import"}}</span> Import books</a>
+    <a href="/hardcover" {{if eq .Nav "hardcover"}}class="active" aria-current="page"{{end}}>Hardcover</a>
     <a href="/settings" {{if eq .Nav "settings"}}class="active" aria-current="{{if .NavPage}}page{{else}}true{{end}}"{{end}}><span aria-hidden="true">{{template "icon" "settings"}}</span> Preferences</a>
   </nav>
   <div class="sidebar-bottom">
@@ -70,6 +71,7 @@
       <a href="/calendar" {{if eq .Nav "calendar"}}aria-current="{{if .NavPage}}page{{else}}true{{end}}"{{end}}>Borrowing calendar</a>
       <a href="/history" {{if eq .Nav "history"}}aria-current="{{if .NavPage}}page{{else}}true{{end}}"{{end}}>Library history</a>
       <a href="/imports" {{if eq .Nav "imports"}}aria-current="{{if .NavPage}}page{{else}}true{{end}}"{{end}}>Import books</a>
+      <a href="/hardcover" {{if eq .Nav "hardcover"}}aria-current="page"{{end}}>Hardcover</a>
       <a href="/settings" {{if eq .Nav "settings"}}aria-current="{{if .NavPage}}page{{else}}true{{end}}"{{end}}>Preferences</a>
       {{if .Authenticated}}<form method="post" action="/logout">{{template "csrf" .}}<button class="text-button">Sign out</button></form>{{end}}
     </div>
