@@ -667,3 +667,29 @@ func dbValue[T any](t *testing.T, a *App, query string, args ...any) T {
 	}
 	return v
 }
+
+func TestPushRecordsWhatWasSentEvenIfTheLibraryChangedMeanwhile(t *testing.T) {
+	t.Parallel()
+	remote := &pushRemote{rows: map[int]*pushRow{}}
+	var a *App
+	remote.hook = func(n int, q string) (int, map[string]string, string, bool) {
+		if strings.Contains(q, "NextChapterPush") {
+			// The library changes while the request is in flight.
+			if err := a.store.Write(func(tx *sql.Tx) error { return bump(tx) }); err != nil {
+				t.Error(err)
+			}
+		}
+		return 0, nil, "", false
+	}
+	var b *browser
+	var ids []int64
+	a, b, ids = pushApp(t, remote, "to-read:141")
+	loc := sendPreview(t, b, ids[0])
+	expect(t, b.request("POST", loc, nil), 303)
+	if remote.rows[141] == nil {
+		t.Fatal("the send did not happen")
+	}
+	if n := dbValue[int](t, a, "SELECT count(*) FROM hardcover_sync WHERE field='status'"); n != 1 {
+		t.Fatalf("a sent book was not recorded after a concurrent change (%d rows), so it could be sent again", n)
+	}
+}
