@@ -17,8 +17,10 @@ type Book struct {
 	Pages       *int   `json:"pages"`
 	// ProgressPage is the page reached while reading; nil when not tracked.
 	ProgressPage *int `json:"progress_page,omitempty"`
-	// ProgressPercent is the progress in percent for a book tracked that way,
-	// such as an audiobook; at most one of the two progress fields is set.
+	// ProgressSeconds is elapsed audiobook position, not listening time.
+	// At most one progress field is set.
+	ProgressSeconds *int `json:"progress_seconds,omitempty"`
+	// ProgressPercent is the progress in percent for a book tracked that way.
 	ProgressPercent *int     `json:"progress_percent,omitempty"`
 	Tags            string   `json:"tags"`
 	Interest        int      `json:"interest"`
@@ -236,6 +238,7 @@ type Plan struct {
 	// HardcoverProgress and HardcoverRead are previewed pulls of progress and
 	// sends of a reading's date (kinds "hc-progress" and "hc-read").
 	HardcoverProgress *hcProgressPlan `json:"hardcover_progress,omitempty"`
+	HardcoverNote     *hcNotePlan     `json:"hardcover_note,omitempty"`
 	HardcoverRead     *hcReadPlan     `json:"hardcover_read,omitempty"`
 	// HardcoverSeries is a previewed addition of unowned series volumes (kind "hc-series").
 	HardcoverSeries *hcSeriesPlan `json:"hardcover_series,omitempty"`

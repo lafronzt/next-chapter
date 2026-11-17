@@ -15,7 +15,8 @@ import (
 
 const (
 	// maxProgressPage bounds a page number for a book with no page count.
-	maxProgressPage = 100000
+	maxProgressPage    = 100000
+	maxProgressSeconds = 35999999 // 9,999:59:59
 	// holdSoonDays is how far ahead an expected hold date counts for ranking
 	// and the home screen.
 	holdSoonDays = 14
@@ -44,19 +45,23 @@ func (b Book) HasProgress() bool {
 	return b.ProgressPercent != nil || (b.ProgressPage != nil && b.Pages != nil && *b.Pages > 0)
 }
 
-// ProgressUnit is how the reader tracks this book: "percent" when they have
-// entered a percentage, or when the book has no page count to enter pages
-// against, and "page" otherwise.
+// ProgressUnit is "seconds" for an audiobook position, "percent" for a saved
+// percentage or a book without a page count, and "page" otherwise.
 func (b Book) ProgressUnit() string {
+	if b.ProgressSeconds != nil {
+		return "seconds"
+	}
 	if b.ProgressPercent != nil || (b.ProgressPage == nil && (b.Pages == nil || *b.Pages <= 0)) {
 		return "percent"
 	}
 	return "page"
 }
 
-// ProgressValue is the saved number for a form field ("" when not tracked).
+// ProgressValue is the saved form value (hours:minutes for time, empty when untracked).
 func (b Book) ProgressValue() string {
 	switch {
+	case b.ProgressSeconds != nil:
+		return audioPosition(*b.ProgressSeconds)
 	case b.ProgressPercent != nil:
 		return strconv.Itoa(*b.ProgressPercent)
 	case b.ProgressPage != nil:
@@ -77,9 +82,9 @@ func (b Book) Percent() int {
 }
 
 // PagesLeft is how many pages remain, and false when the page count is
-// unknown or the reader tracks this book in percent.
+// unknown or the reader tracks this book in percent or elapsed audio time.
 func (b Book) PagesLeft() (int, bool) {
-	if b.Pages == nil || *b.Pages <= 0 || b.ProgressPercent != nil {
+	if b.Pages == nil || *b.Pages <= 0 || b.ProgressPercent != nil || b.ProgressSeconds != nil {
 		return 0, false
 	}
 	read := 0
@@ -92,6 +97,8 @@ func (b Book) PagesLeft() (int, bool) {
 // ProgressText says where the reader is, or "" when there is nothing to say.
 func (b Book) ProgressText() string {
 	switch {
+	case b.ProgressSeconds != nil:
+		return audioPosition(*b.ProgressSeconds) + " elapsed"
 	case b.ProgressPercent != nil:
 		return fmt.Sprintf("%d%%", *b.ProgressPercent)
 	case b.ProgressPage == nil:
@@ -216,18 +223,25 @@ func (a *App) bookProgress(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	unit := r.FormValue("unit")
-	if unit != "page" && unit != "percent" {
-		return bad("Choose whether you are entering a page or a percentage.")
+	if unit != "page" && unit != "percent" && unit != "seconds" {
+		return bad("Choose pages, percentage, or hours:minutes.")
 	}
 	raw := strings.TrimSpace(r.FormValue("progress"))
 	var value *int
 	if raw != "" {
 		n, e := strconv.Atoi(raw)
+		if unit == "seconds" {
+			n, e = parseAudioPosition(raw)
+		}
 		limit := maxProgressPage
 		if unit == "percent" {
 			limit = 100
+		} else if unit == "seconds" {
+			limit = maxProgressSeconds
 		}
 		switch {
+		case unit == "seconds" && e != nil:
+			return e
 		case e != nil || n < 0:
 			return bad("Enter your progress as a whole number, or leave it blank.")
 		case n > limit && unit == "percent":
@@ -245,16 +259,18 @@ func (a *App) bookProgress(w http.ResponseWriter, r *http.Request) error {
 		if b.Status != "reading" {
 			return bad("Only a book you are reading has progress to track. Start it first.")
 		}
-		var page, percent *int
+		var page, percent, seconds *int
 		if unit == "page" {
 			if value != nil && b.Pages != nil && *b.Pages > 0 && *value > *b.Pages {
 				return bad(fmt.Sprintf("This book has %d pages. Enter a page up to %d.", *b.Pages, *b.Pages))
 			}
 			page = value
-		} else {
+		} else if unit == "percent" {
 			percent = value
+		} else {
+			seconds = value
 		}
-		if _, err = tx.Exec("UPDATE books SET progress_page=?,progress_percent=? WHERE id=?", page, percent, id); err != nil {
+		if _, err = tx.Exec("UPDATE books SET progress_page=?,progress_percent=?,progress_seconds=? WHERE id=?", page, percent, seconds, id); err != nil {
 			return err
 		}
 		// With progress history on, the same save also stores a dated update.
@@ -370,4 +386,41 @@ func (a *App) saveReadingGoal(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	return redirect(w, r, "/reading?notice=saved")
+}
+
+// audioPosition is an elapsed position. Keep seconds from Hardcover precise.
+func audioPosition(seconds int) string {
+	if seconds%60 != 0 {
+		return fmt.Sprintf("%d:%02d:%02d", seconds/3600, seconds/60%60, seconds%60)
+	}
+	return fmt.Sprintf("%d:%02d", seconds/3600, seconds/60%60)
+}
+
+func parseAudioPosition(raw string) (int, error) {
+	parts := strings.Split(strings.TrimSpace(raw), ":")
+	invalid := bad("Enter elapsed hours:minutes, such as 2:30 (minutes 00–59, up to 9999:59:59). Seconds are optional.")
+	if len(parts) < 2 || len(parts) > 3 {
+		return 0, invalid
+	}
+	values := make([]int, len(parts))
+	for i, part := range parts {
+		if part == "" {
+			return 0, invalid
+		}
+		for _, c := range part {
+			if c < '0' || c > '9' {
+				return 0, invalid
+			}
+		}
+		n, err := strconv.Atoi(part)
+		if err != nil || n > 9999 || (i > 0 && n > 59) {
+			return 0, invalid
+		}
+		values[i] = n
+	}
+	seconds := values[0]*3600 + values[1]*60
+	if len(values) == 3 {
+		seconds += values[2]
+	}
+	return seconds, nil
 }

@@ -96,6 +96,8 @@ func (c *hardcoverClient) openRead(ctx context.Context, userID, hcBook int64) (*
 // history, so "who changed since the last sync" is a string comparison.
 func localProgressKey(b Book) string {
 	switch {
+	case b.ProgressSeconds != nil:
+		return "s:" + strconv.Itoa(*b.ProgressSeconds)
 	case b.ProgressPercent != nil:
 		return "%:" + strconv.Itoa(*b.ProgressPercent)
 	case b.ProgressPage != nil:
@@ -138,6 +140,16 @@ func progressToRemote(b Book, r hcOpenRead) remoteProgress {
 	}
 	pct := -1.0
 	switch {
+	case b.ProgressSeconds != nil:
+		if r.EdAudio == 0 && r.EdPages > 0 {
+			out.Skip = "Hardcover's selected edition is print. Choose an audiobook edition there before sending elapsed time."
+			break
+		}
+		out.Audio, out.Seconds = true, *b.ProgressSeconds
+		if r.EdAudio > 0 && out.Seconds > r.EdAudio {
+			out.Seconds = r.EdAudio
+			out.Note = "The position is past the end of Hardcover's audiobook, so its full duration is sent."
+		}
 	case b.ProgressPercent != nil:
 		pct = float64(*b.ProgressPercent)
 	case b.ProgressPage != nil:
@@ -175,18 +187,34 @@ func progressToRemote(b Book, r hcOpenRead) remoteProgress {
 	if out.Skip == "" && r.EdPages > 0 && out.Pages == r.EdPages {
 		out.Note = strings.TrimSpace(out.Note + " Reaching the end finishes the read on Hardcover, which then marks the book Read there.")
 	}
+	if out.Skip == "" && out.Audio && r.EdAudio > 0 && out.Seconds == r.EdAudio {
+		out.Note = strings.TrimSpace(out.Note + " Reaching the end finishes the read on Hardcover, which then marks the book Read there.")
+	}
 	return out
 }
 
 // localProgress is what a pull would store: a page or a percentage, in the
 // unit the reader already uses for the book.
 type localProgress struct {
-	Page, Percent *int
-	Note, Skip    string
+	Page, Percent, Seconds *int
+	Note, Skip             string
 }
 
 func progressFromRemote(b Book, r hcOpenRead) localProgress {
 	var out localProgress
+	if b.ProgressSeconds != nil {
+		if r.EdAudio > 0 || r.Seconds > 0 && r.Pages == 0 {
+			seconds := r.Seconds
+			if seconds < 0 || seconds > maxProgressSeconds {
+				out.Skip = "Hardcover’s audiobook position is out of range."
+				return out
+			}
+			out.Seconds = &seconds
+		} else {
+			out.Skip = "Hardcover's selected edition has no audiobook progress to pull as elapsed time."
+		}
+		return out
+	}
 	local := 0
 	if b.Pages != nil {
 		local = *b.Pages

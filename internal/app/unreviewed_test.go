@@ -200,7 +200,7 @@ func TestUpgradeSurfacedInPreviewNoticeAndSync(t *testing.T) {
 	planURL := rr.Header().Get("Location")
 	rr = b.request("GET", planURL, nil)
 	expect(t, rr, 200)
-	if !strings.Contains(rr.Body.String(), "2 library-only books will move out of To review to match Goodreads: 1 to your queue, 1 to your finished list.") {
+	if !strings.Contains(rr.Body.String(), "2 library-only books will have their reading status updated to match Goodreads: 1 to your queue, 1 to your finished list.") {
 		t.Fatal(rr.Body)
 	}
 	if bookNamed(t, a, "Wanted").Status != "unreviewed" {
@@ -212,14 +212,14 @@ func TestUpgradeSurfacedInPreviewNoticeAndSync(t *testing.T) {
 		t.Fatal(loc)
 	}
 	rr = b.request("GET", rr.Header().Get("Location"), nil)
-	if !strings.Contains(rr.Body.String(), "2 library-only books moved out of To review") {
+	if !strings.Contains(rr.Body.String(), "2 library-only books had their reading status updated") {
 		t.Fatal(rr.Body)
 	}
 	// The same import again moves nothing and does not bump the revision.
 	rev := b.rev
 	rr = uploadCSV(b, "goodreads", csv)
 	planURL = rr.Header().Get("Location")
-	if body := b.request("GET", planURL, nil).Body.String(); strings.Contains(body, "will move out of To review") {
+	if body := b.request("GET", planURL, nil).Body.String(); strings.Contains(body, "will have their reading status updated") {
 		t.Fatal("repeat preview promised a move")
 	}
 	rr = b.request("POST", planURL, nil)
@@ -296,7 +296,7 @@ func TestBulkTriageNeedsConfirmation(t *testing.T) {
 	b := &browser{t: t, handler: a.Handler()}
 	rr := b.request("GET", "/?view=unreviewed&q=Mystery", nil)
 	expect(t, rr, 200)
-	if !strings.Contains(rr.Body.String(), "Mark all 2 matching books as") {
+	if !strings.Contains(rr.Body.String(), "Mark 2 matching undecided books as") {
 		t.Fatal(rr.Body)
 	}
 	expect(t, b.request("POST", "/triage", url.Values{"action": {"archive-everything"}}), 400)
@@ -350,13 +350,13 @@ func TestUnreviewedViewAndBadge(t *testing.T) {
 	for _, path := range []string{"/", "/?view=unreviewed", "/settings", "/history"} {
 		rr = b.request("GET", path, nil)
 		expect(t, rr, 200)
-		if !strings.Contains(rr.Body.String(), `<strong class="nav-count">3<span class="sr-only"> waiting</span></strong>`) {
+		if !strings.Contains(rr.Body.String(), `<strong class="nav-count">4<span class="sr-only"> waiting</span></strong>`) {
 			t.Fatalf("%s badge: %s", path, rr.Body)
 		}
 	}
 	rr = b.request("GET", "/?view=unreviewed", nil)
 	body = rr.Body.String()
-	if strings.Count(body, `action="/books/`) != 3 || !strings.Contains(body, "Mark all 3 visible books as") || strings.Contains(body, ">Queued<") {
+	if strings.Count(body, `action="/books/`) != 4 || !strings.Contains(body, "Mark 3 undecided books as") || !strings.Contains(body, ">Queued<") {
 		t.Fatal(body)
 	}
 	for _, v := range views {

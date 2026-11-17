@@ -113,7 +113,7 @@ type calendar struct {
 // loadCalendarLoans reads every current loan with a status that can carry a
 // commitment, in one query.
 func loadCalendarLoans(q queryer) ([]calendarLoan, error) {
-	rows, err := q.Query(`SELECT b.id,b.title,b.author,b.pages,b.progress_page,b.progress_percent,l.source,l.format,l.status,l.due_date,l.expected_ready
+	rows, err := q.Query(`SELECT b.id,b.title,b.author,b.pages,b.progress_page,b.progress_percent,b.progress_seconds,l.source,l.format,l.status,l.due_date,l.expected_ready
 FROM loans l JOIN books b ON b.id=l.book_id WHERE l.status IN ('borrowed','ready','hold') ORDER BY l.book_id,l.source,l.format`)
 	if err != nil {
 		return nil, err
@@ -122,7 +122,7 @@ FROM loans l JOIN books b ON b.id=l.book_id WHERE l.status IN ('borrowed','ready
 	var out []calendarLoan
 	for rows.Next() {
 		var l calendarLoan
-		if err = rows.Scan(&l.Book.ID, &l.Book.Title, &l.Book.Author, &l.Book.Pages, &l.Book.ProgressPage, &l.Book.ProgressPercent, &l.Source, &l.Format, &l.Status, &l.Due, &l.Ready); err != nil {
+		if err = rows.Scan(&l.Book.ID, &l.Book.Title, &l.Book.Author, &l.Book.Pages, &l.Book.ProgressPage, &l.Book.ProgressPercent, &l.Book.ProgressSeconds, &l.Source, &l.Format, &l.Status, &l.Due, &l.Ready); err != nil {
 			return nil, err
 		}
 		out = append(out, l)

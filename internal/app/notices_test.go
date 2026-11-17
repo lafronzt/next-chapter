@@ -182,7 +182,7 @@ func TestEmptyStatesSayTheNextStep(t *testing.T) {
 	cases := map[string][]string{
 		"/":                 {"Import your Goodreads CSV", "Add a book"},
 		"/?q=nothing":       {"Clear the search"},
-		"/?view=unreviewed": {"Import library activity"},
+		"/?view=unreviewed": {"Add a book", "Back to your queue"},
 		"/reading":          {"Mark a book as finished"},
 	}
 	for path, wants := range cases {

@@ -35,7 +35,7 @@ func (a *App) triageBook(w http.ResponseWriter, r *http.Request) error {
 			return err
 		}
 		if b.Status != "unreviewed" {
-			return bad("Only books waiting for review can be sorted this way. Edit the book to change its status.")
+			return bad("Only books awaiting a reading decision can be sorted this way. Use placement actions for queued books.")
 		}
 		if err = setStatus(tx, b, status); err != nil {
 			return err
@@ -61,12 +61,12 @@ func (a *App) triageAll(w http.ResponseWriter, r *http.Request) error {
 		if err := current(tx, r); err != nil {
 			return err
 		}
-		ids, err := filteredIDs(tx, findView("unreviewed").filter(query))
+		ids, err := filteredIDs(tx, bookFilter{Status: "unreviewed", Query: query})
 		if err != nil {
 			return err
 		}
 		if len(ids) == 0 {
-			return bad("No books are waiting for review here.")
+			return bad("No books are awaiting a reading decision here.")
 		}
 		id, err = savePlan(tx, "triage", Plan{BookIDs: ids, Status: status})
 		return err

@@ -29,9 +29,9 @@ Every suggestion has a preview and reasons. Pinned books keep their positions. Y
 - Phone-friendly: a bottom tab bar, a per-row action sheet in the queue, and a quarter-star rating control. On a phone, use your browser's Add to Home Screen to open it like an app (no offline mode and no service worker).
 - Delete a book, or merge a duplicate into the entry you keep, each after a confirmation preview. Re-imports never bring them back.
 - Explainable placement and full-queue reordering, with preview, stale-preview protection, and undo. With AI assistance on, a suggestion can also show an AI-suggested order beside the usual one. Every AI request shows what it shares (and, if you want, the exact prompt) before it is sent, and runs in the background while you keep using the app.
-- **Reading progress**: save the page you are on, or a percentage for an audiobook or a book with no page count. Home shows how far along you are, and Due soon shows what is left and how much a day finishes it before a loan is due. Progress never moves a book.
+- **Reading progress**: save the page you are on, a percentage, or an audiobook position in hours:minutes (for example, `2:30`). Home shows how far along you are, and Due soon shows what is left and how much a day finishes it before a loan is due. Progress never moves a book.
 - **Expected holds**: enter when you expect a library hold to be ready. As that date nears, the book is lifted a little in suggestions (with a reason), and home lists holds arriving soon. The date is your own estimate; nothing is read from Libby.
-- **Private notes**: an optional "why I want to read this" on each book, plus dated notes you write about it, for any reading status. They are plain text (up to 500 characters for the reason, 5,000 for a note, 200 notes a book), stay on your server, and are never imported, looked up, ranked, or sent to an AI. See [Private notes](#private-notes).
+- **Private notes**: an optional "why I want to read this" on each book, plus dated notes you write about it, for any reading status. They are plain text (up to 500 characters for the reason, 5,000 for a note, 200 notes a book), stay on your server unless you explicitly share an individual note to Hardcover, and are never imported, looked up, ranked, or sent to an AI. See [Private notes](#private-notes).
 - **Saved library views**: filter All books by exact tag, series, page range (or pages unknown), current borrowing source, format, and status, and ownership, then save the filter and sort under a name. See [Saved views and ownership](#saved-views-and-ownership).
 - **Series dashboard**: the books you already have, grouped by series name, in number order, with the next known unread volume. See [Series dashboard](#series-dashboard).
 - **Borrowing calendar**: due dates, pickup deadlines, and your own hold estimates in one agenda, with an optional one-time `.ics` download. See [Borrowing calendar](#borrowing-calendar).
@@ -46,7 +46,7 @@ Every suggestion has a preview and reasons. Pinned books keep their positions. Y
 - Libby timeline CSV imports and a standard CSV format for physical NYPL activity.
 - Separate library events for print, ebook, and audiobook; newest known event wins, regardless of import order.
 - Repeatable imports, matching by Goodreads ID, ISBN, then normalized title and author.
-- Library-only titles enter **unreviewed**, never automatically finished or added to your reading queue. They wait in **To review** (with a count in the sidebar), where one click marks each as Want to read, Already read, or Not interested, or you can sort every visible book at once after a confirmation step.
+- Library-only titles enter **unreviewed**, never automatically finished or added to your reading queue. They wait in **To review** (with a count in the sidebar), where one click marks each as Want to read, Already read, or Not interested. The same view also includes queued books marked **Needs placement**, whether added manually or imported. Want to read keeps a book in To review until you find its place or choose Keep here. Bulk reading decisions affect only undecided books, after a confirmation preview.
 - Password login, CSRF protection, local SQLite persistence, JSON export and restore, and consistent SQLite backups.
 - Docker, Compose, Kubernetes manifests, automated tests, and tagged multi-platform image publishing.
 
@@ -488,17 +488,18 @@ changes a book without a preview, and nothing is retried for you.
 | Import | previewed, idempotent pull of shelves, ratings, finish dates | a read of your library | `read:library` |
 | Send | previewed push of shelf status and rating | Hardcover book ids, status, rating, privacy of new rows | `write:library` |
 | Progress and read dates | per-book opt-in and explicit buttons | a page or length; a finish date and precision | `write:library` |
+| Notes | share one note after its own preview; private by default | chosen note text and page/percentage | `read:journal`, `write:library` |
 | Details, series, covers, rating | fills empty fields after you confirm; cached series | a book id, ISBN, or title and author; your browser loads covers | `read:catalog` |
 | Sync center | "Check for changes" sorts differences into three groups | one library read | `read:library` |
 
-**Never synced, in either direction:** reviews, private notes, "why I want to read
+**Never synced, in either direction:** reviews, "why I want to read
 this", queue order and position, pins, interest scores, AI estimates and
 anything sent to an AI provider, and library loans and events. Status and rating
 are compared and moved; those other things are not read, sent, or imported.
 
 **Scopes:** use an expiring personal access token from
 [Hardcover API settings](https://hardcover.app/account/api) with only what you use
-(`read:me`, `read:library`, `write:library`, `read:catalog`). Never grant `all`.
+(`read:me`, `read:library`, `write:library`, `read:catalog`; add `read:journal` for note sharing). Never grant `all`.
 Lists (`read:lists`/`write:lists`) and OAuth are not implemented. The Hardcover
 page lists which scopes this server has seen work or be refused since it started,
 and names a missing one when a request fails.
@@ -651,9 +652,9 @@ Sending is the outbound half, and it is always something you start and preview: 
 | Reading | Currently Reading (2) |
 | Read | Read (3), with your latest rating |
 | Set aside | Did Not Finish (5) |
-| Archived, To review | nothing: there is no shelf for them |
+| Archived, undecided (`unreviewed`) | nothing: there is no shelf for these reading statuses; queued books needing placement still use Want to read |
 
-- **Only ids, status, rating, and privacy are sent.** Reviews, notes, reasons, queue position, pins, interest, estimates and loans never leave this library. The Hardcover server starts and finishes reads and writes the journal itself when a status changes, so this app does not.
+- **Status sends carry only ids, status, rating, and privacy.** Reviews, reasons, queue position, pins, interest, estimates and loans are not included. Notes have their own explicit share action below. The Hardcover server starts and finishes reads and writes the journal itself when a status changes, so this app does not.
 - **Ratings** are rounded to the nearest half star (4.25 is sent as 4.5) and the preview says so. The rounded value is never written back here, and a rating is never cleared on Hardcover.
 - **Privacy** of a row this app creates defaults to private. Choose followers-only or public in Preferences → Privacy; it applies only to new rows, and a public one is called out in the preview.
 - **Conflicts are not sent.** If Hardcover is ahead of or different from this library (it says Read, here says Queue; it is Paused; it holds a rating this app did not send), the book is listed as a conflict. "Yours is kept" needs no action; "Take Hardcover's version" previews an ordinary pull of that one book. There is no silent merge.
@@ -666,7 +667,7 @@ Migration 20 adds `hardcover_sync`; existing books have none. Roll back by stopp
 
 The current read is the one place both apps change often, so each direction is its own explicit action, and none of them changes status, pins, queue order, loans, or ranking. None writes a journal entry: the Hardcover server does that itself when a read starts, advances, or ends.
 
-- **Progress, here to Hardcover:** per book, off by default ("Also update Hardcover progress when I save", on a book you are reading). When on, saving progress sends it after the local save has committed: one query for the read in progress, then at most one mutation (`update_user_book_read`). If Hardcover has no read in progress, or is unreachable, the local save stands and the page says nothing was sent. Hardcover has no percent field, so a percentage, or pages in an edition of a different length, is converted through the percentage (audiobooks use seconds from the selected read edition, without borrowing a print page count). Progress past the end of Hardcover's edition is sent as the last page; reaching the end finishes the read on Hardcover, which then marks the book Read there. It does not finish the book here.
+- **Progress, here to Hardcover:** per book, off by default ("Also update Hardcover progress when I save", on a book you are reading). When on, saving progress sends it after the local save has committed: one query for the read in progress, then at most one mutation (`update_user_book_read`). If Hardcover has no read in progress, or is unreachable, the local save stands and the page says nothing was sent. Hardcover has no percent field, so a percentage, or pages in an edition of a different length, is converted through the percentage (audiobooks use seconds from the selected read edition, without borrowing a print page count). Elapsed audiobook positions are sent directly as seconds, including zero; a known print edition is refused rather than treating time as pages. Progress past the end of Hardcover's edition is clamped to its length; reaching the end finishes the read on Hardcover, which then marks the book Read there. It does not finish the book here.
 - **Progress, Hardcover to here:** only through "Pull progress from Hardcover…" on the book page, which previews both values. If only Hardcover changed since the last sync, its value is preselected; if both changed, or there is no history to tell, both are shown and the default is no change. Nothing is averaged and the later one is never picked for you.
 - **Read dates:** only through "Send this reading to Hardcover…" on a reading. A reading already tied to a Hardcover read updates that read, so an edited date never adds a duplicate; one not tied is added as a new read (a re-read is a second read, and a second entry here); a same-day read already on Hardcover is just tied. If both dates changed since the last sync you choose: leave both, send mine, or use Hardcover's here (that row then counts as your own edit, so an import never overwrites it). Month-only and year-only dates keep their precision both ways.
 - **Sorting:** a year-only date is stored as 1 January, which would sort it after everything else that year, and the end of the year would invent a December date. It is its own bucket instead: within its year, after the readings whose day or month is known.
@@ -778,3 +779,23 @@ The application uses Go’s HTTP server, escaped HTML templates, plain CSS, and 
 - Consider multiple reader accounts and PostgreSQL after the personal workflow is proven.
 
 Contributions are welcome under the [MIT license](LICENSE). See [CONTRIBUTING.md](CONTRIBUTING.md) and [SECURITY.md](SECURITY.md).
+
+
+### Audiobook positions, sharing notes, and book links
+
+On Home or a reading book’s page, choose **hours:minutes** for progress and enter an elapsed position such as `2:30` (2 hours, 30 minutes). Optional seconds (`2:30:15`) are preserved. This is a position in the audiobook, not time spent listening. Saving pages or a percentage replaces the elapsed position, and a blank clears progress. Time positions are stored and exported in seconds; progress history can record and correct them and shows pace in minutes of audio per calendar day. There is no local audiobook-duration field, so elapsed positions alone do not show a percentage bar, remaining-time estimate, or projected finish date. Mark the book finished yourself.
+
+With **Also update Hardcover progress when I save** enabled, a percentage is sent as its equivalent fraction of the selected Hardcover edition’s pages or audio duration. Hardcover’s GraphQL API has no percentage field. For example, 25% of a 10-hour audiobook sends 9,000 seconds; an unknown duration prevents percentage conversion. Elapsed positions can be sent as seconds without a duration. Pull progress keeps hours:minutes when that is how you track the book.
+
+Each dated note on a linked book has **Share to Hardcover…**. The preview shows exactly the note and its optional page/percentage; confirming sends only that note to the linked book’s reading journal. Privacy defaults to **Only me** on every preview, with explicit choices for followers or everyone. The private “why I want to read this” field is never included. Sharing needs `write:library` and `read:journal` (to check existing copies). No note is shared by saving, editing, starting or finishing a book, progress sync, or batch status sync. Sharing again updates the earlier copy; a changed remote note must be previewed again. After an unconfirmed response, retry checks for an identical journal note before creating another copy. Deleting a local note leaves its remote copy; manage that copy on Hardcover. Share ids are included in JSON export/restore and are used only with the same Hardcover account and book.
+
+API contracts: [progress](https://docs.hardcover.app/api/guides/updatingabooksprogress/) and [notes](https://docs.hardcover.app/api/guides/updatingreadingjournal/), checked November 2026. Tests use synthetic responses; no live account is modified.
+
+Migration 23 adds elapsed audiobook positions and allows time checkpoints while preserving existing checkpoint ids and versions. Migration 24 adds optional Hardcover share ids to notes; all existing notes remain unshared. Before upgrading an existing v22 database, the runner writes `<database>.pre-v23.bak` (a database already on v23 gets `.pre-v24.bak`). To roll back, stop the app, restore the backup over the database, remove its stray `-wal` and `-shm` files, and start the previous image. Progress and share mappings created since the backup are lost; remote Hardcover notes are unaffected.
+
+
+Every saved book’s page also has an **Open in** dropdown, ordered Open Library, Goodreads, Hardcover, Google Books, and WorldCat. Saved Goodreads ids and Hardcover slugs open the book directly; Open Library uses the ISBN when present. WorldCat uses ISBN search when available. Other links open a search using ISBN or title and author and are labeled “search.” Links open a new tab and require no integration account, API token, or lookup setting. Rendering the links contacts no external site; clicking sends only the link’s identifier or search terms to that service.
+
+Screenshots with synthetic data: [audio progress, desktop](docs/audio-progress-desktop-light.png), [audio progress, phone](docs/audio-progress-mobile-dark.png), [note sharing, desktop](docs/share-note-desktop-light.png), and [note sharing, phone](docs/share-note-mobile-dark.png).
+
+Open in dropdown: [desktop](docs/open-in-dropdown-desktop-light.png) and [phone](docs/open-in-dropdown-mobile-dark.png).

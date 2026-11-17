@@ -24,14 +24,17 @@ const (
 // Page and Percent say where in the book it was written (at most one is set)
 // and never change reading progress.
 type bookNote struct {
-	ID        int64  `json:"id"`
-	BookID    int64  `json:"book_id"`
-	Body      string `json:"body"`
-	Page      *int   `json:"page,omitempty"`
-	Percent   *int   `json:"percent,omitempty"`
-	Version   int    `json:"-"`
-	CreatedAt string `json:"created_at"`
-	UpdatedAt string `json:"updated_at"`
+	ID                 int64  `json:"id"`
+	BookID             int64  `json:"book_id"`
+	Body               string `json:"body"`
+	Page               *int   `json:"page,omitempty"`
+	Percent            *int   `json:"percent,omitempty"`
+	Version            int    `json:"-"`
+	CreatedAt          string `json:"created_at"`
+	UpdatedAt          string `json:"updated_at"`
+	HardcoverJournalID int64  `json:"hardcover_journal_id,omitempty"`
+	HardcoverUserID    int64  `json:"hardcover_user_id,omitempty"`
+	HardcoverBookID    int64  `json:"hardcover_book_id,omitempty"`
 }
 
 // Edited reports whether the note was changed after it was written.
@@ -104,7 +107,7 @@ func noteFields(r *http.Request) (body string, page, percent *int, err error) {
 }
 
 func loadNotes(q queryer, bookID int64) ([]bookNote, error) {
-	rows, err := q.Query("SELECT id,book_id,body,page,percent,version,created_at,updated_at FROM book_notes WHERE book_id=? ORDER BY created_at DESC,id DESC", bookID)
+	rows, err := q.Query("SELECT id,book_id,body,page,percent,version,created_at,updated_at,hardcover_journal_id,hardcover_user_id,hardcover_book_id FROM book_notes WHERE book_id=? ORDER BY created_at DESC,id DESC", bookID)
 	if err != nil {
 		return nil, err
 	}
@@ -112,7 +115,7 @@ func loadNotes(q queryer, bookID int64) ([]bookNote, error) {
 	notes := []bookNote{}
 	for rows.Next() {
 		var n bookNote
-		if err = rows.Scan(&n.ID, &n.BookID, &n.Body, &n.Page, &n.Percent, &n.Version, &n.CreatedAt, &n.UpdatedAt); err != nil {
+		if err = rows.Scan(&n.ID, &n.BookID, &n.Body, &n.Page, &n.Percent, &n.Version, &n.CreatedAt, &n.UpdatedAt, &n.HardcoverJournalID, &n.HardcoverUserID, &n.HardcoverBookID); err != nil {
 			return nil, err
 		}
 		notes = append(notes, n)
@@ -122,7 +125,7 @@ func loadNotes(q queryer, bookID int64) ([]bookNote, error) {
 
 // loadAllNotes returns every note for an export, oldest first.
 func loadAllNotes(q queryer) ([]bookNote, error) {
-	rows, err := q.Query("SELECT id,book_id,body,page,percent,version,created_at,updated_at FROM book_notes ORDER BY id")
+	rows, err := q.Query("SELECT id,book_id,body,page,percent,version,created_at,updated_at,hardcover_journal_id,hardcover_user_id,hardcover_book_id FROM book_notes ORDER BY id")
 	if err != nil {
 		return nil, err
 	}
@@ -130,7 +133,7 @@ func loadAllNotes(q queryer) ([]bookNote, error) {
 	notes := []bookNote{}
 	for rows.Next() {
 		var n bookNote
-		if err = rows.Scan(&n.ID, &n.BookID, &n.Body, &n.Page, &n.Percent, &n.Version, &n.CreatedAt, &n.UpdatedAt); err != nil {
+		if err = rows.Scan(&n.ID, &n.BookID, &n.Body, &n.Page, &n.Percent, &n.Version, &n.CreatedAt, &n.UpdatedAt, &n.HardcoverJournalID, &n.HardcoverUserID, &n.HardcoverBookID); err != nil {
 			return nil, err
 		}
 		notes = append(notes, n)

@@ -1,0 +1,18 @@
+{{template "top" .}}
+<a class="back" href="/books/{{.Plan.BookID}}#notes">← Back to {{.Plan.Title}}</a>
+<header class="page-heading"><div><h1>Share a note to Hardcover</h1><p>Only this note and its page or percentage will be shared with the linked book. Future edits require another share.</p></div></header>
+<section class="panel stack hc-panel">
+  <h2>{{.Plan.Title}}</h2>
+  <p>{{if .Plan.JournalID}}This replaces your previously shared Hardcover note.{{else}}This adds a note to your Hardcover reading journal. An identical existing note is reused.{{end}}</p>
+  <p class="note-body">{{.Plan.Entry}}</p>
+  {{if .Plan.JournalID}}<details><summary>Current copy on Hardcover</summary><p class="note-body">{{.Plan.RemoteEntry}}</p></details>{{end}}
+</section>
+<form class="panel stack hc-panel" method="post" action="/hardcover/notes/{{.PlanID}}">
+  {{template "fields" .}}
+  <label>Who can see the note on Hardcover?
+    <select name="privacy"><option value="3" selected>Only me (private)</option><option value="2">Followers</option><option value="1">Everyone (public)</option></select>
+  </label>
+  <p class="muted">Deleting the local note leaves its Hardcover copy in place. Manage that copy on Hardcover.</p>
+  <div class="button-row"><button class="button primary" name="confirm" value="share" data-busy-label="Sharing…">Share this note</button><a class="button" href="/books/{{.Plan.BookID}}#notes">Cancel</a></div>
+</form>
+{{template "bottom" .}}

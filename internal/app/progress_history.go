@@ -61,6 +61,8 @@ func (c progressCheckpoint) Text() string {
 	switch {
 	case c.Value == nil:
 		return "Progress cleared"
+	case c.Unit == "seconds":
+		return audioPosition(*c.Value) + " elapsed"
 	case c.Unit == "percent":
 		return fmt.Sprintf("%d%%", *c.Value)
 	}
@@ -249,11 +251,14 @@ func estimatePace(cps []progressCheckpoint, b Book, loans []Loan, today time.Tim
 		return none
 	}
 	per := float64(gained) / float64(elapsed)
-	unit := map[string]string{"page": "pages", "percent": "% of the book"}[last.Unit]
+	unit := map[string]string{"page": "pages", "percent": "% of the book", "seconds": "seconds of audio"}[last.Unit]
 	info := paceInfo{Message: fmt.Sprintf("From %s to %s you saved %d %s across %d %s: about %s %s a day. This is based on the dates you saved progress, not time spent reading.", first.Day, last.Day, len(run), plural(len(run), "update", "updates"), elapsed, plural(elapsed, "day", "days"), perDayText(per), unit)}
 	info.Rate = "About " + perDayText(per) + " pages a day"
 	if last.Unit == "percent" {
 		info.Rate = "About " + perDayText(per) + "% a day"
+	}
+	if last.Unit == "seconds" {
+		info.Rate = "About " + perDayText(per/60) + " minutes of audio a day"
 	}
 	info.Basis = fmt.Sprintf("%d updates · %s to %s", len(run), first.Day, last.Day)
 	// What is left, in the same unit the pace is in.
@@ -397,6 +402,10 @@ func checkpointFields(r *http.Request, c progressCheckpoint, pages *int, today t
 	if day > today.Format(time.DateOnly) {
 		return "", 0, bad("An update cannot be dated in the future.")
 	}
+	if c.Unit == "seconds" {
+		value, err = parseAudioPosition(r.FormValue("value"))
+		return day, value, err
+	}
 	value, e := strconv.Atoi(strings.TrimSpace(r.FormValue("value")))
 	limit := maxProgressPage
 	if c.Unit == "percent" {
@@ -480,15 +489,17 @@ func (a *App) editCheckpoint(w http.ResponseWriter, r *http.Request) error {
 		if open != c.AttemptID || b.Status != "reading" || !(wasLatest || newest.ID == c.ID) {
 			return nil
 		}
-		var page, percent *int
+		var page, percent, seconds *int
 		if newest.Value != nil {
 			if newest.Unit == "percent" {
 				percent = newest.Value
+			} else if newest.Unit == "seconds" {
+				seconds = newest.Value
 			} else {
 				page = newest.Value
 			}
 		}
-		_, err = tx.Exec("UPDATE books SET progress_page=?,progress_percent=? WHERE id=?", page, percent, c.BookID)
+		_, err = tx.Exec("UPDATE books SET progress_page=?,progress_percent=?,progress_seconds=? WHERE id=?", page, percent, seconds, c.BookID)
 		return err
 	})
 	if err != nil {
@@ -515,4 +526,14 @@ func (a *App) clearProgressHistory(w http.ResponseWriter, r *http.Request) error
 		return err
 	}
 	return redirect(w, r, "/settings?notice=saved&open=privacy#privacy")
+}
+
+func (c progressCheckpoint) FormValue() string {
+	if c.Value == nil {
+		return ""
+	}
+	if c.Unit == "seconds" {
+		return audioPosition(*c.Value)
+	}
+	return strconv.Itoa(*c.Value)
 }

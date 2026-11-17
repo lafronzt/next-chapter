@@ -14,6 +14,8 @@ import (
 // book) and a search query already normalized by searchQuery.
 type bookFilter struct {
 	Status, Query string
+	// Review includes undecided books and queued books still needing placement.
+	Review bool
 	// Sort is a key of sortOptions; empty is queue order. Sorting only
 	// changes how a list is read and never touches stored positions.
 	Sort string
@@ -34,7 +36,7 @@ type bookFilter struct {
 // narrowed reports whether a filter other than status and search can hide
 // books, so a page's queue numbers must count the books between its rows.
 func (f bookFilter) narrowed() bool {
-	return f.Tag != "" || f.Series != "" || f.PagesMin != nil || f.PagesMax != nil || f.PagesUnknown || f.LoanSource != "" || f.LoanStatus != "" || f.LoanFormat != "" || f.Owned != ""
+	return f.Review || f.Tag != "" || f.Series != "" || f.PagesMin != nil || f.PagesMax != nil || f.PagesUnknown || f.LoanSource != "" || f.LoanStatus != "" || f.LoanFormat != "" || f.Owned != ""
 }
 
 // sortOptions are the orders the All books list offers, besides queue order.
@@ -63,7 +65,9 @@ var likeEscaper = strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`)
 // strings.ToLower, so non-ASCII letters fold the same way the query does.
 func (f bookFilter) where() (string, []any) {
 	conds, args := []string{}, []any{}
-	if f.Status != "" {
+	if f.Review {
+		conds = append(conds, "(b.reading_status='unreviewed' OR (b.reading_status='to-read' AND b.needs_placement=1))")
+	} else if f.Status != "" {
 		conds, args = append(conds, "b.reading_status=?"), append(args, f.Status)
 	}
 	if f.Query != "" {

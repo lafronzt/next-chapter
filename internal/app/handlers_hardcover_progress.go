@@ -18,6 +18,7 @@ type hcProgressPlan struct {
 	State     string `json:"state"`
 	Page      *int   `json:"page,omitempty"`
 	Percent   *int   `json:"percent,omitempty"`
+	Seconds   *int   `json:"seconds,omitempty"`
 	Note      string `json:"note,omitempty"`
 	RemoteKey string `json:"remote_key"`
 }
@@ -163,7 +164,7 @@ func (a *App) hardcoverProgressPull(w http.ResponseWriter, r *http.Request) erro
 		return err
 	}
 	conv := progressFromRemote(b, *open)
-	plan := hcProgressPlan{BookID: id, Title: b.Title, LocalText: b.ProgressText(), RemoteText: remoteProgressText(*open), Page: conv.Page, Percent: conv.Percent, Note: conv.Note, RemoteKey: remoteProgressKey(*open)}
+	plan := hcProgressPlan{BookID: id, Title: b.Title, LocalText: b.ProgressText(), RemoteText: remoteProgressText(*open), Page: conv.Page, Percent: conv.Percent, Seconds: conv.Seconds, Note: conv.Note, RemoteKey: remoteProgressKey(*open)}
 	if plan.LocalText == "" {
 		plan.LocalText = "none saved"
 	}
@@ -171,7 +172,8 @@ func (a *App) hardcoverProgressPull(w http.ResponseWriter, r *http.Request) erro
 		plan.State, plan.Note = "none", conv.Skip
 	} else {
 		equal := conv.Page != nil && b.ProgressPage != nil && b.ProgressPercent == nil && *conv.Page == *b.ProgressPage ||
-			conv.Percent != nil && b.ProgressPercent != nil && *conv.Percent == *b.ProgressPercent
+			conv.Percent != nil && b.ProgressPercent != nil && *conv.Percent == *b.ProgressPercent ||
+			conv.Seconds != nil && b.ProgressSeconds != nil && *conv.Seconds == *b.ProgressSeconds
 		plan.State = progressState(last, localProgressKey(b), plan.RemoteKey, equal)
 	}
 	var planID string
@@ -192,7 +194,7 @@ func (a *App) hardcoverProgressPull(w http.ResponseWriter, r *http.Request) erro
 func remoteProgressText(r hcOpenRead) string {
 	switch {
 	case r.EdAudio > 0 || r.Seconds > 0 && r.Pages == 0:
-		return fmt.Sprintf("%d seconds", r.Seconds)
+		return audioPosition(r.Seconds) + " elapsed"
 	case r.Pages > 0 && r.EdPages > 0:
 		return fmt.Sprintf("page %d of %d", r.Pages, r.EdPages)
 	case r.Pages > 0:
@@ -250,23 +252,28 @@ func (a *App) hardcoverProgressPlan(w http.ResponseWriter, r *http.Request) erro
 		if p.Percent != nil {
 			unit, value = "percent", p.Percent
 		}
+		if p.Seconds != nil {
+			unit, value = "seconds", p.Seconds
+		}
 		if value == nil {
 			return bad("There is nothing usable to pull.")
 		}
-		var page, percent *int
+		var page, percent, seconds *int
 		if unit == "page" {
 			page = value
-		} else {
+		} else if unit == "percent" {
 			percent = value
+		} else {
+			seconds = value
 		}
-		if _, err = tx.Exec("UPDATE books SET progress_page=?,progress_percent=? WHERE id=?", page, percent, p.BookID); err != nil {
+		if _, err = tx.Exec("UPDATE books SET progress_page=?,progress_percent=?,progress_seconds=? WHERE id=?", page, percent, seconds, p.BookID); err != nil {
 			return err
 		}
 		if err = recordCheckpoint(tx, b, unit, value, midnight(a.now())); err != nil {
 			return err
 		}
 		nb := b
-		nb.ProgressPage, nb.ProgressPercent = page, percent
+		nb.ProgressPage, nb.ProgressPercent, nb.ProgressSeconds = page, percent, seconds
 		if err = addSync(tx, p.BookID, "progress", localProgressKey(nb), p.RemoteKey, "pull", canonicalTime(a.now())); err != nil {
 			return err
 		}

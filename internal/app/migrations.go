@@ -29,6 +29,8 @@ var migrations = []migration{
 	{20, "Hardcover sync history", migrateHardcoverSync},
 	{21, "Hardcover progress opt-in and sync fields", migrateHardcoverProgress},
 	{22, "Hardcover catalog cache", migrateHardcoverCatalog},
+	{23, "audiobook time progress", migrateAudioProgress},
+	{24, "explicit Hardcover note shares", migrateHardcoverNotes},
 }
 
 func migrateBaseline(tx *sql.Tx) error {
@@ -434,5 +436,28 @@ CREATE TABLE series_cache (
  title TEXT NOT NULL, author TEXT NOT NULL DEFAULT '', year INTEGER NULL, pages INTEGER NULL, fetched_at TEXT NOT NULL,
  PRIMARY KEY(source_book_id, series_id, hardcover_book_id)
 );`)
+	return err
+}
+
+// migrateAudioProgress keeps existing positions and checkpoint versions intact.
+func migrateAudioProgress(tx *sql.Tx) error {
+	_, err := tx.Exec(`ALTER TABLE books ADD COLUMN progress_seconds INTEGER NULL CHECK(progress_seconds BETWEEN 0 AND 35999999);
+CREATE TABLE progress_checkpoints_audio (
+ id INTEGER PRIMARY KEY, attempt_id INTEGER NOT NULL REFERENCES reading_attempts(id),
+ book_id INTEGER NOT NULL REFERENCES books(id), day TEXT NOT NULL,
+ unit TEXT NOT NULL CHECK(unit IN ('page','percent','seconds')), value INTEGER NULL CHECK(value IS NULL OR value >= 0),
+ total_pages INTEGER NULL, version INTEGER NOT NULL DEFAULT 1, UNIQUE(attempt_id, day)
+);
+INSERT INTO progress_checkpoints_audio SELECT * FROM progress_checkpoints;
+DROP TABLE progress_checkpoints;
+ALTER TABLE progress_checkpoints_audio RENAME TO progress_checkpoints;
+CREATE INDEX progress_checkpoints_book ON progress_checkpoints(book_id, day);`)
+	return err
+}
+
+func migrateHardcoverNotes(tx *sql.Tx) error {
+	_, err := tx.Exec(`ALTER TABLE book_notes ADD COLUMN hardcover_journal_id INTEGER NOT NULL DEFAULT 0 CHECK(hardcover_journal_id >= 0);
+ALTER TABLE book_notes ADD COLUMN hardcover_user_id INTEGER NOT NULL DEFAULT 0 CHECK(hardcover_user_id >= 0);
+ALTER TABLE book_notes ADD COLUMN hardcover_book_id INTEGER NOT NULL DEFAULT 0 CHECK(hardcover_book_id >= 0);`)
 	return err
 }

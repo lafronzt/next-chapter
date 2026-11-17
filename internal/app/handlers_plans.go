@@ -347,7 +347,7 @@ func upgradeSummary(upgrades map[string]int) string {
 	if total == 0 {
 		return ""
 	}
-	return fmt.Sprintf("%d library-only books will move out of To review to match Goodreads: %s.", total, strings.Join(parts, ", "))
+	return fmt.Sprintf("%d library-only books will have their reading status updated to match Goodreads: %s. Queued books still need placement.", total, strings.Join(parts, ", "))
 }
 
 // advanceSummary names the books a Goodreads shelf moves forward, or "".

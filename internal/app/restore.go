@@ -63,7 +63,7 @@ const (
 	// maxRestoreSchema is the newest export this build can restore. A test
 	// fails when a migration is added, so the restore code is checked against
 	// the new schema before this is raised.
-	maxRestoreSchema = 22
+	maxRestoreSchema = 24
 	maxRestoreUpload = 10_000_000
 	maxRestoreEvents = 100_000
 	maxRestoreAlias  = 20_000
@@ -349,6 +349,11 @@ func validateExport(f *exportFile) []string {
 	for i := range f.Notes {
 		n := &f.Notes[i]
 		label := fmt.Sprintf("Note %d", i+1)
+		if n.HardcoverJournalID < 0 || n.HardcoverUserID < 0 || n.HardcoverBookID < 0 ||
+			(n.HardcoverJournalID == 0) != (n.HardcoverUserID == 0) || (n.HardcoverJournalID == 0) != (n.HardcoverBookID == 0) {
+			add("%s: Hardcover share ids must all be positive or all absent.", label)
+		}
+
 		if !ids[n.BookID] {
 			add("%s refers to a book that is not in the file.", label)
 		}
@@ -448,8 +453,10 @@ func validateExport(f *exportFile) []string {
 		limit := maxProgressPage
 		if c.Unit == "percent" {
 			limit = 100
+		} else if c.Unit == "seconds" {
+			limit = maxProgressSeconds
 		}
-		if c.Unit != "page" && c.Unit != "percent" || (c.Value != nil && (*c.Value < 0 || *c.Value > limit)) || (c.TotalPages != nil && (*c.TotalPages < 1 || *c.TotalPages > 99999)) {
+		if c.Unit != "page" && c.Unit != "percent" && c.Unit != "seconds" || (c.Value != nil && (*c.Value < 0 || *c.Value > limit)) || (c.TotalPages != nil && (*c.TotalPages < 1 || *c.TotalPages > 99999)) {
 			add("%s: the unit or value is out of range.", label)
 		}
 	}
@@ -510,15 +517,15 @@ func restoreExport(q queryer, f exportFile) (restorePlan, error) {
 	}
 	books := slices.Clone(f.Books)
 	slices.SortStableFunc(books, func(a, b Book) int { return cmp.Or(cmp.Compare(a.Position, b.Position), cmp.Compare(a.ID, b.ID)) })
-	insertBook, err := q.Prepare(`INSERT INTO books(title,author,identity,isbn,goodreads_id,pages,progress_page,progress_percent,tags,interest,reading_status,position,pinned,needs_placement,moved_by_hand,series,series_number,published_year,avg_rating,added_at,source,description,description_source,reason,owned)
-    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+	insertBook, err := q.Prepare(`INSERT INTO books(title,author,identity,isbn,goodreads_id,pages,progress_page,progress_percent,progress_seconds,tags,interest,reading_status,position,pinned,needs_placement,moved_by_hand,series,series_number,published_year,avg_rating,added_at,source,description,description_source,reason,owned)
+    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
 	if err != nil {
 		return result, err
 	}
 	defer insertBook.Close()
 	newID := make(map[int64]int64, len(books))
 	for _, b := range books {
-		res, err := insertBook.Exec(b.Title, b.Author, b.Identity, b.ISBN, b.GoodreadsID, b.Pages, b.ProgressPage, b.ProgressPercent, b.Tags, b.Interest, b.Status, b.Position, b.Pinned, b.NeedsPlacement, b.MovedByHand, b.Series, b.SeriesNumber, b.PublishedYear, b.AvgRating, b.AddedAt, b.Source, b.Description, b.DescriptionSource, b.Reason, b.Owned)
+		res, err := insertBook.Exec(b.Title, b.Author, b.Identity, b.ISBN, b.GoodreadsID, b.Pages, b.ProgressPage, b.ProgressPercent, b.ProgressSeconds, b.Tags, b.Interest, b.Status, b.Position, b.Pinned, b.NeedsPlacement, b.MovedByHand, b.Series, b.SeriesNumber, b.PublishedYear, b.AvgRating, b.AddedAt, b.Source, b.Description, b.DescriptionSource, b.Reason, b.Owned)
 		if err != nil {
 			return result, err
 		}
@@ -629,7 +636,7 @@ func restoreExport(q queryer, f exportFile) (restorePlan, error) {
 	notes := slices.Clone(f.Notes)
 	slices.SortStableFunc(notes, func(a, b bookNote) int { return cmp.Compare(a.ID, b.ID) })
 	for _, n := range notes {
-		if _, err = q.Exec("INSERT INTO book_notes(book_id,body,page,percent,created_at,updated_at) VALUES(?,?,?,?,?,?)", newID[n.BookID], n.Body, n.Page, n.Percent, n.CreatedAt, n.UpdatedAt); err != nil {
+		if _, err = q.Exec("INSERT INTO book_notes(book_id,body,page,percent,created_at,updated_at,hardcover_journal_id,hardcover_user_id,hardcover_book_id) VALUES(?,?,?,?,?,?,?,?,?)", newID[n.BookID], n.Body, n.Page, n.Percent, n.CreatedAt, n.UpdatedAt, n.HardcoverJournalID, n.HardcoverUserID, n.HardcoverBookID); err != nil {
 			return result, err
 		}
 		result.Notes++

@@ -23,7 +23,7 @@ var views = []listView{
 	{"queue", "Up next", "to-read", "A good book. Then another.", defaultIntro},
 	{"reading", "Reading", "reading", "In good company.", defaultIntro},
 	{"read", "Finished", "read", "Chapters completed.", defaultIntro},
-	{"unreviewed", "To review", "unreviewed", "Borrowed, but not yet decided.", "Library loans arrive here so borrowing never counts as wanting to read. Tell us what each one means to you."},
+	{"unreviewed", "To review", "unreviewed", "Books still finding their place.", "Decide what you want to read, then choose a place for books waiting in your queue. Added by hand or imported, they stay here until you decide."},
 	{"abandoned", "Set aside", "abandoned", "Not every book is for now.", defaultIntro},
 	{"archived", "Archived", "archived", "Kept for the record.", defaultIntro},
 	{"all", "All books", "", "Your books, together.", defaultIntro},
@@ -48,7 +48,9 @@ func (v listView) Title() string {
 }
 
 // filter selects this view's books for a normalized query.
-func (v listView) filter(query string) bookFilter { return bookFilter{Status: v.Status, Query: query} }
+func (v listView) filter(query string) bookFilter {
+	return bookFilter{Status: v.Status, Query: query, Review: v.Key == "unreviewed"}
+}
 
 func (a *App) index(w http.ResponseWriter, r *http.Request) error {
 	view := findView(r.URL.Query().Get("view"))
@@ -95,6 +97,13 @@ func (a *App) index(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	data := page{"AI": ai, "Title": pageTitle(title, pages), "Items": items, "Pager": pages, "Stats": stats, "View": view.Key, "ViewInfo": view, "Views": views, "Query": query, "CanUndo": canUndo, "UndoLabel": undoLabel, "Status": status, "Sort": sortKey, "SortOptions": sortOptions, "ReadingStates": readingStates}
+	if view.Key == "unreviewed" {
+		undecided, err := countBooks(a.store.DB, bookFilter{Status: "unreviewed", Query: query})
+		if err != nil {
+			return err
+		}
+		data["TriageCount"], data["PlacementCount"] = undecided, total-undecided
+	}
 	if view.Key == "all" {
 		if err = a.listViewData(r, data, filter, filterNotes); err != nil {
 			return err
