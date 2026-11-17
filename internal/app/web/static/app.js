@@ -5,6 +5,16 @@
 document.addEventListener('submit', function (event) {
   var form = event.target;
   if (!(form instanceof HTMLFormElement) || event.defaultPrevented) return;
+  // A slow action (a book lookup can take several seconds) says it is working,
+  // so a tap on a phone never looks like it did nothing.
+  var sender = event.submitter;
+  if (sender && sender.hasAttribute('data-busy-label')) {
+    sender.setAttribute('data-idle-label', sender.textContent);
+    sender.textContent = sender.getAttribute('data-busy-label');
+    form.setAttribute('aria-busy', 'true');
+    var status = form.querySelector('[data-busy-status]');
+    if (status) status.hidden = false;
+  }
   setTimeout(function () {
     form.querySelectorAll('button:not([disabled])').forEach(function (b) {
       b.disabled = true;
@@ -18,6 +28,15 @@ window.addEventListener('pageshow', function () {
   document.querySelectorAll('button[data-was-submitting]').forEach(function (b) {
     b.disabled = false;
     b.removeAttribute('data-was-submitting');
+    if (b.hasAttribute('data-idle-label')) {
+      b.textContent = b.getAttribute('data-idle-label');
+      b.removeAttribute('data-idle-label');
+    }
+  });
+  document.querySelectorAll('form[aria-busy]').forEach(function (f) {
+    f.removeAttribute('aria-busy');
+    var status = f.querySelector('[data-busy-status]');
+    if (status) status.hidden = true;
   });
 });
 

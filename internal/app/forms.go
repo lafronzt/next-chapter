@@ -28,6 +28,16 @@ func bookFields(r *http.Request) (Book, error) {
 		}
 		b.SeriesNumber = &n
 	}
+	if raw := strings.TrimSpace(r.FormValue("isbn")); raw != "" {
+		if b.ISBN = cleanISBN(raw); b.ISBN == "" {
+			return b, bad("Enter a 10 or 13 digit ISBN, or leave it empty.")
+		}
+	}
+	if raw := strings.TrimSpace(r.FormValue("published_year")); raw != "" {
+		if b.PublishedYear = parseYear(raw); b.PublishedYear == nil {
+			return b, bad("Enter a valid year first published, or leave it empty.")
+		}
+	}
 	if message := checkBook(b); message != "" {
 		return b, bad(message)
 	}

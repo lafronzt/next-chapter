@@ -106,3 +106,29 @@ func shelfBooks(names ...string) []Record {
 	}
 	return out
 }
+
+func TestEditBookChangesISBNAndYear(t *testing.T) {
+	t.Parallel()
+	a := testApp(t, true)
+	addRecords(t, a, records("Fixable"))
+	id := bookNamed(t, a, "Fixable").ID
+	b := &browser{t: t, handler: a.Handler()}
+	path := fmt.Sprintf("/books/%d/edit", id)
+	edit := b.request("GET", path, nil).Body.String()
+	if !strings.Contains(edit, `name="isbn"`) || !strings.Contains(edit, `name="published_year"`) {
+		t.Fatal("edit page lacks the ISBN or year fields")
+	}
+	expect(t, b.form(path, bookForm("Fixable", "to-read", "isbn", "978-0-306-40615-7", "published_year", "1999")), 303)
+	got := bookNamed(t, a, "Fixable")
+	if got.ISBN != "9780306406157" || got.PublishedYear == nil || *got.PublishedYear != 1999 {
+		t.Fatalf("isbn %q year %v", got.ISBN, got.PublishedYear)
+	}
+	// Bad values are refused; empty values clear the fields.
+	expect(t, b.form(path, bookForm("Fixable", "to-read", "isbn", "12345")), 400)
+	expect(t, b.form(path, bookForm("Fixable", "to-read", "published_year", "soon")), 400)
+	expect(t, b.form(path, bookForm("Fixable", "to-read")), 303)
+	got = bookNamed(t, a, "Fixable")
+	if got.ISBN != "" || got.PublishedYear != nil {
+		t.Fatalf("isbn %q year %v", got.ISBN, got.PublishedYear)
+	}
+}

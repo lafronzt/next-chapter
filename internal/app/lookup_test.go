@@ -1053,7 +1053,7 @@ func TestNewBookLookupFillsTheFormAndSavesNothing(t *testing.T) {
 	rr := b.form("/books/new/lookup", newBookForm(url.Values{"pages": {"111"}}))
 	expect(t, rr, 200)
 	body := rr.Body.String()
-	for _, want := range []string{"Filled in ", "Nothing is saved yet", `value="111"`, "A storm &amp; a song.", `name="published_year" value="2011"`, `name="description_source" value="Open Library"`, "sailing, sea stories"} {
+	for _, want := range []string{"Filled in ", "Nothing is saved yet", `value="111"`, "A storm &amp; a song.", `name="published_year" type="number" inputmode="numeric" min="-5000" max="2200" value="2011"`, `name="description_source" value="Open Library"`, "sailing, sea stories"} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("form lacks %q:\n%s", want, body)
 		}
