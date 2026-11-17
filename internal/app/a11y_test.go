@@ -290,7 +290,7 @@ func TestTabBarMarksCurrentTab(t *testing.T) {
 	}
 	body := b.request("GET", "/", nil).Body.String()
 	m := tabbarPattern.FindStringSubmatch(body)
-	if !strings.Contains(m[1], `nav-count">1<span class="sr-only"> waiting`) {
+	if !strings.Contains(m[1], `nav-count">2<span class="sr-only"> waiting`) {
 		t.Errorf("To review count missing: %s", m[1])
 	}
 }

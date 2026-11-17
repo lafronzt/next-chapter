@@ -114,7 +114,7 @@
 <div class="list-toolbar">
   <nav class="tabs" aria-label="Book lists">
     {{range .Views}}
-    <a href="/?view={{.Key}}" {{if eq .Key $.View}}class="selected" aria-current="page"{{end}}>{{.Label}}{{if and (eq .Key "unreviewed") $.UnreviewedCount}} <span class="tab-count">{{$.UnreviewedCount}}<span class="sr-only"> waiting</span></span>{{end}}</a>
+    <a href="/?view={{.Key}}" {{if eq .Key $.View}}class="selected" aria-current="page"{{end}}>{{.Label}}{{if and (eq .Key "unreviewed") $.ReviewCount}} <span class="tab-count">{{$.ReviewCount}}<span class="sr-only"> waiting</span></span>{{end}}</a>
     {{end}}
   </nav>
   <form class="search" method="get" role="search">
@@ -198,12 +198,19 @@
   {{end}}
 </div>
 {{end}}
-{{if and (eq .View "unreviewed") .Items}}
+{{if and (eq .View "unreviewed") .PlacementCount}}
+<aside class="place-banner" aria-label="Books waiting for a place">
+  <p><strong>{{.PlacementCount}} {{if eq .PlacementCount 1}}book needs{{else}}books need{{end}} a place.</strong> Find a suggested spot, or keep a book where it is.</p>
+  <a class="button" href="/place">Place waiting books</a>
+</aside>
+{{end}}
+{{if and (eq .View "unreviewed") .TriageCount}}
 <form class="bulk-triage" method="post" action="/triage">
   {{template "fields" .}}
   <input type="hidden" name="q" value="{{.Query}}">
-  <label>Mark all {{.Pager.Total}} {{if .Query}}matching{{else}}visible{{end}} books as <select name="action"><option value="want">Want to read</option><option value="read">Already read</option><option value="skip">Not interested</option></select></label>
+  <label>Mark all {{.TriageCount}} {{if .Query}}matching{{else}}visible{{end}} {{if eq .TriageCount 1}}book{{else}}books{{end}} as <select name="action"><option value="want">Want to read</option><option value="read">Already read</option><option value="skip">Not interested</option></select></label>
   <button class="button small"><span>Review this change <span aria-hidden="true">→</span></span></button>
+  <p class="muted"><small>Only books awaiting a reading decision. Books needing placement stay as they are.</small></p>
 </form>
 {{end}}
 {{if .CanUndo}}
@@ -236,7 +243,19 @@
       <p class="book-meta">{{pips .Interest}}{{if .Estimate}}<span> · <a class="estimate-link" href="/books/{{.ID}}/estimate">estimated {{star (deref .Estimate)}}</a></span>{{end}}{{if .Tags}}<span> · {{.Tags}}</span>{{end}}</p>
     </div>
     <div class="book-actions">
-      {{if eq .Status "to-read"}}
+      {{if and (eq $.View "unreviewed") (eq .Status "to-read")}}
+      <form method="post" action="/suggest">
+        {{template "fields" $}}
+        <input type="hidden" name="candidate_id" value="{{.ID}}">
+        <button class="button primary small" aria-label="Find its place: {{.Title}}" {{if .Pinned}}disabled title="Unpin this book to suggest another place."{{end}}>Find its place</button>
+      </form>
+      <form method="post" action="/books/{{.ID}}/action">
+        {{template "fields" $}}
+        <input type="hidden" name="return" value="{{$.Pager.Self}}">
+        <button class="button small" name="action" value="placed" aria-label="Keep here: {{.Title}}">Keep here</button>
+      </form>
+      <a class="text-button" href="/books/{{.ID}}/edit" aria-label="Edit book: {{.Title}}">Edit book</a>
+      {{else if eq .Status "to-read"}}
       <form class="mini-actions" method="post" action="/books/{{.ID}}/action">
         {{template "fields" $}}
         <input type="hidden" name="return" value="{{$.Pager.Self}}">
@@ -294,9 +313,10 @@
   <section class="empty">
     <div class="empty-mark" aria-hidden="true">✓</div>
     <h2>Nothing waiting for review.</h2>
-    <p>Books from Libby or NYPL imports land here until you decide whether you want to read them.</p>
+    <p>Books appear here when they need a reading decision or a place in your queue, whether you add them yourself or import them.</p>
     <div class="button-row">
-      <a class="button primary" href="/imports">Import library activity</a>
+      <a class="button primary" href="/books/new">Add a book</a>
+      <a class="button" href="/?view=queue">Back to your queue</a>
     </div>
   </section>
   {{else}}

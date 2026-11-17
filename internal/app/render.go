@@ -30,11 +30,11 @@ func (a *App) render(w http.ResponseWriter, r *http.Request, name string, data p
 	}
 	data["Tab"] = tabCurrent(r.URL.Path, data)
 	if a.config.Demo || s.Session.Authenticated {
-		var waiting int
-		if err := a.store.DB.QueryRow("SELECT count(*) FROM books WHERE reading_status='unreviewed'").Scan(&waiting); err != nil {
+		waiting, err := countBooks(a.store.DB, bookFilter{Review: true})
+		if err != nil {
 			return err
 		}
-		data["UnreviewedCount"] = waiting
+		data["ReviewCount"] = waiting
 		// A note about the background AI request, until its outcome is seen,
 		// except on its own page.
 		if job := a.currentAIJob(); job != nil && !job.Seen && r.URL.Path != "/ai/jobs/"+job.ID {
@@ -55,7 +55,7 @@ func (a *App) render(w http.ResponseWriter, r *http.Request, name string, data p
 		data["Notice"] = fmt.Sprintf("Import complete: %d %s added, %d %s a spot. Existing reading status and queue order were preserved.", added, plural(added, "book", "books"), needs, plural(needs, "needs", "need"))
 	}
 	if moved, _ := strconv.Atoi(r.URL.Query().Get("moved")); notice == "imported" && moved > 0 {
-		data["Notice"] = fmt.Sprintf("Import complete. %d library-only books moved out of To review to match Goodreads; other books kept their reading status and queue order.", moved)
+		data["Notice"] = fmt.Sprintf("Import complete. %d library-only books had their reading status updated to match Goodreads; other books kept their reading status and queue order.", moved)
 	}
 	if advanced, _ := strconv.Atoi(r.URL.Query().Get("advanced")); notice == "imported" && advanced > 0 {
 		data["Notice"] = fmt.Sprintf("%s %d books you finished or started on Goodreads left your queue.", data["Notice"], advanced)

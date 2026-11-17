@@ -46,7 +46,7 @@ Every suggestion has a preview and reasons. Pinned books keep their positions. Y
 - Libby timeline CSV imports and a standard CSV format for physical NYPL activity.
 - Separate library events for print, ebook, and audiobook; newest known event wins, regardless of import order.
 - Repeatable imports, matching by Goodreads ID, ISBN, then normalized title and author.
-- Library-only titles enter **unreviewed**, never automatically finished or added to your reading queue. They wait in **To review** (with a count in the sidebar), where one click marks each as Want to read, Already read, or Not interested, or you can sort every visible book at once after a confirmation step.
+- Library-only titles enter **unreviewed**, never automatically finished or added to your reading queue. They wait in **To review** (with a count in the sidebar), where one click marks each as Want to read, Already read, or Not interested. The same view also includes queued books marked **Needs placement**, whether added manually or imported. Want to read keeps a book in To review until you find its place or choose Keep here. Bulk reading decisions affect only undecided books, after a confirmation preview.
 - Password login, CSRF protection, local SQLite persistence, JSON export and restore, and consistent SQLite backups.
 - Docker, Compose, Kubernetes manifests, automated tests, and tagged multi-platform image publishing.
 
@@ -652,7 +652,7 @@ Sending is the outbound half, and it is always something you start and preview: 
 | Reading | Currently Reading (2) |
 | Read | Read (3), with your latest rating |
 | Set aside | Did Not Finish (5) |
-| Archived, To review | nothing: there is no shelf for them |
+| Archived, undecided (`unreviewed`) | nothing: there is no shelf for these reading statuses; queued books needing placement still use Want to read |
 
 - **Status sends carry only ids, status, rating, and privacy.** Reviews, reasons, queue position, pins, interest, estimates and loans are not included. Notes have their own explicit share action below. The Hardcover server starts and finishes reads and writes the journal itself when a status changes, so this app does not.
 - **Ratings** are rounded to the nearest half star (4.25 is sent as 4.5) and the preview says so. The rounded value is never written back here, and a rating is never cleared on Hardcover.
