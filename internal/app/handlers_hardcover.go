@@ -107,6 +107,11 @@ func (a *App) hardcoverTest(w http.ResponseWriter, r *http.Request) error {
 		}
 		if result.OK {
 			user := out.Me[0]
+			if old, err := loadHardcoverLink(tx); err != nil {
+				return err
+			} else if old != nil && old.UserID != user.ID {
+				result.Message += " The linked Hardcover account changed from " + old.Username + "; review any later Hardcover links."
+			}
 			username := strings.ReplaceAll(user.Username, a.hardcover.token, "[redacted]")
 			if _, err := tx.Exec("INSERT INTO hardcover_link(id,hardcover_user_id,username,linked_at) VALUES(1,?,?,?) ON CONFLICT(id) DO UPDATE SET hardcover_user_id=excluded.hardcover_user_id,username=excluded.username,linked_at=excluded.linked_at", user.ID, username, result.At); err != nil {
 				return err
