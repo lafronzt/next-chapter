@@ -1,0 +1,37 @@
+{{template "top" .}}
+<a class="back" href="/books/{{.Plan.BookID}}"><span aria-hidden="true">←</span> Back to {{.Plan.Title}}</a>
+<header class="page-heading"><div>
+  <h1>Pull progress from Hardcover</h1>
+  <p>Only your progress on this book can change. Its status, your queue order, and pins stay as they are.</p>
+</div></header>
+{{if .Stale}}
+<div class="notice error" role="alert">Your library has changed since this preview. Pull the progress again.</div>
+{{else}}
+<section class="panel stack" aria-labelledby="progress-compare">
+  <h2 id="progress-compare">{{.Plan.Title}}</h2>
+  <dl class="facts">
+    <dt>Here</dt><dd>{{.Plan.LocalText}}</dd>
+    <dt>On Hardcover</dt><dd>{{.Plan.RemoteText}}</dd>
+  </dl>
+  {{with .Plan.Note}}<p class="muted">{{.}}</p>{{end}}
+  {{if eq .Plan.State "same"}}<div class="notice" role="status">Already in step. Nothing to change.</div>{{end}}
+  {{if eq .Plan.State "none"}}<div class="notice" role="status">Nothing can be pulled.</div>{{end}}
+  {{if eq .Plan.State "local"}}<div class="notice" role="status">Only your progress has changed since the last sync, so there is nothing to pull. Save progress here with the Hardcover option on to send it.</div>{{end}}
+</section>
+<form method="post" action="/hardcover/progress/{{.PlanID}}" class="panel stack">
+  {{template "fields" .}}
+  {{if eq .Plan.State "both"}}<div class="notice error" role="alert">Both sides changed since the last sync (or there is no earlier sync to compare). Choose one. Nothing is averaged and the later one is not picked for you.</div>{{end}}
+  {{if or (eq .Plan.State "remote") (eq .Plan.State "both")}}
+  <fieldset>
+    <legend>Which progress do you want?</legend>
+    <label class="checkbox"><input type="radio" name="use" value="keep" {{if eq .Plan.State "both"}}checked{{end}}> Keep mine ({{.Plan.LocalText}}). No change.</label>
+    <label class="checkbox"><input type="radio" name="use" value="hardcover" {{if eq .Plan.State "remote"}}checked{{end}}> Use Hardcover’s ({{.Plan.RemoteText}}).</label>
+  </fieldset>
+  <button class="button primary">Apply</button>
+  {{else}}
+  <input type="hidden" name="use" value="keep">
+  <button class="button">Done</button>
+  {{end}}
+</form>
+{{end}}
+{{template "bottom" .}}

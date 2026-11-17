@@ -1,0 +1,9 @@
+mutation UpdateUserBookRead($id: Int!, $read: DatesReadInput!) {
+  update_user_book_read(id: $id, object: $read) {
+    id
+    error
+    user_book_read { id finished_at finished_at_precision progress_pages progress_seconds }
+  }
+}
+# read: { progress_pages | progress_seconds, action_at } for progress, or
+# { finished_at, finished_at_precision } for a date. Only sent fields change.

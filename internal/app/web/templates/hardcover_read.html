@@ -1,0 +1,39 @@
+{{template "top" .}}
+<a class="back" href="/books/{{.Plan.BookID}}"><span aria-hidden="true">←</span> Back to {{.Plan.Title}}</a>
+<header class="page-heading"><div>
+  <h1>Send a reading to Hardcover</h1>
+  <p>Only this reading’s finish date is involved. Your status, queue, and ratings here never change, and no journal entry is written.</p>
+</div></header>
+{{if .Stale}}
+<div class="notice error" role="alert">Your library has changed since this preview. Preview this reading again.</div>
+{{else}}
+<section class="panel stack" aria-labelledby="read-compare">
+  <h2 id="read-compare">{{.Plan.Title}}</h2>
+  <dl class="facts">
+    <dt>Finished here</dt><dd>{{.Plan.LocalText}}</dd>
+    <dt>On Hardcover</dt><dd>{{if .Plan.RemoteText}}{{.Plan.RemoteText}}{{else}}no matching read{{end}}</dd>
+  </dl>
+  {{with .Plan.Note}}<p class="muted">{{.}}</p>{{end}}
+  {{if eq .Plan.Action "none"}}<div class="notice" role="status">The dates already match. Nothing to send.</div>{{end}}
+  {{if and (eq .Plan.Action "update") (eq .Plan.State "both")}}<div class="notice error" role="alert">Both dates changed since the last sync (or there is no earlier sync to compare). Choose one. Nothing is averaged and the later one is not picked for you.</div>{{end}}
+</section>
+<form method="post" action="/hardcover/reads/{{.PlanID}}" class="panel stack">
+  {{template "fields" .}}
+  {{if eq .Plan.Action "update"}}
+  <fieldset>
+    <legend>Which date is right?</legend>
+    <label class="checkbox"><input type="radio" name="use" value="keep" {{if eq .Plan.State "both"}}checked{{end}}> Leave both as they are.</label>
+    <label class="checkbox"><input type="radio" name="use" value="mine" {{if eq .Plan.State "local"}}checked{{end}}> Send mine ({{.Plan.LocalText}}) to Hardcover.</label>
+    <label class="checkbox"><input type="radio" name="use" value="theirs" {{if eq .Plan.State "remote"}}checked{{end}}> Use Hardcover’s ({{.Plan.RemoteText}}) here. Month-only and year-only dates stay that way.</label>
+  </fieldset>
+  <button class="button primary">Apply</button>
+  {{else if or (eq .Plan.Action "insert") (eq .Plan.Action "map")}}
+  <input type="hidden" name="use" value="mine">
+  <button class="button primary" data-busy-label="Sending…">{{if eq .Plan.Action "insert"}}Send to Hardcover{{else}}Tie to Hardcover’s read{{end}}</button>
+  {{else}}
+  <input type="hidden" name="use" value="keep">
+  <button class="button">Done</button>
+  {{end}}
+</form>
+{{end}}
+{{template "bottom" .}}

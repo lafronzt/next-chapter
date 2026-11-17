@@ -18,6 +18,8 @@ type hcBookLink struct {
 	EditionID       *int64 `json:"hardcover_edition_id,omitempty"`
 	Slug            string `json:"slug,omitempty"`
 	LinkedAt        string `json:"linked_at"`
+	// ProgressSync is the reader's opt-in to send progress to Hardcover.
+	ProgressSync bool `json:"progress_sync,omitempty"`
 }
 
 // hcAlias remembers the Hardcover id of a deleted or merged book under its
@@ -29,7 +31,7 @@ type hcAlias struct {
 
 func getBookLink(q queryer, bookID int64) (*hcBookLink, error) {
 	var l hcBookLink
-	err := q.QueryRow("SELECT book_id,hardcover_book_id,hardcover_edition_id,slug,linked_at FROM book_hardcover WHERE book_id=?", bookID).Scan(&l.BookID, &l.HardcoverBookID, &l.EditionID, &l.Slug, &l.LinkedAt)
+	err := q.QueryRow("SELECT book_id,hardcover_book_id,hardcover_edition_id,slug,linked_at,progress_sync FROM book_hardcover WHERE book_id=?", bookID).Scan(&l.BookID, &l.HardcoverBookID, &l.EditionID, &l.Slug, &l.LinkedAt, &l.ProgressSync)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
@@ -37,7 +39,7 @@ func getBookLink(q queryer, bookID int64) (*hcBookLink, error) {
 }
 
 func loadBookLinks(q queryer) ([]hcBookLink, error) {
-	rows, err := q.Query("SELECT book_id,hardcover_book_id,hardcover_edition_id,slug,linked_at FROM book_hardcover ORDER BY book_id")
+	rows, err := q.Query("SELECT book_id,hardcover_book_id,hardcover_edition_id,slug,linked_at,progress_sync FROM book_hardcover ORDER BY book_id")
 	if err != nil {
 		return nil, err
 	}
@@ -45,7 +47,7 @@ func loadBookLinks(q queryer) ([]hcBookLink, error) {
 	out := []hcBookLink{}
 	for rows.Next() {
 		var l hcBookLink
-		if err = rows.Scan(&l.BookID, &l.HardcoverBookID, &l.EditionID, &l.Slug, &l.LinkedAt); err != nil {
+		if err = rows.Scan(&l.BookID, &l.HardcoverBookID, &l.EditionID, &l.Slug, &l.LinkedAt, &l.ProgressSync); err != nil {
 			return nil, err
 		}
 		out = append(out, l)
@@ -103,7 +105,7 @@ func saveBookLink(q queryer, bookID int64, c hcCandidate, at string) error {
 		return err
 	}
 	_, err = q.Exec(`INSERT INTO book_hardcover(book_id,hardcover_book_id,hardcover_edition_id,slug,linked_at) VALUES(?,?,?,?,?)
- ON CONFLICT(book_id) DO UPDATE SET hardcover_book_id=excluded.hardcover_book_id,hardcover_edition_id=excluded.hardcover_edition_id,slug=excluded.slug,linked_at=excluded.linked_at`, bookID, c.BookID, edition, truncate(c.Slug, 200), at)
+ ON CONFLICT(book_id) DO UPDATE SET hardcover_book_id=excluded.hardcover_book_id,hardcover_edition_id=excluded.hardcover_edition_id,slug=excluded.slug,linked_at=excluded.linked_at,progress_sync=0`, bookID, c.BookID, edition, truncate(c.Slug, 200), at)
 	return err
 }
 
