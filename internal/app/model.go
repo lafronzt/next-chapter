@@ -137,7 +137,11 @@ type Preferences struct {
 	// the Hardcover community average. Both are off by default and neither is
 	// used for ranking.
 	HardcoverCovers bool `json:"hardcover_covers,omitempty"`
-	HardcoverRating bool `json:"hardcover_rating,omitempty"`
+	// HardcoverSyncPull and HardcoverSyncPush are the sync center's switches:
+	// the check for changes needs pull, and offers to send need push. Off by default.
+	HardcoverSyncPull bool `json:"hardcover_sync_pull,omitempty"`
+	HardcoverSyncPush bool `json:"hardcover_sync_push,omitempty"`
+	HardcoverRating   bool `json:"hardcover_rating,omitempty"`
 	// ReadingGoal is the number of books to finish this year; 0 means no goal.
 	ReadingGoal int `json:"reading_goal,omitempty"`
 	// ProgressHistory keeps a dated checkpoint with each progress update. Off
@@ -235,6 +239,10 @@ type Plan struct {
 	HardcoverRead     *hcReadPlan     `json:"hardcover_read,omitempty"`
 	// HardcoverSeries is a previewed addition of unowned series volumes (kind "hc-series").
 	HardcoverSeries *hcSeriesPlan `json:"hardcover_series,omitempty"`
+	// HardcoverCheck and HardcoverForget are the sync center's check result and
+	// a previewed "forget Hardcover ids" (kinds "hc-check" and "hc-forget").
+	HardcoverCheck  *hcCheck      `json:"hardcover_check,omitempty"`
+	HardcoverForget *hcForgetPlan `json:"hardcover_forget,omitempty"`
 	// Intent is the reader's optional note for an AI suggestion; it lives
 	// only as long as the plan. AIRows is the AI-suggested order, applied
 	// instead of Rows when the reader chooses it; AINotice explains why an AI

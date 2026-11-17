@@ -66,6 +66,71 @@ type hardcoverClient struct {
 	daily                         int
 	remaining                     int
 	serverBudgets                 []hardcoverBudget
+	// scopes and failure are what this process has seen, for the status block.
+	scopes  map[string]hcScopeSeen
+	failure *hcFailure
+}
+
+// hcScopeSeen says whether a scope worked, or was refused, and when.
+type hcScopeSeen struct {
+	OK bool
+	At time.Time
+}
+
+// hcFailure is the last request that failed, cleared by the next success.
+type hcFailure struct {
+	Err error
+	At  time.Time
+}
+
+// scopeFor names the scope a query needs, from its text. Queries belong to
+// this package, so the match is on what they read or write.
+func scopeFor(query string) string {
+	switch {
+	case strings.Contains(query, "mutation"):
+		return "write:library"
+	case strings.Contains(query, "NextChapterConnection"):
+		return "read:me"
+	case strings.Contains(query, "user_books"):
+		return "read:library"
+	}
+	return "read:catalog"
+}
+
+// note records the outcome of one call for the status block.
+func (c *hardcoverClient) note(query string, err error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.scopes == nil {
+		c.scopes = map[string]hcScopeSeen{}
+	}
+	now := c.now()
+	var scope hardcoverScopeError
+	switch {
+	case err == nil:
+		c.scopes[scopeFor(query)] = hcScopeSeen{true, now}
+		c.failure = nil
+	case errors.As(err, &scope):
+		c.scopes[scopeFor(query)] = hcScopeSeen{false, now}
+		c.failure = &hcFailure{err, now}
+	default:
+		c.failure = &hcFailure{err, now}
+	}
+}
+
+// Status is a copy of what the client has seen, safe to read without the lock.
+func (c *hardcoverClient) Status() (scopes map[string]hcScopeSeen, failure *hcFailure, blockedUntil time.Time) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	scopes = make(map[string]hcScopeSeen, len(c.scopes))
+	for k, v := range c.scopes {
+		scopes[k] = v
+	}
+	if c.failure != nil {
+		f := *c.failure
+		failure = &f
+	}
+	return scopes, failure, c.blockedUntil
 }
 
 func newHardcoverClient(c HardcoverConfig, transport *http.Client, endpoint string) *hardcoverClient {
@@ -231,7 +296,10 @@ func (c *hardcoverClient) observe(h http.Header, status int) {
 }
 func (c *hardcoverClient) knownRemaining() int { c.mu.Lock(); defer c.mu.Unlock(); return c.remaining }
 
-func (c *hardcoverClient) do(ctx context.Context, query string, vars any, out any) error {
+func (c *hardcoverClient) do(ctx context.Context, query string, vars any, out any) (err error) {
+	if c != nil {
+		defer func() { c.note(query, err) }()
+	}
 	if c == nil {
 		return hardcoverError("Hardcover is not configured.")
 	}

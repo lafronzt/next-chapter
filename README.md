@@ -470,20 +470,46 @@ Both actions start from a book's edit page under **Tidy up**. Nothing is merged 
 
 ## Hardcover (optional)
 
-The first integration step provides a connection test only; book linking,
-imports, writeback, progress sync, series lookup, and queue publishing are not
-implemented yet. The app works fully without Hardcover and requires no paid plan.
+Hardcover is an optional, reader-driven connection to your own account. The app
+works fully without it and needs no paid plan. **Everything is something you
+press:** nothing runs on a page load, an import, startup, or a timer, nothing
+changes a book without a preview, and nothing is retried for you.
+
+| Piece | What it does | Hardcover sees | Scope |
+| --- | --- | --- | --- |
+| Connection test | reads your id and username | your token | `read:me` |
+| Linking books | proposes matches you confirm | ISBN, title, author of one book at a time | `read:catalog` |
+| Import | previewed, idempotent pull of shelves, ratings, finish dates | a read of your library | `read:library` |
+| Send | previewed push of shelf status and rating | Hardcover book ids, status, rating, privacy of new rows | `write:library` |
+| Progress and read dates | per-book opt-in and explicit buttons | a page or length; a finish date and precision | `write:library` |
+| Details, series, covers, rating | fills empty fields after you confirm; cached series | a book id, ISBN, or title and author; your browser loads covers | `read:catalog` |
+| Sync center | "Check for changes" sorts differences into three groups | one library read | `read:library` |
+
+**Never synced, in either direction:** reviews, private notes, "why I want to read
+this", queue order and position, pins, interest scores, AI estimates and
+anything sent to an AI provider, and library loans and events. Status and rating
+are compared and moved; those other things are not read, sent, or imported.
+
+**Scopes:** use an expiring personal access token from
+[Hardcover API settings](https://hardcover.app/account/api) with only what you use
+(`read:me`, `read:library`, `write:library`, `read:catalog`). Never grant `all`.
+Lists (`read:lists`/`write:lists`) and OAuth are not implemented. The Hardcover
+page lists which scopes this server has seen work or be refused since it started,
+and names a missing one when a request fails.
+
+**Rate limits:** the free plan allows 60 requests a minute, a burst of 10, and 5,000
+a day; each top-level GraphQL field counts. A shared in-memory budget watches the
+server's headers and `Retry-After`, refuses over-budget calls, stops for the day on
+a daily-limit 429, and never retries. Pages say what a press costs before you press.
+
+**Disconnect** and **Forget Hardcover ids** are on the Hardcover page and described
+below. Revoking the token in Hardcover's settings and removing it from the server
+environment ends access completely.
 
 Set `HARDCOVER_API_TOKEN` in the server environment (for example in your private
 `.env` or a Kubernetes Secret), then enable **Hardcover** in **Preferences →
 Privacy**. Open **More → Hardcover** and press **Test connection**. Do not paste a
-token into a page. Use an expiring personal access token from
-[Hardcover API settings](https://hardcover.app/account/api), granting `read:me`
-for this connection step. Never grant `all`. Later library operations will need
-`read:library` / `write:library`, catalog matching will need `read:catalog`, and
-optional lists will need `read:lists` / `write:lists`; those operations are not
-available in this build. Only `read:me` is verified by this test; other scopes
-are reported as untested. OAuth with PKCE is a follow-up, not implemented here.
+token into a page. The test needs `read:me` and checks that the library and read schema still have the fields this app uses.
 
 Testing sends a bearer token and an account/schema query to the fixed endpoint
 `https://api.hardcover.app/v1/graphql`. It reads your own id and username and
@@ -504,8 +530,9 @@ Limits can be shared with other apps using the same account. Restarting this
 app resets its fallback budget; server limits still apply. Only the last test
 and reported remaining count are persisted.
 
-**Disconnect** removes the local link and test history, turns the feature off,
-and leaves books and Hardcover untouched. Revoke the token in Hardcover's API
+**Disconnect** removes the local account link, test history, and sync history,
+turns the feature and its switches off, and keeps every book (and its Hardcover
+link) and leaves Hardcover untouched. Revoke the token in Hardcover's API
 settings and remove it from the environment to revoke access completely. JSON
 exports include the account link but restore discards it: test again to link
 the account belonging to the current token. Database backups retain the link.
@@ -616,6 +643,18 @@ Hardcover's catalog is community-curated: use it at your own risk. Catalog reads
 - **Series:** the series page lists, under "Not in your library", the cached members you lack (not linked, not the same title and author as a book you have, and not one you deleted), with the next whole-numbered volume after your highest. Positions can be fractional or missing; both are kept. Choosing volumes and "Preview adding to my list…" shows exactly what would be created; confirming adds ordinary books (`source` `hardcover-series`) at the end of your queue marked Needs placement, linked to their Hardcover books. Nothing is added automatically, the queue never reorders, and the page itself makes no request: it reads the cache. A book in two Hardcover series is shown under the one whose name matches its series here.
 - **Covers and rating (both off by default, in Preferences → Privacy):** a cover is hotlinked from `assets.hardcover.app` by your browser, with `alt`, `loading="lazy"` and `referrerpolicy="no-referrer"`; it needs one extra `img-src` host in the Content-Security-Policy, present only while covers are on. The colored tiles stay the default and the fallback. The rating appears as muted "Hardcover average 4.1 (12,431 ratings)". Neither is used by ranking, reasons, or AI estimates.
 - Migration 22 adds the droppable cache tables `hardcover_catalog` and `series_cache`; they are left out of exports and cleared on unlink, relink, merge, or delete. Roll back from `next-chapter.sqlite3.pre-v22.bak` as above; refreshing rebuilds them.
+
+### The sync center
+
+`/hardcover` is one calm place: the connection, any failure, the sync switches, "Check for changes", the history, and what is not linked.
+
+- **Banner:** the last failed request in plain words: a rejected or expired token (401), a missing scope named with a link to Hardcover's API settings (403), the rate limit with the time to wait, or Hardcover being down (nothing changed). No stack traces and no retry loops.
+- **Switches** (both off by default): "Check Hardcover for changes" and "Offer to send local changes". Progress is chosen per book on its page.
+- **Check for changes** is one button. It reads what changed on Hardcover since the last import (about one request per 100 books, at most 8 per press, shown beforehand with the remaining budget) and sorts books into **Hardcover is ahead**, **Local is ahead**, **Both changed** (using the sync history to tell who moved), and **New on Hardcover**. The check changes nothing. Each group opens the ordinary previewed import or send, each with its own stale-revision check, so there is only one way to change anything; "Take Hardcover's version" does that for one book. Importing part of a check does not move the "since" mark, so the next check re-sees what you left.
+- **History:** the last 30 syncs that changed something, with titles and what moved (never reviews or notes), and per-book "Preview a new send" buttons. Nothing is undone automatically in either direction: change an imported book here, or preview a new send to reverse one. "Clear history" empties the list.
+- **Not linked:** your shelved books with no link, with "Find a match".
+- **Forget Hardcover ids** (previewed, with counts) clears links, remembered ids of deleted books, sync history, cached catalog data, and the ties between readings and Hardcover reads. Books, ratings, and readings stay. Exports and restores simply have none afterward.
+- Not built: the optional scheduled background check (`HARDCOVER_SYNC_INTERVAL`). Every check is one you press.
 
 Schema migration 16 adds the `event_corrections` table for your edits and voids of library events; no existing event or loan changes. Roll back with `next-chapter.sqlite3.pre-v16.bak` as above, or keep later changes and run an older image after `DROP TABLE event_corrections; UPDATE meta SET value='15' WHERE key='schema_version';`, then re-import or re-record the affected library events, because current loans were worked out with the corrections applied. JSON exports from version 16 need this build or newer to restore.
 

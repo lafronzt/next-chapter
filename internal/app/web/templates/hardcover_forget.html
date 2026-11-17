@@ -1,0 +1,23 @@
+{{template "top" .}}
+<a class="back" href="/hardcover"><span aria-hidden="true">←</span> Back to Hardcover</a>
+<header class="page-heading"><div>
+  <h1>Forget Hardcover ids</h1>
+  <p>This clears what this library remembers about Hardcover. Every book, rating, and reading stays, and Hardcover is not contacted.</p>
+</div></header>
+{{if .Stale}}
+<div class="notice error" role="alert">Your library has changed since this preview. Preview again.</div>
+{{else}}
+<form method="post" action="/hardcover/forget/{{.PlanID}}" class="panel stack">
+  {{template "fields" .}}
+  <ul class="plain-list">
+    <li>{{.Plan.Links}} book link(s)</li>
+    <li>{{.Plan.Aliases}} remembered id(s) of deleted or merged books</li>
+    <li>{{.Plan.History}} sync history row(s)</li>
+    <li>{{.Plan.Cached}} cached catalog row(s)</li>
+    <li>{{.Plan.ReadIDs}} reading(s) tied to a Hardcover read: the reading stays, only the tie is removed</li>
+  </ul>
+  <p class="muted">A later import will match books by title and author again, and a book you deleted could come back from Hardcover, since its id is forgotten.</p>
+  <button class="button primary">Forget Hardcover ids</button>
+</form>
+{{end}}
+{{template "bottom" .}}

@@ -1,0 +1,55 @@
+{{template "top" .}}
+<a class="back" href="/hardcover"><span aria-hidden="true">←</span> Back to Hardcover</a>
+<header class="page-heading"><div>
+  <h1>Hardcover changes</h1>
+  <p>Checked {{.Check.At}}. Nothing has been changed by this check. Each button opens a preview you confirm.</p>
+</div></header>
+{{if .Stale}}
+<div class="notice error" role="alert">Your library has changed since this check. Check for changes again.</div>
+{{else}}
+{{with .Check.Stopped}}<div class="notice" role="status">{{.}}</div>{{end}}
+{{if not .Check.Complete}}<div class="notice" role="status">This check read part of your Hardcover library. Check again to continue.</div>{{end}}
+<section class="summary-row" aria-label="Summary">
+  <div><span class="stat-number">{{len .Check.Ahead}}</span><span>Hardcover is ahead</span></div>
+  <div><span class="stat-number">{{len .Check.Local}}</span><span>local is ahead</span></div>
+  <div><span class="stat-number">{{len .Check.Both}}</span><span>both changed</span></div>
+  <div><span class="stat-number">{{len .Check.New}}</span><span>new on Hardcover</span></div>
+  <div><span class="stat-number">{{.Check.InSync}}</span><span>already in step</span></div>
+</section>
+{{if eq .Check.Total 0}}<div class="notice" role="status">Everything checked is in step.</div>{{end}}
+{{if .Check.Ahead}}
+<section class="panel stack" aria-labelledby="g-ahead">
+  <h2 id="g-ahead">Hardcover is ahead</h2>
+  <ul class="plain-list">{{range .Check.Ahead}}<li><a href="/books/{{.BookID}}">{{.Title}}</a> <span class="muted">· here: {{.LocalText}} · Hardcover: {{.RemoteText}} · {{.Why}}</span></li>{{end}}</ul>
+  <form method="post" action="/hardcover/changes/{{.PlanID}}/pull">{{template "fields" .}}<input type="hidden" name="group" value="hardcover"><button class="button">Preview importing these</button></form>
+</section>
+{{end}}
+{{if .Check.Local}}
+<section class="panel stack" aria-labelledby="g-local">
+  <h2 id="g-local">Local is ahead</h2>
+  <ul class="plain-list">{{range .Check.Local}}<li><a href="/books/{{.BookID}}">{{.Title}}</a> <span class="muted">· here: {{.LocalText}} · Hardcover: {{.RemoteText}}</span></li>{{end}}</ul>
+  {{if .SyncPush}}
+  <form method="post" action="/hardcover/changes/{{.PlanID}}/send">{{template "fields" .}}<button class="button" data-busy-label="Reading Hardcover…">Preview sending these</button></form>
+  {{else}}<p class="muted">Turn on “Offer to send local changes” on the Hardcover page to act on these.</p>{{end}}
+</section>
+{{end}}
+{{if .Check.Both}}
+<section class="panel stack" aria-labelledby="g-both">
+  <h2 id="g-both">Both changed</h2>
+  <p class="muted">Both sides moved since the last sync, or there is no earlier sync to compare. Nothing is merged and neither is picked for you. Leaving a book alone keeps yours here and changes nothing on Hardcover.</p>
+  <ul class="plain-list">
+    {{range .Check.Both}}<li><a href="/books/{{.BookID}}">{{.Title}}</a> <span class="muted">· here: {{.LocalText}} · Hardcover: {{.RemoteText}} · {{.Why}}</span>
+      <form method="post" action="/hardcover/changes/{{$.PlanID}}/pull" class="inline-form">{{template "fields" $}}<input type="hidden" name="group" value="both"><input type="hidden" name="hardcover_book_id" value="{{.HardcoverBookID}}"><button class="button small">Take Hardcover’s version…</button></form></li>{{end}}
+  </ul>
+</section>
+{{end}}
+{{if .Check.New}}
+<section class="panel stack" aria-labelledby="g-new">
+  <h2 id="g-new">New on Hardcover</h2>
+  <p class="muted">On your Hardcover shelves, with no match in this library.</p>
+  <ul class="plain-list">{{range .Check.New}}<li>{{.Title}} <span class="muted">· {{.Author}}</span></li>{{end}}</ul>
+  <form method="post" action="/hardcover/changes/{{.PlanID}}/pull">{{template "fields" .}}<input type="hidden" name="group" value="new"><button class="button">Preview adding these</button></form>
+</section>
+{{end}}
+{{end}}
+{{template "bottom" .}}

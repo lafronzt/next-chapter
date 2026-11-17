@@ -2,6 +2,7 @@ package app
 
 import (
 	"database/sql"
+	"fmt"
 	"net/http"
 	"slices"
 	"strconv"
@@ -74,16 +75,26 @@ func (a *App) hardcoverSend(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
-	books, unlinked, err := loadPushBooks(a.store.DB, ids)
+	id, err := a.previewSend(r, link, ids)
 	if err != nil {
 		return err
 	}
+	return redirect(w, r, "/hardcover/pushes/"+id)
+}
+
+// previewSend reads Hardcover's rows for the books and stores what sending
+// would do as a preview. It sends nothing.
+func (a *App) previewSend(r *http.Request, link *hardcoverLink, ids []int64) (string, error) {
+	books, unlinked, err := loadPushBooks(a.store.DB, ids)
+	if err != nil {
+		return "", err
+	}
 	if len(unlinked) > 0 {
-		return bad("Link " + strconv.Itoa(len(unlinked)) + " of these books to Hardcover first. A book that is not linked is never sent.")
+		return "", bad("Link " + strconv.Itoa(len(unlinked)) + " of these books to Hardcover first. A book that is not linked is never sent.")
 	}
 	prefs, err := readMeta(a.store.DB, "preferences", defaultPreferences)
 	if err != nil {
-		return err
+		return "", err
 	}
 	hcIDs := make([]int64, 0, len(books))
 	for _, b := range books {
@@ -93,7 +104,7 @@ func (a *App) hardcoverSend(w http.ResponseWriter, r *http.Request) error {
 	remote, err := a.hardcover.shelf(r.Context(), link.UserID, hcIDs)
 	a.hardcoverMu.Unlock()
 	if err != nil {
-		return hardcoverHTTPError(err)
+		return "", hardcoverHTTPError(err)
 	}
 	plan := buildPushPlan(books, remote, link.UserID, hcPrivacy(prefs))
 	var id string
@@ -106,9 +117,9 @@ func (a *App) hardcoverSend(w http.ResponseWriter, r *http.Request) error {
 		return err
 	})
 	if err != nil {
-		return err
+		return "", err
 	}
-	return redirect(w, r, "/hardcover/pushes/"+id)
+	return id, nil
 }
 
 func (a *App) pushPlan(q queryer, id string) (Plan, int64, error) {
@@ -181,11 +192,25 @@ func (a *App) hardcoverPushPlan(w http.ResponseWriter, r *http.Request) error {
 		}
 		at := canonicalTime(a.now())
 		// Only books sent or confirmed by this press are recorded.
+		var details []hcHistoryDetail
 		for _, it := range append(unknown, pending...) {
 			if it.State == "sent" {
 				if err := recordPush(tx, *it, at); err != nil {
 					return err
 				}
+				what := ""
+				if it.Target != 0 {
+					what = "status " + it.TargetLabel()
+				}
+				if it.SendRating > 0 {
+					what += map[bool]string{true: ", ", false: ""}[what != ""] + "rating " + trimStars(it.SendRating)
+				}
+				details = append(details, hcHistoryDetail{BookID: it.BookID, Title: it.Title, What: what})
+			}
+		}
+		if len(details) > 0 {
+			if err := addHistory(tx, hcHistoryEntry{At: at, Direction: "push", Summary: fmt.Sprintf("Sent %d book(s) to Hardcover.", len(details)), Details: details}); err != nil {
+				return err
 			}
 		}
 		raw, err := encodePlan(Plan{HardcoverPush: plan})

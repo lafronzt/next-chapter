@@ -2,10 +2,12 @@ package app
 
 import (
 	"database/sql"
+	"fmt"
 	"net/http"
 	"net/url"
 	"regexp"
 	"strconv"
+	"strings"
 )
 
 const hardcoverSinceKey = "hardcover_pull_since"
@@ -128,9 +130,20 @@ func (a *App) hardcoverPullPlan(w http.ResponseWriter, r *http.Request) error {
 				opt.UseRating[it.HardcoverBookID] = true
 			}
 		}
-		res, err := applyPull(tx, p.HardcoverPull.Items, opt, nil)
+		var details []hcHistoryDetail
+		res, err := applyPull(tx, p.HardcoverPull.Items, opt, func(d pullDecision) {
+			if len(d.Changes) > 0 {
+				details = append(details, hcHistoryDetail{Title: d.Title, What: strings.Join(d.Changes, "; ")})
+			}
+		})
 		if err != nil {
 			return err
+		}
+		if res.Changed {
+			summary := fmt.Sprintf("Imported from Hardcover: %d new, %d status changes, %d readings, %d ratings.", res.New, res.Advanced, res.Readings, res.RatingsFilled+res.RatingsUsed)
+			if err = addHistory(tx, hcHistoryEntry{At: canonicalTime(a.now()), Direction: "pull", Summary: summary, Details: details}); err != nil {
+				return err
+			}
 		}
 		if res.Changed {
 			if err = bump(tx); err != nil {
