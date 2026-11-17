@@ -22,6 +22,7 @@
   --space-7:48px;
 }
 
+
 * {
   box-sizing:border-box;
 }
@@ -3117,4 +3118,35 @@ main section.hc-panel[aria-labelledby]>h2 {
 /* "Send this reading" under a reading row: room above the button and before the next row. */
 .panel>.event+form,.panel>blockquote.review+form {
   margin:12px 0 14px;
+}
+
+/* Book progress and Hardcover actions */
+.sync-caption { font-size:var(--text-sm); margin:12px 0 0; }
+.pace-summary { margin-bottom:12px; }
+.pace-summary h3,.book-hardcover h3 { font-size:var(--text-md); margin:0 0 8px; }
+.pace-summary p { max-width:76ch; margin:8px 0 0; }
+.pace-summary .pace-rate { font:28px var(--serif); }
+.checkpoint-list { padding:8px 24px; }
+.checkpoint-row { position:relative; padding:14px 0; }
+.checkpoint-row + .checkpoint-row { border-top:1px solid var(--line); }
+.checkpoint-row > p { margin:0 130px 0 0; min-height:44px; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.checkpoint-row > details > summary { position:absolute; top:14px; right:0; font-size:var(--text-sm); color:var(--ink); text-decoration:underline; text-underline-offset:3px; }
+.checkpoint-row details[open] .form-grid { padding:12px 0; }
+.hc-book-connection { display:flex; align-items:center; justify-content:space-between; gap:16px; padding-bottom:20px; border-bottom:1px solid var(--line); }
+.hc-book-connection p { margin:4px 0 0; overflow-wrap:anywhere; }
+.hc-book-connection a { font-size:var(--text-sm); }
+.hc-book-actions,.hc-book-tools { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr)); gap:24px; padding:24px 0; }
+.hc-book-action,.hc-book-tools > div { min-width:0; }
+.hc-book-action p,.hc-book-tools p { margin:0 0 16px; }
+.hc-book-action form + p { margin:12px 0 0; }
+.hc-progress-choice { display:flex; flex-direction:column; gap:12px; align-items:flex-start; margin-bottom:12px; }
+.hc-book-manage { border-top:1px solid var(--line); padding-top:8px; }
+.hc-book-tools { padding:16px 0 0; }
+.hc-book-tools form + form { margin-top:12px; }
+.hc-data-note { grid-column:1 / -1; margin:0; }
+@media(max-width:760px) {
+  .hc-book-connection { flex-direction:column; align-items:flex-start; }
+  .checkpoint-list { padding:8px 16px; }
+  .book-hardcover .hc-book-actions,.book-hardcover .hc-book-tools { gap:24px; }
+  .book-hardcover .hc-book-action + .hc-book-action { border-top:1px solid var(--line); padding-top:20px; }
 }

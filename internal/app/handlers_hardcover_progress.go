@@ -105,7 +105,7 @@ func (a *App) pushProgress(ctx context.Context, bookID int64) string {
 		return "hc-progress-skip"
 	}
 	sent := "p:" + strconv.Itoa(p.Pages)
-	if p.Seconds > 0 {
+	if p.Audio || p.Seconds > 0 {
 		sent = "s:" + strconv.Itoa(p.Seconds)
 	}
 	if remoteProgressKey(*open) != sent {
@@ -191,7 +191,7 @@ func (a *App) hardcoverProgressPull(w http.ResponseWriter, r *http.Request) erro
 
 func remoteProgressText(r hcOpenRead) string {
 	switch {
-	case r.Seconds > 0 && r.Pages == 0:
+	case r.EdAudio > 0 || r.Seconds > 0 && r.Pages == 0:
 		return fmt.Sprintf("%d seconds", r.Seconds)
 	case r.Pages > 0 && r.EdPages > 0:
 		return fmt.Sprintf("page %d of %d", r.Pages, r.EdPages)

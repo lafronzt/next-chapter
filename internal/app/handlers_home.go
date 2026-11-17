@@ -102,6 +102,11 @@ func (a *App) bookStatus(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	action := r.FormValue("action")
+	sendStart := action == "start-hardcover"
+	if sendStart {
+		action = "start"
+	}
+	var startedRevision int64
 	err = a.store.Write(func(tx *sql.Tx) error {
 		if err := current(tx, r); err != nil {
 			return err
@@ -132,15 +137,50 @@ func (a *App) bookStatus(w http.ResponseWriter, r *http.Request) error {
 		if err = bump(tx); err != nil {
 			return err
 		}
+		if startedRevision, err = revision(tx); err != nil {
+			return err
+		}
 		return recordUndo(tx, noticeText(action, b.Title, 0), before)
 	})
 	if err != nil {
 		return err
 	}
+	if sendStart {
+		// The local start stands even if Hardcover cannot be reached. Reuse the
+		// ordinary preview so conflicts and ambiguous writes keep their safeguards.
+		planID, err := a.previewStartedBook(r, id, startedRevision)
+		if err != nil {
+			return redirect(w, r, fmt.Sprintf("/books/%d?notice=started-hc-failed", id))
+		}
+		return redirect(w, r, "/hardcover/pushes/"+planID)
+	}
 	if r.FormValue("back") == "book" {
 		return redirect(w, r, a.withNotice(fmt.Sprintf("/books/%d", id), action, id, 0))
 	}
 	return redirect(w, r, a.withNotice(listReturn(r), action, id, 0))
+}
+
+func (a *App) previewStartedBook(r *http.Request, id, startedRevision int64) (string, error) {
+	if err := a.hardcoverReady(); err != nil {
+		return "", err
+	}
+	link, err := loadHardcoverLink(a.store.DB)
+	if err != nil {
+		return "", err
+	}
+	if link == nil {
+		return "", bad("Test the Hardcover connection first.")
+	}
+	return a.previewSendChecked(r, link, []int64{id}, func(q queryer) error {
+		rev, err := revision(q)
+		if err != nil {
+			return err
+		}
+		if rev != startedRevision {
+			return conflict("Your library changed. Preview the send again.")
+		}
+		return nil
+	})
 }
 
 // finishBook shows and saves the Finished form: a finish date (today by

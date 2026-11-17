@@ -203,6 +203,8 @@ func loadAllCheckpoints(q queryer) ([]progressCheckpoint, error) {
 
 // paceInfo is what the book page says about pace and finishing.
 type paceInfo struct {
+	Rate, Basis string
+	FinishDate  string
 	// Message is the whole statement: the pace, or "Not enough recent progress".
 	Message string
 	// Finish is the approximate finish sentence, empty when there is none.
@@ -249,6 +251,11 @@ func estimatePace(cps []progressCheckpoint, b Book, loans []Loan, today time.Tim
 	per := float64(gained) / float64(elapsed)
 	unit := map[string]string{"page": "pages", "percent": "% of the book"}[last.Unit]
 	info := paceInfo{Message: fmt.Sprintf("From %s to %s you saved %d %s across %d %s: about %s %s a day. This is based on the dates you saved progress, not time spent reading.", first.Day, last.Day, len(run), plural(len(run), "update", "updates"), elapsed, plural(elapsed, "day", "days"), perDayText(per), unit)}
+	info.Rate = "About " + perDayText(per) + " pages a day"
+	if last.Unit == "percent" {
+		info.Rate = "About " + perDayText(per) + "% a day"
+	}
+	info.Basis = fmt.Sprintf("%d updates · %s to %s", len(run), first.Day, last.Day)
 	// What is left, in the same unit the pace is in.
 	var left int
 	switch {
@@ -269,6 +276,7 @@ func estimatePace(cps []progressCheckpoint, b Book, loans []Loan, today time.Tim
 		return info
 	}
 	finish := today.AddDate(0, 0, needed)
+	info.FinishDate = finish.Format(time.DateOnly)
 	info.Finish = fmt.Sprintf("At that pace you would finish around %s (an approximation, about %d %s from today).", finish.Format(time.DateOnly), needed, plural(needed, "day", "days"))
 	for _, l := range loans {
 		if l.Status != "borrowed" || l.DueDate == "" {

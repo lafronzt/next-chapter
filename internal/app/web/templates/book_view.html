@@ -24,16 +24,7 @@
         <button class="button small"><span>Save</span></button>
       </form>
       {{if and .HardcoverReady .HardcoverLink}}
-      <form method="post" action="/books/{{.Book.ID}}/hardcover/progress-sync" class="stack">
-        {{template "fields" .}}
-        <label class="checkbox"><input type="checkbox" name="enabled" value="1" {{if .HardcoverLink.ProgressSync}}checked{{end}}> Also update Hardcover progress when I save</label>
-        <p class="muted"><small>Off by default, per book. Each save then sends one page or length to Hardcover, and only if it has a read in progress. Nothing is sent from Hardcover to here unless you press Pull progress.</small></p>
-        <button class="button small">Save this choice</button>
-      </form>
-      <form method="post" action="/books/{{.Book.ID}}/hardcover/progress/pull">
-        {{template "fields" .}}
-        <button class="button small" data-busy-label="Reading Hardcover…">Pull progress from Hardcover…</button>
-      </form>
+      <p class="muted sync-caption">Hardcover progress sync: <strong>{{if .HardcoverLink.ProgressSync}}on{{else}}off{{end}}</strong> · <a href="#hardcover">Manage sync</a></p>
       {{end}}
     </div>
     {{end}}
@@ -43,6 +34,7 @@
         {{template "fields" .}}
         <input type="hidden" name="back" value="book">
         <button class="button primary" name="action" value="start" aria-label="Start reading {{.Book.Title}}">Start reading</button>
+        {{if and .HardcoverReady .HardcoverLink}}<button class="button" name="action" value="start-hardcover" data-busy-label="Starting…">Start reading + send to Hardcover…</button>{{end}}
       </form>
       {{else if eq .Book.Status "reading"}}
       <a class="button primary" href="/books/{{.Book.ID}}/finish" aria-label="Finished {{.Book.Title}}"><span>Finished</span></a>
@@ -69,23 +61,29 @@
 {{if or (eq .Book.Status "reading") .EarlierAttempts}}
 <section class="section-heading" id="progress-history">
   <h2>Progress updates</h2>
-  <p>The dates you saved progress. They are progress updates, not measured time spent reading.</p>
+  <p>Saved progress and estimated pace, not measured time spent reading.</p>
 </section>
 {{if eq .Book.Status "reading"}}
 {{if .Checkpoints}}
 {{with .Pace}}
-<div class="panel" role="status">
-  <p><strong>{{.Message}}</strong></p>
-  {{with .Finish}}<p>{{.}}</p>{{end}}
+<div class="panel pace-summary" role="status">
+  <h3>Reading pace</h3>
+  {{if .Rate}}
+  <p class="pace-rate">{{.Rate}}</p>
+  <p class="muted"><small>{{.Basis}}</small></p>
+  {{else}}<p>{{.Message}}</p>{{end}}
+  {{if .FinishDate}}<p>Estimated finish: <strong><time datetime="{{.FinishDate}}">{{.FinishDate}}</time></strong></p>
+  {{else}}{{with .Finish}}<p>{{.}}</p>{{end}}{{end}}
   {{range .Deadline}}<p>{{.}}</p>{{end}}
+  {{if .Rate}}<p class="muted"><small>A rough estimate from saved progress, not measured reading time.</small></p>{{end}}
 </div>
 {{end}}
-<div class="panel stack">
+<div class="panel checkpoint-list">
   {{range .Checkpoints}}
-  <div class="note">
+  <div class="checkpoint-row">
     <p><time datetime="{{.Day}}">{{day .Day}}</time> · <strong>{{.Text}}</strong></p>
     <details class="more-details">
-      <summary>Correct or delete this update</summary>
+      <summary>Edit update</summary>
       <form class="form-grid" method="post" action="/checkpoints/{{.ID}}">
         {{template "csrf" $}}
         <input type="hidden" name="version" value="{{.Version}}">
@@ -137,37 +135,81 @@
 <section class="section-heading" id="hardcover">
   <h2>Hardcover</h2>
 </section>
-<div class="panel stack">
-  {{with .HardcoverLink}}
-  <p>Linked to Hardcover book {{.HardcoverBookID}}{{if .Slug}} (<code>{{.Slug}}</code>){{end}}. Linked {{.LinkedAt}}. A link never changes status, order, ratings, or reading history.</p>
+<div class="panel book-hardcover">
+  {{if .HardcoverLink}}
+  <div class="hc-book-connection">
+    <div><strong>Book linked</strong><p class="muted">{{if .HardcoverLink.Slug}}{{.HardcoverLink.Slug}}{{else}}{{.Book.Title}}{{end}}</p></div>
+    <a href="/hardcover">Connection &amp; sync settings →</a>
+  </div>
   {{else}}
-  <p class="muted">Not linked to a Hardcover book.</p>
+  <h3>Connect this book</h3>
+  <p class="muted">Link it to the matching Hardcover book to send status and progress.</p>
   {{end}}
   {{if .HardcoverReady}}
-  <form method="post" action="/books/{{.Book.ID}}/hardcover" class="stack">
-    {{template "fields" .}}
-    <p class="muted"><small>What gets sent: this book’s {{if .Book.ISBN}}ISBN, {{end}}title and author to Hardcover, and only when you press the button. You choose a match before anything is saved.</small></p>
-    <div><button class="button" data-busy-label="Searching…">{{if .HardcoverLink}}Find a different Hardcover book{{else}}Link to Hardcover{{end}}</button></div>
-  </form>
   {{if .HardcoverLink}}
-  <form method="post" action="/books/{{.Book.ID}}/hardcover/send" class="stack">
+  <div class="hc-book-actions">
+    <div class="hc-book-action">
+      <h3>Status &amp; rating</h3>
+      <p>Your status here is <strong>{{status .Book.Status}}</strong>. Preview the change, then confirm it on Hardcover.</p>
+      <form method="post" action="/books/{{.Book.ID}}/hardcover/send">
+        {{template "fields" .}}
+        <button class="button primary" data-busy-label="Reading Hardcover…">Send to Hardcover…</button>
+      </form>
+      {{if eq .Book.Status "reading"}}<p class="muted"><small>Send Reading first if Hardcover has no read in progress.</small></p>{{end}}
+    </div>
+    {{if eq .Book.Status "reading"}}
+    <div class="hc-book-action">
+      <h3>Progress</h3>
+      <p>{{if .HardcoverLink.ProgressSync}}Your progress saves also update Hardcover.{{else}}Progress is saved only in this library.{{end}}</p>
+      <form method="post" action="/books/{{.Book.ID}}/hardcover/progress-sync" class="hc-progress-choice">
+        {{template "fields" .}}
+        <label class="checkbox"><input type="checkbox" name="enabled" value="1" {{if .HardcoverLink.ProgressSync}}checked{{end}}> Also update Hardcover when I save progress</label>
+        <button class="button small">Save sync setting</button>
+      </form>
+      <form method="post" action="/books/{{.Book.ID}}/hardcover/progress/pull">
+        {{template "fields" .}}
+        <button class="button small" data-busy-label="Reading Hardcover…">Pull progress from Hardcover…</button>
+      </form>
+      <p class="muted"><small>Sending needs an open read on Hardcover. Pulling always shows a preview.</small></p>
+    </div>
+    {{end}}
+  </div>
+  <details class="hc-book-manage">
+    <summary>Book details &amp; link options</summary>
+    <div class="hc-book-tools">
+      <div>
+        <h3>Catalog details</h3>
+        <p class="muted">Refresh the community rating, cover, and series information. Your reading progress stays as it is.</p>
+        {{if .ShowHardcoverRating}}<p>{{.HardcoverCatalog.RatingText}}</p>{{end}}
+        <form method="post" action="/books/{{.Book.ID}}/hardcover/refresh">
+          {{template "fields" .}}
+          <button class="button small" data-busy-label="Refreshing…">Refresh from Hardcover</button>
+        </form>
+      </div>
+      <div>
+        <h3>Book link</h3>
+        <p class="muted">Hardcover book {{.HardcoverLink.HardcoverBookID}} · linked {{day .HardcoverLink.LinkedAt}}. Changing the link keeps your local reading history.</p>
+        <form method="post" action="/books/{{.Book.ID}}/hardcover">
+          {{template "fields" .}}
+          <button class="button small" data-busy-label="Searching…">Find a different Hardcover book</button>
+        </form>
+        <form method="post" action="/books/{{.Book.ID}}/hardcover/unlink">
+          {{template "fields" .}}
+          <button class="button small danger">Unlink from Hardcover</button>
+        </form>
+      </div>
+      <p class="muted hc-data-note"><small>Matching sends this book’s title, author, and ISBN when available; you confirm the match. Catalog refresh sends its Hardcover id. Notes, reviews, and queue order stay here.</small></p>
+    </div>
+  </details>
+  {{else}}
+  <form method="post" action="/books/{{.Book.ID}}/hardcover">
     {{template "fields" .}}
-    <p class="muted"><small>Preview sending this book’s shelf status ({{status .Book.Status}}) and rating to Hardcover. You see what Hardcover has first; nothing is sent until you confirm.</small></p>
-    <div><button class="button" data-busy-label="Reading Hardcover…">Send to Hardcover…</button></div>
-  </form>
-  <form method="post" action="/books/{{.Book.ID}}/hardcover/refresh" class="stack">
-    {{template "fields" .}}
-    <p class="muted"><small>One request to Hardcover’s catalog (needs the <code>read:catalog</code> scope) for this book’s community average, cover address, and series. Nothing about you is sent, no field of this book is filled, and the result is kept here until you refresh again. Hardcover’s catalog is community-curated; use it at your own risk.</small></p>
-    <div><button class="button" data-busy-label="Reading Hardcover…">Refresh from Hardcover</button></div>
-  </form>
-  {{if .ShowHardcoverRating}}<p class="muted"><small>{{.HardcoverCatalog.RatingText}} · Hardcover data, refreshed {{.HardcoverCatalog.FetchedAt}}. Not used for your queue order, reasons, or estimates.</small></p>{{end}}
-  <form method="post" action="/books/{{.Book.ID}}/hardcover/unlink">
-    {{template "fields" .}}
-    <button class="button">Unlink from Hardcover</button>
+    <p class="muted">Search sends this book’s title, author, and ISBN when available. You choose a match before saving.</p>
+    <button class="button" data-busy-label="Searching…">Link to Hardcover</button>
   </form>
   {{end}}
   {{else}}
-  <p class="muted"><small>Hardcover is off or not configured. See the <a href="/hardcover">Hardcover page</a>.</small></p>
+  <p class="muted">Hardcover is off or not configured. <a href="/hardcover">Set up the connection</a>.</p>
   {{end}}
 </div>
 <section class="section-heading" id="notes">
