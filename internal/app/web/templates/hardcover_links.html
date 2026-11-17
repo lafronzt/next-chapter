@@ -35,13 +35,13 @@
     {{end}}
   </section>
   {{end}}
-  <div class="panel actions">
+  <div class="panel actions hc-panel">
     <strong>Save these links?</strong>
     <button class="button primary" {{if .Stale}}disabled title="Run the search again first."{{end}}>Save links</button>
   </div>
 </form>
 {{if .Links.Remaining}}
-<form method="post" action="/hardcover/match" class="panel stack">
+<form method="post" action="/hardcover/match" class="panel stack hc-panel">
   {{template "fields" .}}
   <input type="hidden" name="after" value="{{.Links.NextAfter}}">
   <p>{{.Links.Remaining}} more {{if eq .Links.Remaining 1}}book has{{else}}books have{{end}} not been checked. Save or discard this page first, then continue.</p>

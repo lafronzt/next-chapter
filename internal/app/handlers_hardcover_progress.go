@@ -270,6 +270,9 @@ func (a *App) hardcoverProgressPlan(w http.ResponseWriter, r *http.Request) erro
 		if err = addSync(tx, p.BookID, "progress", localProgressKey(nb), p.RemoteKey, "pull", canonicalTime(a.now())); err != nil {
 			return err
 		}
+		if err = addHistory(tx, hcHistoryEntry{At: canonicalTime(a.now()), Direction: "pull", Summary: "Progress pulled from Hardcover.", Details: []hcHistoryDetail{{BookID: p.BookID, Title: p.Title, What: "progress " + p.RemoteText}}}); err != nil {
+			return err
+		}
 		if _, err = tx.Exec("DELETE FROM plans WHERE id=?", id); err != nil {
 			return err
 		}
@@ -464,6 +467,10 @@ func (a *App) hardcoverReadPlan(w http.ResponseWriter, r *http.Request) error {
 			if _, err = tx.Exec("UPDATE reading_log SET hardcover_read_id=? WHERE id=? AND hardcover_read_id IS NULL", remoteID, p.ReadingID); err != nil {
 				return conflict("Another reading here is already tied to that Hardcover read.")
 			}
+		}
+		dir := map[bool]string{true: "pull", false: "push"}[choice == "theirs"]
+		if err = addHistory(tx, hcHistoryEntry{At: canonicalTime(a.now()), Direction: dir, Summary: "A reading's finish date was synced.", Details: []hcHistoryDetail{{BookID: p.BookID, Title: p.Title, What: "finish date " + p.LocalText}}}); err != nil {
+			return err
 		}
 		if err = addSync(tx, p.BookID, "dates", localKey, remoteKey, map[bool]string{true: "pull", false: "push"}[choice == "theirs"], canonicalTime(a.now())); err != nil {
 			return err

@@ -7,7 +7,7 @@
 {{if .Stale}}
 <div class="notice error" role="alert">Your library has changed since this preview. Preview this reading again.</div>
 {{else}}
-<section class="panel stack" aria-labelledby="read-compare">
+<section class="panel stack hc-panel" aria-labelledby="read-compare">
   <h2 id="read-compare">{{.Plan.Title}}</h2>
   <dl class="facts">
     <dt>Finished here</dt><dd>{{.Plan.LocalText}}</dd>
@@ -17,7 +17,7 @@
   {{if eq .Plan.Action "none"}}<div class="notice" role="status">The dates already match. Nothing to send.</div>{{end}}
   {{if and (eq .Plan.Action "update") (eq .Plan.State "both")}}<div class="notice error" role="alert">Both dates changed since the last sync (or there is no earlier sync to compare). Choose one. Nothing is averaged and the later one is not picked for you.</div>{{end}}
 </section>
-<form method="post" action="/hardcover/reads/{{.PlanID}}" class="panel stack">
+<form method="post" action="/hardcover/reads/{{.PlanID}}" class="panel stack hc-panel">
   {{template "fields" .}}
   {{if eq .Plan.Action "update"}}
   <fieldset>

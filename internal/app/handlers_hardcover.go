@@ -34,7 +34,11 @@ func (a *App) hardcoverPage(w http.ResponseWriter, r *http.Request) error {
 	if err = a.store.DB.QueryRow("SELECT (SELECT count(*) FROM book_hardcover),(SELECT count(*) FROM books)").Scan(&linked, &total); err != nil {
 		return err
 	}
-	return a.render(w, r, "hardcover.html", page{"PrivacyName": hcPrivacyNames[hcPrivacy(prefs)], "Linked": linked, "Total": total, "Title": "Hardcover", "Nav": "hardcover", "Enabled": prefs.Hardcover, "Configured": a.hardcover != nil, "Link": link, "Last": last, "Remaining": remaining}, 200)
+	data := page{"PrivacyName": hcPrivacyNames[hcPrivacy(prefs)], "Linked": linked, "Total": total, "Title": "Hardcover", "Nav": "hardcover", "Enabled": prefs.Hardcover, "Configured": a.hardcover != nil, "Link": link, "Last": last, "Remaining": remaining}
+	if err = a.centerData(data, prefs); err != nil {
+		return err
+	}
+	return a.render(w, r, "hardcover.html", data, 200)
 }
 
 const hardcoverConnectQuery = `query NextChapterConnection {
@@ -138,14 +142,18 @@ func (a *App) hardcoverDisconnect(w http.ResponseWriter, r *http.Request) error 
 		if err := current(tx, r); err != nil {
 			return err
 		}
-		if _, err := tx.Exec("DELETE FROM hardcover_link; DELETE FROM meta WHERE key='hardcover_test'"); err != nil {
+		if _, err := tx.Exec("DELETE FROM hardcover_link; DELETE FROM meta WHERE key IN ('hardcover_test','hardcover_history','hardcover_pull_since')"); err != nil {
 			return err
 		}
 		prefs, err := readMeta(tx, "preferences", defaultPreferences)
 		if err != nil {
 			return err
 		}
-		prefs.Hardcover = false
+		// The account is gone, so what was sent to it is history of nothing.
+		if _, err = tx.Exec("DELETE FROM hardcover_sync"); err != nil {
+			return err
+		}
+		prefs.Hardcover, prefs.HardcoverSyncPull, prefs.HardcoverSyncPush = false, false, false
 		if err = setMeta(tx, "preferences", prefs); err != nil {
 			return err
 		}

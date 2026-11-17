@@ -91,7 +91,7 @@ Two-way integration with [Hardcover](https://hardcover.app) through its GraphQL 
 | 42 | [Push status and ratings](42-hardcover-push-status-and-ratings.md) | Previewed outbound updates, conflict handling, private by default | Implemented on `feat/hardcover-42-push-status-and-ratings`; synthetic-server coverage, request shapes taken from the official SDK, live API check pending |
 | 43 | [Progress and read dates](43-hardcover-progress-and-dates.md) | Two-way current-read progress, re-reads, date precision | Implemented on `feat/hardcover-43-progress-and-dates`; synthetic-server coverage, request shapes from the official SDK, live API check pending |
 | 44 | [Catalog details and series](44-hardcover-catalog-details-and-series.md) | Hardcover as a `BookSource`, complete series, optional covers | Implemented on `feat/hardcover-44-catalog-details`; synthetic-server coverage, shapes from the official SDK, image host and live API unverified |
-| 45 | [Sync center](45-hardcover-sync-center.md) | One page for changes in both directions, conflicts, history, disconnect | Not started |
+| 45 | [Sync center](45-hardcover-sync-center.md) | One page for changes in both directions, conflicts, history, disconnect | Implemented on `feat/hardcover-45-sync-center` (scheduled check not built); synthetic-server coverage, live API check pending |
 | 46 | [Queue list and OAuth](46-hardcover-queue-list-and-oauth.md) | Optional: publish the queue as a private list; OAuth instead of a PAT | Not started |
 
 Order: 39 → 40 → 41 → 42 → 43 → 44 → 45, with 44 able to follow 40 at any point. 46 is optional. 41 alone gives a one-way import that replaces the Goodreads CSV round trip.
