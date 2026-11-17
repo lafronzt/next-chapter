@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"runtime/debug"
@@ -14,6 +15,7 @@ func (a *App) middleware(mux http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		id := newRequestID()
 		r = withState(r, requestState{ID: id})
+		r = r.WithContext(context.WithValue(r.Context(), networkLoggerKey{}, a.logger))
 		defer func() {
 			v := recover()
 			if v == nil {

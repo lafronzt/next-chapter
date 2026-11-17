@@ -39,16 +39,7 @@ func run() error {
 			if err != nil {
 				return err
 			}
-			client := http.Client{Timeout: 3 * time.Second}
-			resp, err := client.Get("http://127.0.0.1:" + port + "/healthz")
-			if err != nil {
-				return err
-			}
-			defer resp.Body.Close()
-			if resp.StatusCode != 200 {
-				return fmt.Errorf("healthcheck: %s", resp.Status)
-			}
-			return nil
+			return app.CheckHealth(context.Background(), port)
 		default:
 			return fmt.Errorf("usage: next-chapter [version|healthcheck]")
 		}
@@ -97,6 +88,11 @@ func run() error {
 		}
 	}()
 	log.Printf("Next Chapter listening on %s", addr)
+	if hardcover.Token == "" {
+		log.Print("Hardcover is not configured; set HARDCOVER_API_TOKEN to connect")
+	} else {
+		log.Print("Hardcover token configured; readers enable it in Preferences and test the connection on the Hardcover page")
+	}
 	if ai.Enabled() {
 		where := ""
 		if ai.SelfHosted() {

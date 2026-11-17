@@ -42,7 +42,7 @@ func (a *App) startAIJob(label, back, warning string, send func(context.Context)
 	a.jobs.Add(1)
 	go func() {
 		defer a.jobs.Done()
-		location, err := send(a.jobCtx)
+		location, err := send(context.WithValue(a.jobCtx, networkJobKey{}, job.ID))
 		a.jobMu.Lock()
 		defer a.jobMu.Unlock()
 		job.Done, job.Location, job.Err = true, location, err
