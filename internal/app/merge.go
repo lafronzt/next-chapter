@@ -392,7 +392,8 @@ func mergeReadings(q queryer, p *mergePreview, sourceID, targetID int64, apply b
 		}
 	}
 	for _, e := range readings {
-		if len(have) > 0 && e.FinishedAt == nil || e.FinishedAt != nil && dates[*e.FinishedAt] {
+		// Keep authored review text even when dates match another reading.
+		if e.ReviewFormat != "markdown" && (len(have) > 0 && e.FinishedAt == nil || e.FinishedAt != nil && dates[*e.FinishedAt]) {
 			p.SameReadings++
 			if apply {
 				_, err = q.Exec("DELETE FROM reading_log WHERE id=?", e.ID)

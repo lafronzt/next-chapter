@@ -231,7 +231,7 @@
           <button class="button small danger">Unlink from Hardcover</button>
         </form>
       </div>
-      <p class="muted hc-data-note"><small>Matching sends this book’s title, author, and ISBN when available; you confirm the match. Catalog refresh sends its Hardcover id. Notes are shared only through their own Share action. Reviews and queue order stay here.</small></p>
+      <p class="muted hc-data-note"><small>Matching sends this book’s title, author, and ISBN when available; you confirm the match. Catalog refresh sends its Hardcover id. Notes are shared only through their own Share action. Reviews use their own Share action. Queue order stays here.</small></p>
     </div>
   </details>
   {{else}}
@@ -296,7 +296,11 @@
 <div class="panel">
   {{range .Readings}}{{$e := .}}
   <div class="event"><span>{{with .StartedAt}}Started <time datetime="{{.}}">{{.}}</time> · {{end}}{{with .FinishedAt}}<time datetime="{{.}}">{{$e.When}}</time>{{else}}Date not recorded{{end}}</span><strong>{{if .Rating}}{{stars .Rating}}{{else}}Unrated{{end}}</strong><span>{{if .AddedByHand}}Logged by you{{else if eq .Source "manual"}}Edited by you{{else if eq .Source "hardcover"}}Hardcover{{else}}Goodreads{{end}}</span></div>
-  {{with .Review}}<blockquote class="review">{{.}}</blockquote>{{end}}
+  {{if .Review}}<div class="review">{{.ReviewHTML}}</div>{{end}}
+  <div class="button-row"><a class="button small" href="/books/{{$.Book.ID}}/edit#reading">Rate &amp; review</a>
+  {{if and $.HardcoverReady $.HardcoverLink .Review (eq .ReviewFormat "markdown")}}
+  <form method="post" action="/readings/{{.ID}}/hardcover/review">{{template "fields" $}}<button class="button small">Share review to Hardcover…</button></form>
+  {{end}}</div>
   {{if and $.HardcoverReady $.HardcoverLink .FinishedAt}}
   <form method="post" action="/readings/{{.ID}}/hardcover/send">{{template "fields" $}}<button class="button small">Send this reading to Hardcover…</button></form>
   {{end}}

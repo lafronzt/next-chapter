@@ -49,7 +49,7 @@
     {{template "fields" .}}
     <input type="hidden" name="section" value="privacy">
     <label class="checkbox span-2"><input type="checkbox" name="keep_reviews" {{if .Prefs.KeepReviews}}checked{{end}}> Keep my Goodreads review text in this library</label>
-    <p class="span-2 muted"><small>Default: off, so only each review’s length is stored. Reviews are personal and can be long. Turning this off deletes review text already kept here, after you confirm.</small></p>
+    <p class="span-2 muted"><small>Default: off, so only each review’s length is stored. Reviews are personal and can be long. Turning this off deletes imported review text after you confirm. Reviews you write here are always kept.</small></p>
     <label class="checkbox span-2"><input type="checkbox" name="hardcover" {{if .Prefs.Hardcover}}checked{{end}}> Hardcover: enable manual connection requests</label>
     <p class="span-2 muted"><small>Default: off. The operator supplies a token in the environment. Nothing is sent until you press Test connection on the <a href="/hardcover">Hardcover page</a>. No books are synced.</small></p>
     <label class="span-2">Hardcover privacy for books this app adds

@@ -63,7 +63,7 @@ const (
 	// maxRestoreSchema is the newest export this build can restore. A test
 	// fails when a migration is added, so the restore code is checked against
 	// the new schema before this is raised.
-	maxRestoreSchema = 26
+	maxRestoreSchema = 27
 	maxRestoreUpload = 10_000_000
 	maxRestoreEvents = 100_000
 	maxRestoreAlias  = 20_000
@@ -341,6 +341,9 @@ func validateExport(f *exportFile) []string {
 				add("%s: the Hardcover read id is repeated.", label)
 			}
 			hcReads[*e.HardcoverReadID] = true
+		}
+		if e.ReviewFormat != "" && e.ReviewFormat != "plain" && e.ReviewFormat != "markdown" {
+			add("%s: the review format is not valid.", label)
 		}
 		if e.ReviewChars < 0 || (e.Review != nil && len([]rune(*e.Review)) > maxReview) {
 			add("%s: the review is too long.", label)
@@ -637,10 +640,10 @@ func restoreExport(q queryer, f exportFile) (restorePlan, error) {
 	slices.SortStableFunc(readings, func(a, b readingEntry) int { return cmp.Compare(a.ID, b.ID) })
 	for _, e := range readings {
 		review := e.Review
-		if !prefs.KeepReviews {
+		if !prefs.KeepReviews && e.ReviewFormat != "markdown" {
 			review = nil
 		}
-		if _, err = q.Exec("INSERT INTO reading_log(book_id,started_at,finished_at,rating,source,review_chars,review,fingerprint,finished_precision,hardcover_read_id) VALUES(?,?,?,?,?,?,?,?,?,?)", newID[e.BookID], e.StartedAt, e.FinishedAt, e.Rating, e.Source, e.ReviewChars, review, e.Fingerprint, max(1, e.FinishedPrecision), e.HardcoverReadID); err != nil {
+		if _, err = q.Exec("INSERT INTO reading_log(book_id,started_at,finished_at,rating,source,review_chars,review,fingerprint,finished_precision,hardcover_read_id,review_format) VALUES(?,?,?,?,?,?,?,?,?,?,?)", newID[e.BookID], e.StartedAt, e.FinishedAt, e.Rating, e.Source, e.ReviewChars, review, e.Fingerprint, max(1, e.FinishedPrecision), e.HardcoverReadID, reviewFormat(e.ReviewFormat)); err != nil {
 			return result, err
 		}
 		result.Readings++

@@ -15,15 +15,16 @@ import (
 // reading status, interest, queue order, and library events, and never change
 // any of them.
 type readingEntry struct {
-	ID          int64    `json:"id"`
-	BookID      int64    `json:"book_id"`
-	StartedAt   *string  `json:"started_at,omitempty"`
-	FinishedAt  *string  `json:"finished_at"` // YYYY-MM-DD, or nil when unknown
-	Rating      *float64 `json:"rating"`
-	Source      string   `json:"source"` // goodreads or manual
-	ReviewChars int      `json:"review_chars"`
-	Review      *string  `json:"review"`
-	Fingerprint string   `json:"fingerprint"`
+	ID           int64    `json:"id"`
+	BookID       int64    `json:"book_id"`
+	StartedAt    *string  `json:"started_at,omitempty"`
+	FinishedAt   *string  `json:"finished_at"` // YYYY-MM-DD, or nil when unknown
+	Rating       *float64 `json:"rating"`
+	Source       string   `json:"source"` // goodreads or manual
+	ReviewChars  int      `json:"review_chars"`
+	ReviewFormat string   `json:"review_format,omitempty"`
+	Review       *string  `json:"review"`
+	Fingerprint  string   `json:"fingerprint"`
 	// FinishedPrecision is 1 for a known day, 2 when only the month is known,
 	// and 3 when only the year is; FinishedAt is then the first day of that
 	// period. HardcoverReadID ties the row to one Hardcover read.
@@ -134,7 +135,7 @@ func logsHistory(r Record) bool {
 	return r.Source == "goodreads" && r.Event == nil && r.Status == "read"
 }
 
-const readingColumns = "l.id,l.book_id,l.finished_at,l.rating,l.source,l.review_chars,l.review,l.fingerprint,l.finished_precision,l.hardcover_read_id,l.started_at,b.title,b.author"
+const readingColumns = "l.id,l.book_id,l.finished_at,l.rating,l.source,l.review_chars,l.review,l.fingerprint,l.finished_precision,l.hardcover_read_id,l.started_at,l.review_format,b.title,b.author"
 
 func queryReadings(q queryer, tail string, args ...any) ([]readingEntry, error) {
 	rows, err := q.Query("SELECT "+readingColumns+" FROM reading_log l JOIN books b ON b.id=l.book_id "+tail, args...)
@@ -145,7 +146,7 @@ func queryReadings(q queryer, tail string, args ...any) ([]readingEntry, error) 
 	result := []readingEntry{}
 	for rows.Next() {
 		var e readingEntry
-		if err = rows.Scan(&e.ID, &e.BookID, &e.FinishedAt, &e.Rating, &e.Source, &e.ReviewChars, &e.Review, &e.Fingerprint, &e.FinishedPrecision, &e.HardcoverReadID, &e.StartedAt, &e.Title, &e.Author); err != nil {
+		if err = rows.Scan(&e.ID, &e.BookID, &e.FinishedAt, &e.Rating, &e.Source, &e.ReviewChars, &e.Review, &e.Fingerprint, &e.FinishedPrecision, &e.HardcoverReadID, &e.StartedAt, &e.ReviewFormat, &e.Title, &e.Author); err != nil {
 			return nil, err
 		}
 		result = append(result, e)

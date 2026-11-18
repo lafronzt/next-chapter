@@ -40,6 +40,10 @@ func (a *App) addReading(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
+	review, err := reviewField(r)
+	if err != nil {
+		return err
+	}
 	started, err := startDateField(r)
 	if err != nil {
 		return err
@@ -54,7 +58,7 @@ func (a *App) addReading(w http.ResponseWriter, r *http.Request) error {
 		if _, err := getBook(tx, id); err != nil {
 			return err
 		}
-		if _, err := tx.Exec("INSERT INTO reading_log(book_id,started_at,finished_at,rating,source,fingerprint) VALUES(?,?,?,?,'manual',?)", id, started, finished, rating, manualFingerprint+randomToken()); err != nil {
+		if _, err := tx.Exec("INSERT INTO reading_log(book_id,started_at,finished_at,rating,source,fingerprint,review,review_chars,review_format) VALUES(?,?,?,?,'manual',?,?,?,'markdown')", id, started, finished, rating, manualFingerprint+randomToken(), nullable(review), len([]rune(review))); err != nil {
 			return err
 		}
 		return bump(tx)
@@ -84,6 +88,10 @@ func (a *App) editReading(w http.ResponseWriter, r *http.Request) error {
 	case "delete":
 	default:
 		return bad("Choose a valid action.")
+	}
+	review, err := reviewField(r)
+	if err != nil && action != "delete" {
+		return err
 	}
 	var bookID int64
 	started, err := startDateField(r)
@@ -124,10 +132,18 @@ func (a *App) editReading(w http.ResponseWriter, r *http.Request) error {
 		if err := checkReadingDates(started, finished, precision); err != nil {
 			return err
 		}
+		reviewChanged := false
+		if r.Form.Has("review") {
+			var err error
+			reviewChanged, err = execChanged(tx, "UPDATE reading_log SET review=?,review_chars=?,review_format='markdown' WHERE id=? AND (review IS NOT ? OR (review IS NOT NULL AND review_format!='markdown'))", nullable(review), len([]rune(review)), rid, nullable(review))
+			if err != nil {
+				return err
+			}
+		}
 		// The fingerprint stays, so an import still recognizes an edited Goodreads
 		// reading as the same one.
 		changed, err := execChanged(tx, "UPDATE reading_log SET started_at=?,finished_precision=CASE WHEN finished_at IS NOT ? THEN 1 ELSE finished_precision END,finished_at=?,rating=?,source='manual' WHERE id=? AND (finished_at IS NOT ? OR rating IS NOT ? OR started_at IS NOT ? OR source!='manual')", started, finished, finished, rating, rid, finished, rating, started)
-		if err != nil || !changed {
+		if err != nil || (!changed && !reviewChanged) {
 			return err
 		}
 		return bump(tx)

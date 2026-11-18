@@ -95,9 +95,10 @@
   <label><span>Finished <small class="muted">optional</small></span><input type="date" name="finished_at" value="{{with .FinishedAt}}{{.}}{{end}}"></label>
   {{template "rating-input" .Rating}}
   <p class="span-2 muted"><small>{{if .AddedByHand}}Logged by you.{{else if eq .Source "manual"}}Imported, edited by you.{{else if eq .Source "hardcover"}}From Hardcover.{{else}}From Goodreads.{{end}}{{if .Review}} Your review is below.{{else if .ReviewChars}} You wrote a {{.ReviewChars}}-character review on Goodreads; its text is not kept here (see Preferences).{{end}}</small></p>
-  {{with .Review}}<blockquote class="span-2 review">{{.}}</blockquote>{{end}}
+  {{template "review-input" .Review}}
+  {{if .Review}}<details class="span-2"><summary>Saved review</summary><div class="review">{{.ReviewHTML}}</div></details>{{end}}
   <div class="span-2 button-row">
-    <button class="button primary" name="action" value="save">Save dates &amp; rating</button>
+    <button class="button primary" name="action" value="save">Save reading &amp; review</button>
     {{if .AddedByHand}}<button class="text-button delete-reading" name="action" value="delete">Delete reading</button>{{end}}
   </div>
 </form>
@@ -108,6 +109,7 @@
   <label>Started <span class="muted">optional</span><input type="date" name="started_at"></label>
   <label>Finished <span class="muted">optional</span><input type="date" name="finished_at"></label>
   {{template "rating-input" noRating}}
+  {{template "review-input" noRating}}
   <div class="span-2"><button class="button">Add completed reading</button></div>
 </form>
 <section class="section-heading" id="library">

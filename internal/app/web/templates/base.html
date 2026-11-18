@@ -133,7 +133,7 @@
 {{define "rating-input"}}{{$cur := .}}
 <fieldset class="rating-input">
   <legend>Your rating</legend>
-  <div class="rating-stars" role="group" aria-label="Choose a whole-star rating" hidden>
+  <div class="rating-stars" role="group" aria-label="Choose a star rating; click within a star for quarters" hidden>
     {{range $n := wholeRatings}}<button type="button" class="rating-star" data-rating-value="{{$n}}" aria-label="{{$n}} out of 5" aria-pressed="false"><span class="rating-star-glyph" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26"/></svg><svg class="rating-star-fill" viewBox="0 0 24 24" focusable="false"><polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26"/></svg></span></button>{{end}}
   </div>
   <div class="rating-feedback" hidden>
@@ -148,4 +148,20 @@
     </select></label>
   </details>
 </fieldset>
+{{end}}
+
+{{define "review-input"}}
+<div class="review-editor span-2">
+ <label>Your review <span class="muted">optional · formatting with Markdown</span><textarea name="review" rows="6" maxlength="20000" placeholder="What stayed with you?">{{with .}}{{.}}{{end}}</textarea></label>
+ <div class="review-toolbar button-row" role="group" aria-label="Review formatting" hidden>
+  <button class="button small" type="button" data-review-format="bold"><strong>Bold</strong></button>
+  <button class="button small" type="button" data-review-format="italic"><em>Italic</em></button>
+  <button class="button small" type="button" data-review-format="list">List</button>
+  <button class="button small" type="button" data-review-format="quote">Quote</button>
+  <button class="button small" type="button" data-review-format="link">Link</button>
+  <button class="button small" type="button" data-review-preview>Preview</button>
+ </div>
+ <p class="muted"><small>Use **bold**, *italic*, - list items, &gt; quotes, and [link text](https://example.com). Saved here; use Share review to Hardcover to send it.</small></p>
+ <div class="review review-preview" aria-live="polite" hidden></div>
+</div>
 {{end}}

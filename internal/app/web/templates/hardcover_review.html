@@ -1,0 +1,15 @@
+{{template "top" .}}
+<a class="back" href="/books/{{.Plan.BookID}}#reading">← Back to {{.Plan.Title}}</a>
+<header class="page-heading"><div><h1>Share review to Hardcover</h1><p>{{.Plan.Title}}</p></div></header>
+<section class="panel stack hc-panel">
+ <p>This sends the saved review from this reading. Hardcover has one review per book, so this replaces its current review, including one from another reading.</p>
+ <div class="review">{{.Review.ReviewHTML}}</div>
+ <p>Visibility on Hardcover: <strong>{{.Privacy}}</strong>. This uses the book’s existing privacy setting. Change it on Hardcover before sharing if needed.</p>
+ {{if or .Plan.Remote.Markdown .Plan.Remote.Raw}}<details><summary>Current review on Hardcover (will be replaced)</summary><p class="note-body">{{if .Plan.Remote.Markdown}}{{.Plan.Remote.Markdown}}{{else}}{{.Plan.Remote.Raw}}{{end}}</p></details>{{end}}
+</section>
+<form class="panel stack hc-panel" method="post" action="/hardcover/reviews/{{.PlanID}}">
+ {{template "fields" .}}
+ <p>Future edits require another share. Clearing or deleting your local review leaves the Hardcover copy in place.</p>
+ <div class="button-row"><button class="button primary" name="confirm" value="share" data-busy-label="Sharing…">Share this review</button><a class="button" href="/books/{{.Plan.BookID}}#reading">Cancel</a></div>
+</form>
+{{template "bottom" .}}
