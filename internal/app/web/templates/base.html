@@ -152,7 +152,7 @@
 
 {{define "review-input"}}
 <div class="review-editor span-2">
- <label>Your review <span class="muted">optional · formatting with Markdown</span><textarea name="review" rows="6" maxlength="20000" placeholder="What stayed with you?">{{with .}}{{.}}{{end}}</textarea></label>
+ <label>Your review <span class="muted">Optional · What stayed with you?</span><textarea name="review" rows="8" maxlength="20000" placeholder="Write your thoughts about the book…">{{with .}}{{.}}{{end}}</textarea></label>
  <div class="review-toolbar button-row" role="group" aria-label="Review formatting" hidden>
   <button class="button small" type="button" data-review-format="bold"><strong>Bold</strong></button>
   <button class="button small" type="button" data-review-format="italic"><em>Italic</em></button>
@@ -161,7 +161,10 @@
   <button class="button small" type="button" data-review-format="link">Link</button>
   <button class="button small" type="button" data-review-preview>Preview</button>
  </div>
- <p class="muted"><small>Use **bold**, *italic*, - list items, &gt; quotes, and [link text](https://example.com). Saved here; use Share review to Hardcover to send it.</small></p>
+ <details class="review-help"><summary>Formatting help</summary>
+  <p>Select text, then choose a formatting button. You can also write Markdown: <code>**bold**</code>, <code>*italic*</code>, <code>- list items</code>, <code>&gt; quotes</code>, and <code>[link text](https://example.com)</code>. Pasted web addresses become clickable in your saved review and preview.</p>
+ </details>
+ <p class="muted"><small>Saved here. To send it to Hardcover, use Share review after saving.</small></p>
  <div class="review review-preview" aria-live="polite" hidden></div>
 </div>
 {{end}}

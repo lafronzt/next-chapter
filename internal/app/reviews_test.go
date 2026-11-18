@@ -104,6 +104,19 @@ func TestReviewFormattingAndSafePreview(t *testing.T) {
 	}
 }
 
+func TestReviewWebAddresses(t *testing.T) {
+	s := "Read https://example.com/notes?q=books&lang=en.\n\n[Author’s interview](https://example.org/interview)\n\n`https://example.net/code`\n\njavascript:alert(1)\n\n<https://example.com/more>"
+	html := string((readingEntry{Review: &s, ReviewFormat: "markdown"}).ReviewHTML())
+	for _, want := range []string{`href="https://example.com/notes?q=books&amp;lang=en"`, `href="https://example.org/interview">Author’s interview</a>`, `<code>https://example.net/code</code>`, `href="https://example.com/more"`} {
+		if !strings.Contains(html, want) {
+			t.Fatalf("missing %s in %s", want, html)
+		}
+	}
+	if strings.Contains(html, `href="javascript:`) || strings.Contains(html, `href="https://example.net/code"`) || strings.Contains(html, `lang=en.`) {
+		t.Fatal("autolink includes unsafe URL, code, or trailing punctuation:", html)
+	}
+}
+
 func TestFinishBookKeepsReview(t *testing.T) {
 	a := testApp(t, true)
 	id := addBooks(t, a, Book{Title: "Finished Review", Author: "Writer", Status: "reading", Interest: 3})[0]
