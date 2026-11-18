@@ -13,6 +13,8 @@ import (
 	"strconv"
 	"syscall"
 	"time"
+	// The container image is FROM scratch with no zoneinfo; embed it so TZ works.
+	_ "time/tzdata"
 )
 
 func env(key, fallback string) string {
