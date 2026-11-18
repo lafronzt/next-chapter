@@ -8,12 +8,16 @@ import (
 	"unicode/utf8"
 
 	"github.com/yuin/goldmark"
+	"github.com/yuin/goldmark/extension"
 	"github.com/yuin/goldmark/renderer/html"
 )
 
 // Raw HTML and unsafe URL schemes are disabled by Goldmark's default renderer.
 // Hard wraps preserve the reader's deliberate line breaks.
-var reviewMarkdown = goldmark.New(goldmark.WithRendererOptions(html.WithHardWraps()))
+var reviewMarkdown = goldmark.New(
+	goldmark.WithExtensions(extension.NewLinkify(extension.WithLinkifyAllowedProtocols([]string{"http:", "https:"}))),
+	goldmark.WithRendererOptions(html.WithHardWraps()),
+)
 
 func reviewFormat(format string) string {
 	if format == "markdown" {
