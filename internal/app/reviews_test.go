@@ -79,7 +79,7 @@ func TestReaderReviewPersistenceAndRestore(t *testing.T) {
 }
 
 func TestReviewFormattingAndSafePreview(t *testing.T) {
-	s := "**Bold** and *italic*\n\n- item\n\n> quote\n\n[link](https://example.com)\n\n<script>alert(1)</script>\n\n[bad](javascript:alert(1))"
+	s := "**Bold** and *italic*\n\n- item\n\n> quote\n\n[link](https://example.com)\n\n<script>alert(1)</script>\n\n[bad](javascript:alert(1))\n\n[encoded](javascript&colon;alert(1))"
 	e := readingEntry{Review: &s, ReviewFormat: "markdown"}
 	html := string(e.ReviewHTML())
 	for _, want := range []string{"<strong>Bold</strong>", "<em>italic</em>", "<li>item</li>", "<blockquote>", `href="https://example.com"`} {
