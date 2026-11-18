@@ -203,6 +203,10 @@ func (a *App) finishBook(w http.ResponseWriter, r *http.Request) error {
 		}
 		return a.render(w, r, "finish.html", page{"Title": "Finished: " + b.Title, "Book": b, "Today": a.now().Format(time.DateOnly), "Nav": "queue"}, 200)
 	}
+	review, err := reviewField(r)
+	if err != nil {
+		return err
+	}
 	finished, rating, err := readingFields(r)
 	if err != nil {
 		return err
@@ -234,7 +238,7 @@ func (a *App) finishBook(w http.ResponseWriter, r *http.Request) error {
 		if err = setStatus(tx, b, "read"); err != nil {
 			return err
 		}
-		if _, err = tx.Exec("INSERT INTO reading_log(book_id,started_at,finished_at,rating,source,fingerprint) VALUES(?,?,?,?,'manual',?)", id, started, finished, rating, manualFingerprint+randomToken()); err != nil {
+		if _, err = tx.Exec("INSERT INTO reading_log(book_id,started_at,finished_at,rating,source,fingerprint,review,review_chars,review_format) VALUES(?,?,?,?,'manual',?,?,?,'markdown')", id, started, finished, rating, manualFingerprint+randomToken(), nullable(review), len([]rune(review))); err != nil {
 			return err
 		}
 		return bump(tx)

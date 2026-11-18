@@ -241,6 +241,7 @@ type Plan struct {
 	// HardcoverProgress and HardcoverRead are previewed pulls of progress and
 	// sends of a reading's date (kinds "hc-progress" and "hc-read").
 	HardcoverProgress *hcProgressPlan `json:"hardcover_progress,omitempty"`
+	HardcoverReview   *hcReviewPlan   `json:"hardcover_review,omitempty"`
 	HardcoverNote     *hcNotePlan     `json:"hardcover_note,omitempty"`
 	HardcoverRead     *hcReadPlan     `json:"hardcover_read,omitempty"`
 	// HardcoverSeries is a previewed addition of unowned series volumes (kind "hc-series").

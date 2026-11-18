@@ -33,6 +33,7 @@ var migrations = []migration{
 	{24, "explicit Hardcover note shares", migrateHardcoverNotes},
 	{25, "audiobook duration", migrateAudioDuration},
 	{26, "reading start dates", migrateReadingStartDates},
+	{27, "formatted reader reviews", migrateReaderReviews},
 }
 
 func migrateBaseline(tx *sql.Tx) error {
@@ -478,5 +479,11 @@ func migrateReadingStartDates(tx *sql.Tx) error {
  ALTER TABLE reading_log ADD COLUMN started_at TEXT NULL;
  UPDATE books SET started_at=(SELECT NULLIF(started_on,'') FROM reading_attempts WHERE book_id=books.id AND ended_on IS NULL ORDER BY id DESC LIMIT 1) WHERE reading_status='reading';
  DELETE FROM plans; DELETE FROM undo_queue;`)
+	return err
+}
+
+// Existing imported reviews retain their original plain-text interpretation.
+func migrateReaderReviews(tx *sql.Tx) error {
+	_, err := tx.Exec(`ALTER TABLE reading_log ADD COLUMN review_format TEXT NOT NULL DEFAULT 'plain' CHECK(review_format IN ('plain','markdown'));`)
 	return err
 }

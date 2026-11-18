@@ -1853,7 +1853,7 @@ input[type=checkbox],input[type=radio] {
   }
 }
 
-/* Five whole stars, with exact quarter-star values in a native select. */
+/* Five clickable stars, with exact quarter-star values in a native select. */
 .rating-input { border:0; padding:0; margin:0; min-width:0; grid-column:1 / -1; }
 .rating-input legend { padding:0; margin-bottom:10px; font-weight:600; }
 .rating-stars { display:flex; gap:4px; max-width:100%; }
@@ -3329,3 +3329,12 @@ main section.hc-panel[aria-labelledby]>h2 {
 .reading-entry .delete-reading { min-height:44px; color:var(--accent); font-size:var(--text-sm); padding:8px 4px; cursor:pointer; }
 .reading-entry .button-row { gap:12px; }
 .reading-entry .delete-reading:focus-visible { outline:3px solid var(--accent); outline-offset:2px; border-radius:4px; }
+
+.review-editor { min-width:0; }
+.review-toolbar { margin-top:8px; gap:6px; flex-wrap:wrap; }
+.review-toolbar[hidden], .review-preview[hidden] { display:none; }
+.review { white-space:normal; overflow-wrap:anywhere; max-height:none; overflow:visible; }
+.review ul, .review ol { padding-left:1.5rem; }
+.review blockquote { margin:1rem 0; padding-left:1rem; border-left:3px solid var(--accent); }
+.review pre { white-space:pre-wrap; }
+.review-preview { padding:16px; margin-top:12px; border:1px solid var(--border); border-radius:8px; }

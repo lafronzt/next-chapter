@@ -823,3 +823,16 @@ upgrading, back up your database; the migration runner also creates
 `<database>.pre-v25.bak`. To roll back, stop the app, restore that backup over the
 database, remove stray `-wal`/`-shm` files, and run the previous image. Changes made
 since that backup will be lost.
+
+
+### Star ratings and formatted reviews
+
+On the finish form or under **Edit book details → Completed readings**, click a star to rate a reading. The position within each star selects quarter stars; hovering previews the value. Keyboard users can select whole-star buttons or expand **Choose an exact rating** for any quarter-star value. **Clear rating** leaves it unrated.
+
+Write a review alongside the rating, up to 20,000 characters. The formatting toolbar inserts Markdown for bold, italic, lists, quotes, and links; **Preview** renders it locally before saving. Markdown also works without JavaScript. Raw HTML and unsafe links are not rendered. Each reread has its own review. Reviews you write here survive turning off imported Goodreads review storage, later imports, and JSON export/restore. Private notes and reasons remain separate.
+
+On the book page, use **Share review to Hardcover…** for a saved review. Link the book and send its shelf status first so it exists in your Hardcover library. The preview shows the text, existing remote review, and the book's current visibility; confirming sends Markdown with `update_user_book.review_markdown`. This requires `read:library` and `write:library`. Hardcover has one review per book, so sharing a reread's review replaces that book's current review. Visibility is inherited from the existing Hardcover book and is never changed by sharing. Change it on Hardcover first if needed. Reviews are shared individually; local saves, clears, deletes, status pushes, and progress sync do not send them. Remote changes require a new preview. After an uncertain response, retry checks whether the exact Markdown already arrived before writing again. This flow is tested with synthetic API responses against the [published schema](https://github.com/hardcoverapp/hardcover-docs/blob/main/schema.graphql); a real account import/send has not been verified.
+
+Goodreads CSV export is still planned in prompt 47. The export plan now includes an explicit review inclusion choice, using formatted authored reviews rather than private notes. JSON exports already preserve both Markdown source and `review_format`; no formatting conversion is needed to restore them here.
+
+Migration 27 adds `reading_log.review_format`; existing imported text stays plain text. Existing databases get `<database>.pre-v27.bak` before upgrading from v26. To roll back, stop the app, restore that backup over the database, remove stray `-wal`/`-shm` files, and run the previous image. Changes since the backup are lost; export first to keep a copy. Schema 27 JSON exports require this build or newer; older exports restore reviews as plain text under the existing import-review preference.

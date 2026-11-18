@@ -10,6 +10,7 @@
   <label>Started <span class="muted">optional</span><input type="date" name="started_at" value="{{with .Book.StartedAt}}{{.}}{{end}}"></label>
   <label>Finished<input type="date" name="finished_at" value="{{.Today}}" required></label>
   {{template "rating-input" noRating}}
+  {{template "review-input" noRating}}
   <div class="span-2 button-row">
     <button class="button primary">Mark finished</button>
     <a class="button" href="/"><span>Cancel</span></a>

@@ -51,7 +51,7 @@ func (a *App) saveSettings(w http.ResponseWriter, r *http.Request) error {
 		// Turning review text off deletes it, so ask first.
 		if stored.KeepReviews && !prefs.KeepReviews && r.FormValue("confirm") != "yes" {
 			var kept int
-			if err = a.store.DB.QueryRow("SELECT count(*) FROM reading_log WHERE review IS NOT NULL").Scan(&kept); err != nil {
+			if err = a.store.DB.QueryRow("SELECT count(*) FROM reading_log WHERE review IS NOT NULL AND review_format='plain'").Scan(&kept); err != nil {
 				return err
 			}
 			if kept > 0 {
@@ -68,7 +68,7 @@ func (a *App) saveSettings(w http.ResponseWriter, r *http.Request) error {
 		}
 		// Opting out of keeping reviews deletes the text already kept.
 		if !prefs.KeepReviews && section != "ranking" {
-			if _, err := tx.Exec("UPDATE reading_log SET review=NULL WHERE review IS NOT NULL"); err != nil {
+			if _, err := tx.Exec("UPDATE reading_log SET review=NULL WHERE review IS NOT NULL AND review_format='plain'"); err != nil {
 				return err
 			}
 		}

@@ -122,8 +122,8 @@ document.querySelectorAll('.rating-input').forEach(function (control) {
   var clear = control.querySelector('[data-clear-rating]');
   var precision = control.querySelector('.rating-precision');
   if (!select || !stars || !feedback) return;
-  function updateRating() {
-    var value = select.value === '' ? 0 : Number(select.value);
+  function updateRating(preview) {
+    var value = typeof preview === 'number' ? preview : (select.value === '' ? 0 : Number(select.value));
     output.textContent = value ? value + ' / 5' : 'Unrated';
     clear.disabled = value === 0;
     stars.querySelectorAll('[data-rating-value]').forEach(function (button) {
@@ -133,19 +133,76 @@ document.querySelectorAll('.rating-input').forEach(function (control) {
       button.setAttribute('aria-pressed', String(value === n));
     });
   }
+  function pointerRating(event, button) {
+    var n = Number(button.dataset.ratingValue);
+    if (event.type === 'click' && event.detail === 0) return n;
+    var box = button.getBoundingClientRect();
+    var quarter = Math.max(1, Math.min(4, Math.ceil((event.clientX - box.left) / box.width * 4)));
+    return n - 1 + quarter / 4;
+  }
+  stars.addEventListener('pointermove', function (event) {
+    if (event.pointerType !== 'mouse') return;
+    var button = event.target.closest('[data-rating-value]');
+    if (button) updateRating(pointerRating(event, button));
+  });
+  stars.addEventListener('pointerleave', function () { updateRating(); });
   stars.addEventListener('click', function (event) {
     var button = event.target.closest('[data-rating-value]');
     if (!button) return;
-    select.value = button.dataset.ratingValue;
+    select.value = String(pointerRating(event, button));
     select.dispatchEvent(new Event('change', { bubbles:true }));
   });
   clear.addEventListener('click', function () {
     select.value = '';
     select.dispatchEvent(new Event('change', { bubbles:true }));
   });
-  select.addEventListener('change', updateRating);
+  select.addEventListener('change', function () { updateRating(); });
   stars.hidden = false;
   feedback.hidden = false;
   precision.open = false;
   updateRating();
+});
+
+// Formatting controls edit the plain Markdown source; preview stays on this server.
+document.querySelectorAll('.review-editor').forEach(function (editor) {
+  var input = editor.querySelector('textarea');
+  var toolbar = editor.querySelector('.review-toolbar');
+  var preview = editor.querySelector('.review-preview');
+  if (!input || !toolbar || !preview) return;
+  toolbar.hidden = false;
+  toolbar.addEventListener('click', async function (event) {
+    var button = event.target.closest('button');
+    if (!button) return;
+    if (button.hasAttribute('data-review-preview')) {
+      button.disabled = true;
+      preview.hidden = false;
+      preview.textContent = 'Preparing preview…';
+      try {
+        var body = new URLSearchParams({ review: input.value, csrf: input.form.querySelector('[name=csrf]').value });
+        var response = await fetch('/reviews/preview', { method: 'POST', body: body });
+        if (!response.ok) throw new Error('Preview failed');
+        // HTML comes only from the server's safe Markdown renderer.
+        preview.innerHTML = await response.text();
+        if (!preview.textContent.trim()) preview.textContent = 'Your review preview is empty.';
+      } catch (_) { preview.textContent = 'Preview unavailable. Your writing is still in the editor.'; }
+      finally { button.disabled = false; }
+      return;
+    }
+    var start = input.selectionStart, end = input.selectionEnd;
+    var text = input.value.slice(start, end) || 'your text';
+    var style = button.dataset.reviewFormat;
+    var replacement = text;
+    if (style === 'bold') replacement = '**' + text + '**';
+    if (style === 'italic') replacement = '*' + text + '*';
+    if (style === 'link') replacement = '[' + text + '](https://example.com)';
+    if (style === 'list' || style === 'quote') {
+      var prefix = style === 'list' ? '- ' : '> ';
+      replacement = (start && input.value[start - 1] !== '\n' ? '\n' : '') + prefix + text.replace(/\n/g, '\n' + prefix);
+    }
+    if (input.value.length - (end - start) + replacement.length > input.maxLength) return;
+    input.setRangeText(replacement, start, end, 'select');
+    input.focus();
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  input.addEventListener('input', function () { preview.hidden = true; });
 });
