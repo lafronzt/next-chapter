@@ -62,7 +62,7 @@ func (a *App) addReading(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
-	return redirect(w, r, fmt.Sprintf("/books/%d?notice=reading#reading", id))
+	return redirect(w, r, fmt.Sprintf("/books/%d?notice=reading-added#reading", id))
 }
 
 // editReading saves the reader's own date and rating for a reading, which
@@ -135,7 +135,7 @@ func (a *App) editReading(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
-	return redirect(w, r, fmt.Sprintf("/books/%d?notice=reading#reading", bookID))
+	return redirect(w, r, fmt.Sprintf("/books/%d?notice="+map[bool]string{true: "reading-deleted", false: "reading-saved"}[action == "delete"]+"#reading", bookID))
 }
 
 // startDateField deliberately accepts only a known calendar day.
@@ -168,4 +168,41 @@ func checkReadingDates(started, finished *string, precision int) error {
 		return bad("The start date must be on or before the finish date.")
 	}
 	return nil
+}
+
+// saveStartDate corrects just the active reading's date without resaving book
+// details. A local edit, including a clear, is protected from later imports.
+func (a *App) saveStartDate(w http.ResponseWriter, r *http.Request) error {
+	id, err := requestID(r)
+	if err != nil {
+		return err
+	}
+	started, err := startDateField(r)
+	if err != nil {
+		return err
+	}
+	err = a.store.Write(func(tx *sql.Tx) error {
+		if err := current(tx, r); err != nil {
+			return err
+		}
+		b, err := getBook(tx, id)
+		if err != nil {
+			return err
+		}
+		if b.Status != "reading" {
+			return bad("Only a book you are reading has a current start date to save.")
+		}
+		if err = saveCurrentStart(tx, id, started, true); err != nil {
+			return err
+		}
+		return bump(tx)
+	})
+	if err != nil {
+		return err
+	}
+	notice := "start-date-saved"
+	if started == nil {
+		notice = "start-date-cleared"
+	}
+	return redirect(w, r, fmt.Sprintf("/books/%d?notice=%s", id, notice))
 }

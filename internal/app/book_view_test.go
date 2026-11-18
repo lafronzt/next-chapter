@@ -30,7 +30,7 @@ func TestBookViewIsReadOnlyAndEditHasTheForm(t *testing.T) {
 	// Saving redirects to the view page.
 	rr := b.form(fmt.Sprintf("/books/%d/edit", id), bookForm("Viewed", "to-read"))
 	expect(t, rr, 303)
-	if got := rr.Header().Get("Location"); got != fmt.Sprintf("/books/%d?notice=saved", id) {
+	if got := rr.Header().Get("Location"); got != fmt.Sprintf("/books/%d?notice=book-saved", id) {
 		t.Fatal(got)
 	}
 }

@@ -305,7 +305,10 @@ func (a *App) bookProgress(w http.ResponseWriter, r *http.Request) error {
 	}
 	// A book the reader opted in also sends its progress to Hardcover, after
 	// the local save; whatever happens there, the save stands.
-	notice := "saved"
+	notice := "progress-saved"
+	if value == nil {
+		notice = "progress-cleared"
+	}
 	if value != nil {
 		if n := a.pushProgress(r.Context(), id); n != "" {
 			notice = n
@@ -315,7 +318,7 @@ func (a *App) bookProgress(w http.ResponseWriter, r *http.Request) error {
 		return redirect(w, r, fmt.Sprintf("/books/%d?notice=%s", id, notice))
 	}
 	dest := listReturn(r)
-	if notice != "saved" {
+	if notice != "" {
 		dest += map[bool]string{true: "&", false: "?"}[strings.Contains(dest, "?")] + "notice=" + notice
 	}
 	return redirect(w, r, dest)
@@ -455,4 +458,26 @@ func (b Book) AudioDuration() string {
 		return ""
 	}
 	return audioPosition(*b.AudioSeconds)
+}
+
+// ProgressLabel names the value the reader is entering.
+func (b Book) ProgressLabel() string {
+	switch b.ProgressUnit() {
+	case "seconds":
+		return "Audio position"
+	case "percent":
+		return "Progress (%)"
+	default:
+		return "Page reached"
+	}
+}
+func (b Book) ProgressMethod() string {
+	switch b.ProgressUnit() {
+	case "seconds":
+		return "Audio position"
+	case "percent":
+		return "Percentage"
+	default:
+		return "Page"
+	}
 }
