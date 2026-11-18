@@ -2,6 +2,13 @@
 
 Self-contained prompts for fixing and improving Next Chapter. Each file can be pasted into a fresh Claude Code session started in the repo root.
 
+## Journals, quotes, and series discovery (48–49)
+
+- [48 · Journal entries and quotes between Next Chapter and Hardcover](48-hardcover-journals-and-quotes.md) extends existing explicit note sharing with local quotes, verified inbound/outbound journal actions, privacy previews, stable identity, and conflict handling.
+- [49 · Find new books in followed series](49-series-new-book-discovery.md) extends the series dashboard and catalog cache with followed series, new-member discovery, upcoming releases where supported, and previewed additions.
+
+Both are prompts only; implementation has not started. They require current API research and preserve reader-initiated changes. They can be implemented independently.
+
 ## Goodreads library export (47)
 
 [47 · Export the library to Goodreads CSV](47-goodreads-library-export.md) adds a manual, read-only download alongside existing backups. Read the companion [research guide](47-goodreads-library-export-research.md) first to resolve ISBN eligibility, shelf mappings, rating precision, dates, and remote overwrite behavior. Status: prompt and research guide only; implementation not started.
