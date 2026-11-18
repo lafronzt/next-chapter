@@ -314,7 +314,7 @@ type estimateAccuracy struct {
 	BaselineError, AIError float64
 	BaselineHits, AIHits   int // within half a star
 	BaselineValue, AIValue *float64
-	Actual                 int // for one book: its rating
+	Actual                 float64 // for one book: its rating
 }
 
 func loadAccuracy(q queryer, bookID int64) (estimateAccuracy, error) {
@@ -332,18 +332,18 @@ FROM rating_estimates e WHERE e.baseline IS NOT NULL AND actual IS NOT NULL`+whe
 	for rows.Next() {
 		var baseline float64
 		var ai *float64
-		var actual int
+		var actual float64
 		if err = rows.Scan(&baseline, &ai, &actual); err != nil {
 			return acc, err
 		}
-		d := math.Abs(baseline - float64(actual))
+		d := math.Abs(baseline - actual)
 		acc.Books++
 		acc.BaselineError += d
 		if d <= 0.5 {
 			acc.BaselineHits++
 		}
 		if ai != nil {
-			d = math.Abs(*ai - float64(actual))
+			d = math.Abs(*ai - actual)
 			acc.AIBooks++
 			acc.AIError += d
 			if d <= 0.5 {

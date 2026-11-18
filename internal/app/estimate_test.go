@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"net/url"
 	"path/filepath"
@@ -351,6 +352,47 @@ func TestEstimateAccuracyAndRatedBooks(t *testing.T) {
 	expect(t, b.request("POST", fmt.Sprintf("/books/%d/delete", id), nil), 303)
 	if saved, _ := readEstimate(a.store.DB, id); saved != nil {
 		t.Fatal("estimate outlived its book")
+	}
+}
+
+func TestEstimateAccuracyFractionalRatings(t *testing.T) {
+	a := testApp(t, true)
+	id := libraryFixture(t, a, 4)
+	if err := saveAIEstimate(a.store.DB, ratingEstimate{BookID: id, Fingerprint: "test", Baseline: 4, AI: floatp(3.75), Confidence: "medium", CreatedAt: canonicalTime(a.now())}); err != nil {
+		t.Fatal(err)
+	}
+	b := &browser{t: t, handler: a.Handler()}
+	b.request("GET", "/", nil)
+	expect(t, b.request("POST", fmt.Sprintf("/books/%d/readings", id), url.Values{"finished_at": {"2026-10-01"}, "rating": {"3.5"}}), 303)
+	for _, rating := range []float64{3.5, 3.25, 3.75, 4} {
+		t.Run(fmt.Sprint(rating), func(t *testing.T) {
+			if _, err := a.store.DB.Exec("UPDATE reading_log SET rating=? WHERE book_id=?", rating, id); err != nil {
+				t.Fatal(err)
+			}
+			for _, bookID := range []int64{0, id} {
+				acc, err := loadAccuracy(a.store.DB, bookID)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if acc.Books != 1 || acc.AIBooks != 1 || acc.Actual != rating || acc.BaselineError != math.Abs(4-rating) || acc.AIError != math.Abs(3.75-rating) {
+					t.Fatalf("accuracy lost fractional rating: %+v", acc)
+				}
+				wantHits := 0
+				if math.Abs(4-rating) <= 0.5 {
+					wantHits = 1
+				}
+				if acc.BaselineHits != wantHits || acc.AIHits != 1 {
+					t.Fatalf("incorrect half-star accuracy: %+v", acc)
+				}
+			}
+			for _, path := range []string{fmt.Sprintf("/books/%d", id), fmt.Sprintf("/books/%d/edit", id), fmt.Sprintf("/books/%d/estimate", id), "/reading"} {
+				rr := b.request("GET", path, nil)
+				expect(t, rr, 200)
+				if path != "/reading" && !strings.Contains(rr.Body.String(), fmt.Sprintf("you gave it %v★", rating)) {
+					t.Fatalf("%s missing exact rating %v", path, rating)
+				}
+			}
+		})
 	}
 }
 

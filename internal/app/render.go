@@ -77,14 +77,34 @@ func (a *App) render(w http.ResponseWriter, r *http.Request, name string, data p
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(status)
-	_, err := w.Write(buf.Bytes())
-	return err
+	if _, err := w.Write(buf.Bytes()); err != nil {
+		return responseWriteError{err}
+	}
+	return nil
+}
+
+// responseWriteError means headers are already committed. Sending an error
+// page after this would append to the response or retry a disconnected client.
+type responseWriteError struct{ error }
+
+func (e responseWriteError) Unwrap() error { return e.error }
+
+func (a *App) responseWriteFailed(r *http.Request, err error) bool {
+	var writeErr responseWriteError
+	if !errors.As(err, &writeErr) {
+		return false
+	}
+	a.logger.Warn("response write failed", "request_id", state(r).ID, "method", r.Method, "path", r.URL.Path, "err", err)
+	return true
 }
 
 // notices are the confirmations a redirect can request with ?notice=.
 var notices = map[string]string{"progress-saved": "Progress saved.", "progress-cleared": "Progress cleared.", "start-date-saved": "Current start date saved.", "start-date-cleared": "Current start date cleared.", "reading-added": "Completed reading added.", "reading-saved": "Completed reading and review saved.", "reading-deleted": "Completed reading deleted.", "book-saved": "Book details saved.", "hc-progress-setting-saved": "Hardcover progress setting saved.", "hc-dates-pulled": "Reading dates updated from Hardcover.", "hc-dates-linked": "This completed reading is linked to its matching Hardcover reading.", "hc-review-sent": "Review shared to Hardcover. Future edits stay here until you share again.", "hc-note-sent": "This note was shared to Hardcover. Future edits stay here until you share again.", "started-hc-failed": "Started reading here. The Hardcover preview could not be prepared. Check your connection and book link, then use Send to Hardcover from this page.", "requeued": "Back in your queue, marked Needs placement. Nothing else moved.", "started": "Started. Nothing else in your queue moved.", "stopped": "Set aside. You can bring it back from its book page.", "finished": "Marked finished and logged in your reading history. Your queue is unchanged.", "triaged": "Sorted. Only reading status changed; books you want to read wait at the end of your queue for placement.", "saved": "Saved to your library.", "ordered": "Your new order is saved. You can undo it until your next library change.", "undone": "Previous order restored.", "imported": "Import complete. Existing reading status and queue order were preserved.", "loan": "Library event recorded. Reading status stays the same.", "signedout": "Signed out on every device. Sign in again to continue.", "deleted": "Book deleted. Future imports will skip it.", "merged": "Books merged. Future imports of the merged book will update this one.", "restored": "Library restored from your JSON export. Hardcover is disconnected; test the connection to link the current account.", "reading": "Reading history saved. Your queue is unchanged.", "ai-on": "AI assistance is on. Nothing is sent until you ask for a suggestion and confirm what gets shared.", "ai-off": "AI assistance is off. Nothing will be sent to the AI provider.", "estimated": "The AI’s estimate is saved next to the baseline. Your library did not change.", "hardcover-links": "Hardcover links saved. Reading status, queue order, pins, ratings, and reading history were not touched.", "hardcover-pulled": "Hardcover import applied. New books wait at the end of your queue marked Needs placement; nothing else moved.", "hc-progress-sent": "Progress saved here and sent to Hardcover.", "hc-progress-noread": "Progress saved here. Hardcover has no read in progress for this book, so nothing was sent. Send its status to Hardcover first.", "hc-progress-skip": "Progress saved here. It could not be converted to a page or length on Hardcover, so nothing was sent.", "hc-progress-failed": "Progress saved here. Hardcover was not updated; you can try again from the book page.", "hc-progress-pulled": "Progress updated from Hardcover. Status, queue order, and pins are unchanged.", "hc-progress-kept": "Progress left as it is.", "hc-read-sent": "Reading dates saved to Hardcover.", "hc-read-kept": "Left as it is.", "hc-refreshed": "Hardcover details refreshed. Nothing in your library changed.", "hc-series-added": "Volumes added to the end of your queue, marked Needs placement. Your queue order did not change.", "hc-forgotten": "Hardcover ids forgotten. Every book, rating, and reading is untouched, and Hardcover was not contacted.", "ai-tested": "The AI provider answered the test prompt. No library data was sent."}
 
 func (a *App) fail(w http.ResponseWriter, r *http.Request, err error) {
+	if a.responseWriteFailed(r, err) {
+		return
+	}
 	var h httpError
 	if errors.As(err, &h) {
 		for key, values := range h.Header {
@@ -120,6 +140,9 @@ func (a *App) respond(w http.ResponseWriter, r *http.Request, status int, messag
 		data["RequestID"] = state(r).ID
 	}
 	if err := a.render(w, r, "error.html", data, status); err != nil {
+		if a.responseWriteFailed(r, err) {
+			return
+		}
 		a.logger.Error("render error page", "request_id", state(r).ID, "err", err)
 		http.Error(w, message, status)
 	}
