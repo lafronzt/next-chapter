@@ -3273,6 +3273,18 @@ main section.hc-panel[aria-labelledby]>h2 {
 /* The book header keeps progress entry separate from metadata and sync tools. */
 .book-summary { align-items:flex-start; }
 .book-summary .next-up-body { flex:1; min-width:0; }
+.book-summary .primary-action { margin-top:16px; align-items:flex-start; }
+.book-summary .primary-action>form {
+  display:flex;
+  flex-wrap:wrap;
+  align-items:center;
+  justify-content:flex-start;
+  gap:10px;
+  min-width:0;
+  max-width:100%;
+  margin:0;
+}
+.book-summary .primary-action .button { max-width:100%; white-space:normal; }
 .book-summary .reading-progress {
   display:grid;
   grid-template-columns:minmax(0,1fr) auto;
