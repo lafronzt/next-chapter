@@ -87,13 +87,65 @@ document.addEventListener('keydown', function (event) {
 });
 
 
-// Match the keypad and example to the chosen progress unit without changing
-// what the reader has typed.
+// Labels, examples and the keypad follow the selected method. Keep drafts
+// separate so switching units never silently reinterprets the previous value.
 document.querySelectorAll('.reading-progress').forEach(function (form) {
   var unit = form.querySelector('select[name=unit]');
   var input = form.querySelector('input[name=progress]');
-  unit.addEventListener('change', function () {
+  if (!unit || !input) return;
+  var previous = unit.value;
+  var drafts = {};
+  function updateProgressFields() {
+    var label = form.querySelector('[data-progress-label]');
+    var method = form.querySelector('[data-progress-method]');
+    if (label) label.textContent = unit.value === 'seconds' ? 'Audio position' : unit.value === 'percent' ? 'Progress (%)' : 'Page reached';
+    if (method) method.textContent = unit.value === 'seconds' ? 'Audio position' : unit.value === 'percent' ? 'Percentage' : 'Page';
     input.inputMode = unit.value === 'seconds' ? 'text' : 'numeric';
     input.placeholder = unit.value === 'seconds' ? 'e.g. 2:30' : unit.value === 'percent' ? 'e.g. 35' : 'e.g. 120';
+  }
+  unit.addEventListener('change', function () {
+    drafts[previous] = input.value;
+    input.value = drafts[unit.value] || '';
+    previous = unit.value;
+    updateProgressFields();
   });
+  updateProgressFields();
+});
+
+// The native select is the submitted value and remains usable without script.
+// Stars are shortcuts; exact quarter ratings are never rounded on load/save.
+document.querySelectorAll('.rating-input').forEach(function (control) {
+  var select = control.querySelector('select[name=rating]');
+  var stars = control.querySelector('.rating-stars');
+  var feedback = control.querySelector('.rating-feedback');
+  var output = control.querySelector('.rating-value');
+  var clear = control.querySelector('[data-clear-rating]');
+  var precision = control.querySelector('.rating-precision');
+  if (!select || !stars || !feedback) return;
+  function updateRating() {
+    var value = select.value === '' ? 0 : Number(select.value);
+    output.textContent = value ? value + ' / 5' : 'Unrated';
+    clear.disabled = value === 0;
+    stars.querySelectorAll('[data-rating-value]').forEach(function (button) {
+      var n = Number(button.dataset.ratingValue);
+      var fraction = Math.max(0, Math.min(1, value - n + 1));
+      button.dataset.fill = ['empty', 'quarter', 'half', 'three-quarters', 'full'][Math.round(fraction * 4)];
+      button.setAttribute('aria-pressed', String(value === n));
+    });
+  }
+  stars.addEventListener('click', function (event) {
+    var button = event.target.closest('[data-rating-value]');
+    if (!button) return;
+    select.value = button.dataset.ratingValue;
+    select.dispatchEvent(new Event('change', { bubbles:true }));
+  });
+  clear.addEventListener('click', function () {
+    select.value = '';
+    select.dispatchEvent(new Event('change', { bubbles:true }));
+  });
+  select.addEventListener('change', updateRating);
+  stars.hidden = false;
+  feedback.hidden = false;
+  precision.open = false;
+  updateRating();
 });

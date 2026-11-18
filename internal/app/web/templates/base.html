@@ -132,12 +132,20 @@
 {{/* rating-input takes the current *float64 rating (nil for none) and submits a "rating" of 0.25 to 5, or "" for unrated. */}}
 {{define "rating-input"}}{{$cur := .}}
 <fieldset class="rating-input">
-  <legend>Your rating <span class="muted">currently {{if $cur}}{{ratingText (deref $cur)}} out of 5{{else}}unrated{{end}}</span></legend>
-  <label class="rating-unrated"><input type="radio" name="rating" value="" {{if not $cur}}checked{{end}}><span>Unrated</span></label>
-  {{range $g := ratingGroups}}
-  <div class="rating-group">
-    {{range $n := $g}}<label><input type="radio" name="rating" value="{{$n}}" {{if rated $cur $n}}checked{{end}}><span class="{{if isWhole $n}}whole{{end}}"><span aria-hidden="true">{{ratingShort $n}}</span><span class="sr-only">{{$n}} out of 5</span></span></label>{{end}}
+  <legend>Your rating</legend>
+  <div class="rating-stars" role="group" aria-label="Choose a whole-star rating" hidden>
+    {{range $n := wholeRatings}}<button type="button" class="rating-star" data-rating-value="{{$n}}" aria-label="{{$n}} out of 5" aria-pressed="false"><span class="rating-star-glyph" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26"/></svg><svg class="rating-star-fill" viewBox="0 0 24 24" focusable="false"><polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26"/></svg></span></button>{{end}}
   </div>
-  {{end}}
+  <div class="rating-feedback" hidden>
+    <output class="rating-value" aria-live="polite">{{if $cur}}{{ratingText (deref $cur)}} / 5{{else}}Unrated{{end}}</output>
+    <button type="button" class="text-button" data-clear-rating>Clear rating</button>
+  </div>
+  <details class="rating-precision" open>
+    <summary>Choose an exact rating</summary>
+    <label>Rating in quarter stars<select name="rating" aria-label="Exact rating">
+      <option value="" {{if not $cur}}selected{{end}}>Unrated</option>
+      {{range $g := ratingGroups}}{{range $n := $g}}<option value="{{$n}}" {{if rated $cur $n}}selected{{end}}>{{ratingText $n}} / 5</option>{{end}}{{end}}
+    </select></label>
+  </details>
 </fieldset>
 {{end}}

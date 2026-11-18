@@ -12,7 +12,7 @@
     <h1 id="book-title">{{.Book.Title}}</h1>
     <p class="author">{{.Book.Author}}{{if .Book.Pages}}<span> · {{pages .Book.Pages}} pages</span>{{end}}{{with .Book.Series}}<span> · {{.}}{{with $.Book.SeriesNumber}} #{{seriesNumber .}}{{end}}</span>{{end}}</p>
     </div>
-    <p class="book-meta">{{pips .Book.Interest}}{{if .Book.Tags}}<span> · {{.Book.Tags}}</span>{{end}}</p>
+    <p class="book-meta">{{pips .Book.Interest}}{{with .Book.DisplayTags}}<span> · {{.}}</span>{{end}}</p>
     <p><span class="badge">{{status .Book.Status}}</span>{{if .Book.Pinned}} <span class="badge pin"><span aria-hidden="true">◆</span> Pinned</span>{{end}}{{if .Book.Owned}} <span class="badge">Owned</span>{{end}}</p>
     {{if eq .Book.Status "reading"}}
     <div class="progress-block">
@@ -21,13 +21,17 @@
       <form class="progress-form reading-progress" method="post" action="/books/{{.Book.ID}}/progress">
         {{template "fields" .}}
         <input type="hidden" name="back" value="book">
-        <label>Progress <input type="text" name="progress" inputmode="{{if eq .Book.ProgressUnit "seconds"}}text{{else}}numeric{{end}}" placeholder="{{if eq .Book.ProgressUnit "seconds"}}e.g. 2:30{{else if eq .Book.ProgressUnit "percent"}}e.g. 35{{else}}e.g. 120{{end}}" value="{{.Book.ProgressValue}}"></label>
-        <label>Unit <select name="unit" aria-label="Progress unit"><option value="page" {{if eq .Book.ProgressUnit "page"}}selected{{end}}>pages</option><option value="percent" {{if eq .Book.ProgressUnit "percent"}}selected{{end}}>%</option><option value="seconds" {{if eq .Book.ProgressUnit "seconds"}}selected{{end}}>hours:minutes</option></select></label>
-        <button class="button small"><span>Save</span></button>
+        <label class="progress-value"><span data-progress-label>{{.Book.ProgressLabel}}</span><input type="text" name="progress" inputmode="{{if eq .Book.ProgressUnit "seconds"}}text{{else}}numeric{{end}}" placeholder="{{if eq .Book.ProgressUnit "seconds"}}e.g. 2:30{{else if eq .Book.ProgressUnit "percent"}}e.g. 35{{else}}e.g. 120{{end}}" value="{{.Book.ProgressValue}}"></label>
+        <button class="button small"><span>Save progress</span></button>
+        <details class="progress-format">
+          <summary>Tracking: <span data-progress-method>{{.Book.ProgressMethod}}</span> · Change</summary>
+          <label>Track progress by<select name="unit" aria-label="Track progress by"><option value="page" {{if eq .Book.ProgressUnit "page"}}selected{{end}}>Page</option><option value="percent" {{if eq .Book.ProgressUnit "percent"}}selected{{end}}>Percentage</option><option value="seconds" {{if eq .Book.ProgressUnit "seconds"}}selected{{end}}>Audio position (hours:minutes)</option></select></label>
+          <p class="muted"><small>Enter your position in the new unit when changing how you track this book. Audio positions use hours:minutes.</small></p>
+        </details>
       </form>
-      {{if eq .Book.ProgressUnit "seconds"}}<p class="muted progress-hint"><small>Enter your audiobook position as hours:minutes.{{if not .Book.AudioSeconds}} <a href="/books/{{.Book.ID}}/edit#audio_duration">Add its total duration in Edit details</a> to show a percentage.{{end}}</small></p>{{end}}
+      {{if and (eq .Book.ProgressUnit "seconds") (not .Book.AudioSeconds)}}<p class="muted progress-hint"><small><a href="/books/{{.Book.ID}}/edit#audio_duration">Add the total audio duration in Edit details</a> to show a percentage.</small></p>{{end}}
       {{if and .HardcoverReady .HardcoverLink}}
-      <p class="muted sync-caption">Hardcover progress sync: <strong>{{if .HardcoverLink.ProgressSync}}on{{else}}off{{end}}</strong> · <a href="#hardcover">Manage sync</a></p>
+      <p class="muted sync-caption">{{if .HardcoverLink.ProgressSync}}Progress sends to Hardcover when you save.{{else}}Progress saves here only.{{end}} <a href="#hardcover">Sync options</a></p>
       {{end}}
     </div>
     {{end}}
@@ -62,10 +66,10 @@
     </div>
     {{if eq .Book.Status "reading"}}
     <details class="book-reading-dates" {{if not .Book.StartedAt}}open{{end}}>
-      <summary>{{with .Book.StartedAt}}Started <time datetime="{{.}}">{{.}}</time> · Edit{{else}}Add start date{{end}}</summary>
+      <summary>{{with .Book.StartedAt}}Current reading started <time datetime="{{.}}">{{.}}</time> · Edit{{else}}Add current start date{{end}}</summary>
       <form class="start-date-form" method="post" action="/books/{{.Book.ID}}/start-date">
         {{template "fields" .}}
-        <label>Started<input type="date" name="started_at" value="{{with .Book.StartedAt}}{{.}}{{end}}"></label>
+        <label>Current reading started on<input type="date" name="started_at" value="{{with .Book.StartedAt}}{{.}}{{end}}"></label>
         <button class="button small">Save start date</button>
       </form>
     </details>
@@ -167,6 +171,7 @@
   {{end}}
   {{if .HardcoverReady}}
   {{if .HardcoverLink}}
+  <p class="muted hc-sync-scope">Progress can send on save. Status, ratings, and dates use separate actions that you preview and confirm.</p>
   <div class="hc-book-actions">
     <div class="hc-book-action">
       <h3>Status &amp; rating</h3>
@@ -283,8 +288,10 @@
   <div class="span-2"><button class="button">Add note</button></div>
 </form>
 <section class="section-heading" id="reading">
-  <h2>Your readings</h2>
+  <h2>Completed readings</h2>
+  <p>Past readings, each with its own dates and rating.</p>
 </section>
+{{with .ReadingNotice}}<div class="notice" role="status">{{.}}</div>{{end}}
 {{if .Readings}}
 <div class="panel">
   {{range .Readings}}{{$e := .}}

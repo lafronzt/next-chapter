@@ -7,7 +7,7 @@ import (
 )
 
 func TestLocalReadingTransitionsDefaultStart(t *testing.T) {
-	for _, action := range []string{"start button", "edit status", "add as reading"} {
+	for _, action := range []string{"start button", "edit status", "restart through edit", "add as reading"} {
 		t.Run(action, func(t *testing.T) {
 			a := testApp(t, true)
 			a.now = func() time.Time { return time.Date(2026, 11, 17, 12, 0, 0, 0, time.UTC) }
@@ -16,11 +16,18 @@ func TestLocalReadingTransitionsDefaultStart(t *testing.T) {
 				expect(t, b.form("/books/new", bookForm("New reader", "reading")), 303)
 			} else {
 				id := addBooks(t, a, Book{Title: "New reader", Author: "Author"})[0]
+				if action == "restart through edit" {
+					if _, err := a.store.DB.Exec("UPDATE books SET reading_status='abandoned',started_at='2026-10-01' WHERE id=?", id); err != nil {
+						t.Fatal(err)
+					}
+				}
 				if action == "start button" {
 					expect(t, b.form(bookPath(id)+"/status", url.Values{"action": {"start"}}), 303)
 				} else {
 					fields := bookForm("New reader", "reading")
-					fields.Set("started_at", "")
+					if action != "restart through edit" {
+						fields.Set("started_at", "")
+					}
 					expect(t, b.form(bookPath(id)+"/edit", fields), 303)
 				}
 			}

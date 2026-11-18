@@ -62,7 +62,7 @@ func (a *App) addReading(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
-	return redirect(w, r, fmt.Sprintf("/books/%d?notice=reading#reading", id))
+	return redirect(w, r, fmt.Sprintf("/books/%d?notice=reading-added#reading", id))
 }
 
 // editReading saves the reader's own date and rating for a reading, which
@@ -135,7 +135,7 @@ func (a *App) editReading(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
-	return redirect(w, r, fmt.Sprintf("/books/%d?notice=reading#reading", bookID))
+	return redirect(w, r, fmt.Sprintf("/books/%d?notice="+map[bool]string{true: "reading-deleted", false: "reading-saved"}[action == "delete"]+"#reading", bookID))
 }
 
 // startDateField deliberately accepts only a known calendar day.
@@ -200,5 +200,9 @@ func (a *App) saveStartDate(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
-	return redirect(w, r, fmt.Sprintf("/books/%d?notice=saved", id))
+	notice := "start-date-saved"
+	if started == nil {
+		notice = "start-date-cleared"
+	}
+	return redirect(w, r, fmt.Sprintf("/books/%d?notice=%s", id, notice))
 }

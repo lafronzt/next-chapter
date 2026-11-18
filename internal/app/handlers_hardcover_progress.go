@@ -82,7 +82,7 @@ func (a *App) hardcoverProgressSync(w http.ResponseWriter, r *http.Request) erro
 	if err != nil {
 		return err
 	}
-	return redirect(w, r, fmt.Sprintf("/books/%d?notice=saved", id))
+	return redirect(w, r, fmt.Sprintf("/books/%d?notice=hc-progress-setting-saved", id))
 }
 
 // pushProgress runs after a progress save has committed, for a book the
@@ -645,5 +645,11 @@ func (a *App) hardcoverReadPlan(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
-	return redirect(w, r, fmt.Sprintf("/books/%d?notice=hc-read-sent", p.BookID))
+	notice := "hc-read-sent"
+	if choice == "theirs" {
+		notice = "hc-dates-pulled"
+	} else if p.Action == "map" {
+		notice = "hc-dates-linked"
+	}
+	return redirect(w, r, fmt.Sprintf("/books/%d?notice=%s", p.BookID, notice))
 }

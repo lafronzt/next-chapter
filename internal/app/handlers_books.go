@@ -210,7 +210,7 @@ func (a *App) editBook(w http.ResponseWriter, r *http.Request) error {
 		if r.Form.Has("started_at") && ((b.StartedAt == nil) != (old.StartedAt == nil) || b.StartedAt != nil && old.StartedAt != nil && *b.StartedAt != *old.StartedAt) {
 			manual = true
 		}
-		if b.Status == "reading" && old.Status != "reading" && b.StartedAt == nil {
+		if b.Status == "reading" && old.Status != "reading" && (!r.Form.Has("started_at") || b.StartedAt == nil) {
 			day := a.now().Format(time.DateOnly)
 			b.StartedAt = &day
 			manual = false
@@ -227,7 +227,7 @@ func (a *App) editBook(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
-	return redirect(w, r, fmt.Sprintf("/books/%d?notice=saved", id))
+	return redirect(w, r, fmt.Sprintf("/books/%d?notice=book-saved", id))
 }
 func (a *App) bookAction(w http.ResponseWriter, r *http.Request) error {
 	id, err := requestID(r)

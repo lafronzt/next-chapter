@@ -225,7 +225,7 @@ func TestProgressPushIsOptInAndOneMutation(t *testing.T) {
 	a, b, id := progApp(t, f, "reading")
 	order := queueOrderOf(t, a)
 	// Off by default: saving progress sends nothing.
-	if loc := saveProgress(t, a, b, id, "page", "100"); !strings.HasSuffix(loc, "notice=saved") || f.opened != 0 {
+	if loc := saveProgress(t, a, b, id, "page", "100"); !strings.HasSuffix(loc, "notice=progress-saved") || f.opened != 0 {
 		t.Fatalf("a save without the opt-in contacted Hardcover: %s", loc)
 	}
 	optIn(t, b, id)

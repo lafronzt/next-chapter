@@ -1853,76 +1853,33 @@ input[type=checkbox],input[type=radio] {
   }
 }
 
-/* Quarter-star rating input */
-.rating-input {
-  border:0;
-  padding:0;
-  margin:0;
-  display:flex;
-  flex-direction:column;
-  gap:6px;
-  min-width:0;
+/* Five whole stars, with exact quarter-star values in a native select. */
+.rating-input { border:0; padding:0; margin:0; min-width:0; grid-column:1 / -1; }
+.rating-input legend { padding:0; margin-bottom:10px; font-weight:600; }
+.rating-stars { display:flex; gap:4px; max-width:100%; }
+.rating-stars[hidden],.rating-feedback[hidden] { display:none; }
+.rating-star {
+  display:grid; place-items:center; flex:0 0 44px; width:44px; min-height:44px;
+  padding:4px; border:1px solid transparent; border-radius:8px;
+  background:transparent; color:var(--muted); font-size:32px; cursor:pointer;
 }
-
-.rating-input legend {
-  padding:0;
-  margin-bottom:6px;
-  font-weight:600;
-}
-
-.rating-group {
-  display:flex;
-  gap:var(--space-1);
-}
-
-.rating-input label {
-  position:relative;
-  display:block;
-}
-
-.rating-input input {
-  position:absolute;
-  opacity:0;
-  inset:0;
-  margin:0;
-  width:100%;
-  height:100%;
-  cursor:pointer;
-}
-
-.rating-input label>span {
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  min-width:48px;
-  min-height:44px;
-  padding:0 10px;
-  border:1px solid var(--line);
-  border-radius:8px;
-  background:var(--paper);
-  font-size:var(--text-md);
-}
-
-.rating-input label>span.whole {
-  min-width:64px;
-  font-size:20px;
-  color:var(--accent);
-}
-
-.rating-input input:checked+span {
-  background:var(--green);
-  border-color:var(--green);
-  color:#fff;
-}
-
-.rating-input input:focus-visible+span {
-  outline:3px solid var(--accent);
-  outline-offset:2px;
-}
-
-.rating-unrated {
-  align-self:flex-start;
-}
+.rating-star:hover { background:var(--sidebar); }
+.rating-star:focus-visible { outline:3px solid var(--accent); outline-offset:2px; }
+/* Matching vector shapes avoid font-dependent clipping. The quarter stops
+   fill a quarter of the star's area, rather than just the thin left tip. */
+.rating-star-glyph { position:relative; display:block; width:32px; height:32px; }
+.rating-star-glyph svg { display:block; width:100%; height:100%; fill:none; stroke:var(--muted); stroke-width:1.2; stroke-linejoin:round; }
+.rating-star-glyph .rating-star-fill { position:absolute; inset:0; fill:var(--accent); stroke:var(--accent); clip-path:inset(0 100% 0 0); }
+.rating-star[data-fill="quarter"] .rating-star-fill { clip-path:inset(0 62.5% 0 0); }
+.rating-star[data-fill="half"] .rating-star-fill { clip-path:inset(0 50% 0 0); }
+.rating-star[data-fill="three-quarters"] .rating-star-fill { clip-path:inset(0 37.5% 0 0); }
+.rating-star[data-fill="full"] .rating-star-fill { clip-path:inset(0); }
+.rating-feedback { display:flex; align-items:center; flex-wrap:wrap; gap:16px; margin-top:8px; }
+.rating-value { font-weight:600; font-variant-numeric:tabular-nums; }
+.rating-feedback .text-button { min-height:44px; }
+.rating-precision { margin-top:8px; max-width:320px; }
+.rating-precision summary { cursor:pointer; color:var(--muted); font-size:var(--text-sm); padding:12px 0; min-height:44px; }
+.rating-precision label { margin-top:8px; }
 
 .star-part {
   position:relative;
@@ -3319,7 +3276,7 @@ main section.hc-panel[aria-labelledby]>h2 {
 .book-summary .next-up-body { flex:1; min-width:0; }
 .book-summary .reading-progress {
   display:grid;
-  grid-template-columns:minmax(90px,1fr) minmax(130px,1.2fr) auto;
+  grid-template-columns:minmax(0,1fr) auto;
   align-items:end;
   gap:12px;
   max-width:480px;
@@ -3337,8 +3294,8 @@ main section.hc-panel[aria-labelledby]>h2 {
 .book-summary .reading-progress>.button { grid-column:auto; }
 .book-summary .progress-hint { margin-top:8px; overflow-wrap:anywhere; }
 .book-reading-dates { margin:20px 0 16px; }
-.book-reading-dates>summary { cursor:pointer; color:var(--muted); font-size:var(--text-sm); }
-.book-summary .start-date-form {
+.book-reading-dates>summary { cursor:pointer; color:var(--muted); font-size:var(--text-sm); min-height:44px; padding:10px 0; }
+.start-date-form {
   display:flex;
   flex-wrap:wrap;
   gap:12px;
@@ -3347,6 +3304,28 @@ main section.hc-panel[aria-labelledby]>h2 {
 }
 .start-date-form input { width:auto; max-width:100%; }
 @media(max-width:600px) {
-  .book-summary .reading-progress { grid-template-columns:minmax(0,1fr) minmax(0,1.2fr); max-width:none; }
+  .book-summary .reading-progress { grid-template-columns:minmax(0,1fr); max-width:none; }
   .book-summary .reading-progress>.button { grid-column:1 / -1; }
 }
+
+.progress-format { grid-column:1 / -1; min-width:0; margin:0; }
+.progress-format>summary { color:var(--muted); font-size:var(--text-sm); cursor:pointer; min-height:44px; padding:10px 0; }
+.book-summary .progress-format label { margin-top:12px; max-width:320px; }
+.book-summary .progress-format p { margin:8px 0 0; max-width:48ch; }
+.current-reading-editor { max-width:870px; margin:0 0 24px; }
+.current-reading-editor h2 { margin:0; font:24px/1.25 var(--serif); }
+.current-reading-editor>p { margin:8px 0 0; max-width:65ch; }
+.current-reading-editor .start-date-form { margin-top:16px; }
+.reading-entry+.reading-entry { margin-top:20px; }
+.reading-entry-title { margin:0; font:20px/1.35 var(--serif); overflow-wrap:anywhere; }
+.reading-entry+.form-grid { margin-top:20px; }
+.hc-sync-scope { margin:16px 0 0; max-width:70ch; }
+@media(max-width:600px) {
+  .current-reading-editor { padding:20px; }
+  .current-reading-editor .start-date-form { gap:12px; }
+  .current-reading-editor .start-date-form label { flex:1 1 160px; min-width:0; }
+}
+
+.reading-entry .delete-reading { min-height:44px; color:var(--accent); font-size:var(--text-sm); padding:8px 4px; cursor:pointer; }
+.reading-entry .button-row { gap:12px; }
+.reading-entry .delete-reading:focus-visible { outline:3px solid var(--accent); outline-offset:2px; border-radius:4px; }

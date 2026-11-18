@@ -351,3 +351,21 @@ func queueOnly(all []Book) []Book {
 	}
 	return result
 }
+
+// DisplayTags hides a shelf tag only when the status badge already says it.
+// The stored tags (and all ranking/filter inputs) are left unchanged.
+func (b Book) DisplayTags() string {
+	statusTags := map[string]string{"currently-reading": "reading", "currently reading": "reading", "reading": "reading", "to-read": "to-read", "want-to-read": "to-read", "want to read": "to-read", "read": "read", "finished": "read", "dnf": "abandoned", "did-not-finish": "abandoned", "abandoned": "abandoned", "archived": "archived"}
+	var tags []string
+	for _, tag := range strings.Split(b.Tags, ",") {
+		tag = strings.TrimSpace(tag)
+		if tag == "" {
+			continue
+		}
+		if status, known := statusTags[strings.ToLower(tag)]; known && status == b.Status {
+			continue
+		}
+		tags = append(tags, tag)
+	}
+	return strings.Join(tags, ", ")
+}

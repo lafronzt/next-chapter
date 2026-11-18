@@ -71,19 +71,23 @@ func TestRatingInputIsAccessibleAndPreselected(t *testing.T) {
 	if n := strings.Count(body, `<fieldset class="rating-input">`); n != 2 {
 		t.Fatalf("%d rating controls, want the edit and add forms", n)
 	}
-	if strings.Count(body, `<legend>Your rating`) != 2 || strings.Contains(body, `<select name="rating">`) {
-		t.Fatal("legend or old select")
+	if strings.Count(body, `<legend>Your rating`) != 2 || strings.Count(body, `<select name="rating" aria-label="Exact rating">`) != 2 {
+		t.Fatal("each rating needs a legend and its own native select")
 	}
-	// Each option has an accessible name, and the saved value is checked once.
-	if got := len(regexp.MustCompile(`<span class="sr-only">\d(\.\d+)? out of 5</span>`).FindAllString(body, -1)); got < 40 {
-		t.Fatalf("%d named options", got)
+	// Every exact value has a full numeric label, including without JavaScript.
+	if got := len(regexp.MustCompile(`<option value="\d(\.\d+)?"[^>]*>\d(\.\d+)? / 5</option>`).FindAllString(body, -1)); got != 40 {
+		t.Fatalf("%d named quarter-star options, want 40", got)
 	}
-	if !strings.Contains(body, `value="4.25" checked`) || strings.Count(body, `value="4.25" checked`) != 1 {
-		t.Fatal("saved rating not preselected")
+	if strings.Count(body, `value="4.25" selected`) != 1 {
+		t.Fatal("saved quarter rating not preselected exactly once")
 	}
-	if !strings.Contains(body, "currently 4.25 out of 5") || !strings.Contains(body, "currently unrated") {
-		t.Fatal("current value not shown as text")
+	if !strings.Contains(body, "4.25 / 5") || !strings.Contains(body, ">Unrated</option>") {
+		t.Fatal("exact value or unrated choice missing")
 	}
+	if strings.Count(body, `class="rating-star"`) != 10 {
+		t.Fatal("each rating should offer five whole-star shortcuts")
+	}
+
 }
 
 func TestQuarterStarDisplayShowsPartialStar(t *testing.T) {
