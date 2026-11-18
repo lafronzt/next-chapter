@@ -376,6 +376,7 @@ FROM events e LEFT JOIN event_corrections c ON c.fingerprint=e.fingerprint WHERE
 // on a date the target already has is the same reading and is dropped, as is
 // an undated one when the target has any. Fingerprints stay: they identify
 // the Goodreads record, which the merge alias now sends to the target.
+// An authored review is kept even when its reading date matches.
 func mergeReadings(q queryer, p *mergePreview, sourceID, targetID int64, apply bool) error {
 	readings, err := bookReadings(q, sourceID)
 	if err != nil {
@@ -393,7 +394,7 @@ func mergeReadings(q queryer, p *mergePreview, sourceID, targetID int64, apply b
 	}
 	for _, e := range readings {
 		// Keep authored review text even when dates match another reading.
-		if e.ReviewFormat != "markdown" && (len(have) > 0 && e.FinishedAt == nil || e.FinishedAt != nil && dates[*e.FinishedAt]) {
+		if (e.ReviewFormat != "markdown" || e.Review == nil) && (len(have) > 0 && e.FinishedAt == nil || e.FinishedAt != nil && dates[*e.FinishedAt]) {
 			p.SameReadings++
 			if apply {
 				_, err = q.Exec("DELETE FROM reading_log WHERE id=?", e.ID)

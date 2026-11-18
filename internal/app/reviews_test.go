@@ -9,6 +9,36 @@ import (
 	"testing"
 )
 
+func TestMergeKeepsAuthoredReviewOnMatchingReading(t *testing.T) {
+	a := testApp(t, true)
+	ids := addBooks(t, a, Book{Title: "Source", Author: "Writer"}, Book{Title: "Target", Author: "Writer"})
+	b := &browser{t: t, handler: a.Handler()}
+	for i, id := range ids {
+		review := ""
+		if i == 0 {
+			review = "**Keep my review**"
+		}
+		expect(t, b.form(fmt.Sprintf("/books/%d/readings", id), url.Values{"finished_at": {"2026-10-01"}, "review": {review}}), 303)
+	}
+	err := a.store.Write(func(tx *sql.Tx) error {
+		preview := mergePreview{}
+		return mergeReadings(tx, &preview, ids[0], ids[1], true)
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rs := readingsOf(t, a, "Target")
+	if len(rs) != 2 {
+		t.Fatal("merge discarded authored review", rs)
+	}
+	for _, e := range rs {
+		if e.Review != nil && *e.Review == "**Keep my review**" {
+			return
+		}
+	}
+	t.Fatal("merge lost authored review text")
+}
+
 func TestReaderReviewPersistenceAndRestore(t *testing.T) {
 	a := testApp(t, true)
 	id := addBooks(t, a, Book{Title: "Review Book", Author: "Writer", Status: "to-read", Interest: 3})[0]
