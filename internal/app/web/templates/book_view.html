@@ -15,18 +15,19 @@
     <p class="book-meta">{{pips .Book.Interest}}{{with .Book.DisplayTags}}<span> · {{.}}</span>{{end}}</p>
     <p><span class="badge">{{status .Book.Status}}</span>{{if .Book.Pinned}} <span class="badge pin"><span aria-hidden="true">◆</span> Pinned</span>{{end}}{{if .Book.Owned}} <span class="badge">Owned</span>{{end}}</p>
     {{if eq .Book.Status "reading"}}
-    <div class="progress-block">
+    <div class="progress-block" aria-labelledby="current-reading-title">
+      <h2 id="current-reading-title" class="current-reading-title">Current reading</h2>
       {{if .Book.HasProgress}}<meter class="progress-meter" min="0" max="100" value="{{.Book.Percent}}" aria-label="Progress in {{.Book.Title}}"></meter>{{end}}
       {{with .Book.ProgressText}}<p class="muted">{{.}}</p>{{end}}
       <form class="progress-form reading-progress" method="post" action="/books/{{.Book.ID}}/progress">
         {{template "fields" .}}
         <input type="hidden" name="back" value="book">
-        <label class="progress-value"><span data-progress-label>{{.Book.ProgressLabel}}</span><input type="text" name="progress" inputmode="{{if eq .Book.ProgressUnit "seconds"}}text{{else}}numeric{{end}}" placeholder="{{if eq .Book.ProgressUnit "seconds"}}e.g. 2:30{{else if eq .Book.ProgressUnit "percent"}}e.g. 35{{else}}e.g. 120{{end}}" value="{{.Book.ProgressValue}}"></label>
+        <label class="progress-value"><span data-progress-label>{{.Book.ProgressLabel}}</span><input type="text" name="progress" inputmode="{{if eq .Book.ProgressUnit "seconds"}}text{{else}}numeric{{end}}" placeholder="{{if eq .Book.ProgressUnit "seconds"}}e.g. 2:30:15{{else if eq .Book.ProgressUnit "percent"}}e.g. 35{{else}}e.g. 120{{end}}" value="{{.Book.ProgressValue}}"></label>
         <button class="button small"><span>Save progress</span></button>
         <details class="progress-format">
           <summary>Tracking: <span data-progress-method>{{.Book.ProgressMethod}}</span> · Change</summary>
-          <label>Track progress by<select name="unit" aria-label="Track progress by"><option value="page" {{if eq .Book.ProgressUnit "page"}}selected{{end}}>Page</option><option value="percent" {{if eq .Book.ProgressUnit "percent"}}selected{{end}}>Percentage</option><option value="seconds" {{if eq .Book.ProgressUnit "seconds"}}selected{{end}}>Audio position (hours:minutes)</option></select></label>
-          <p class="muted"><small>Enter your position in the new unit when changing how you track this book. Audio positions use hours:minutes.</small></p>
+          <label>Track progress by<select name="unit" aria-label="Track progress by"><option value="page" {{if eq .Book.ProgressUnit "page"}}selected{{end}}>Page</option><option value="percent" {{if eq .Book.ProgressUnit "percent"}}selected{{end}}>Percentage</option><option value="seconds" {{if eq .Book.ProgressUnit "seconds"}}selected{{end}}>Audio position (h:mm:ss)</option></select></label>
+          <p class="muted"><small>Enter your position in the new unit when changing how you track this book. Use hours:minutes:seconds (e.g. 2:30:15), or hours:minutes (e.g. 2:30).</small></p>
         </details>
       </form>
       {{if and (eq .Book.ProgressUnit "seconds") (not .Book.AudioSeconds)}}<p class="muted progress-hint"><small><a href="/books/{{.Book.ID}}/edit#audio_duration">Add the total audio duration in Edit details</a> to show a percentage.</small></p>{{end}}
@@ -47,7 +48,7 @@
       {{else if eq .Book.Status "reading"}}
       <a class="button primary" href="/books/{{.Book.ID}}/finish" aria-label="Finished {{.Book.Title}}"><span>Finished</span></a>
       {{else if eq .Book.Status "read"}}
-      <a class="button primary" href="/books/{{.Book.ID}}/edit#reading"><span>Add another reading</span></a>
+      <a class="button primary" href="/books/{{.Book.ID}}?log-reading=1#log-reading"><span>Add another reading</span></a>
       {{else if eq .Book.Status "unreviewed"}}
       <form class="triage" method="post" action="/books/{{.Book.ID}}/triage">
         {{template "fields" .}}
@@ -112,7 +113,7 @@
         {{template "csrf" $}}
         <input type="hidden" name="version" value="{{.Version}}">
         <label>Date<input type="date" name="day" value="{{.Day}}" required></label>
-        <label>{{if eq .Unit "seconds"}}Hours:minutes{{else if eq .Unit "percent"}}Percent{{else}}Page{{end}}<input type="text" name="value" value="{{.FormValue}}" required></label>
+        <label>{{if eq .Unit "seconds"}}Hours:minutes:seconds{{else if eq .Unit "percent"}}Percent{{else}}Page{{end}}<input type="text" name="value" value="{{.FormValue}}" required></label>
         <p class="span-2 muted"><small>Changing or deleting your newest update also sets your current progress to the newest one left, so the two agree. Older updates leave it alone.</small></p>
         <div class="span-2 button-row">
           <button class="button" name="action" value="save">Save update</button>
@@ -135,6 +136,56 @@
 <ul class="muted">{{range .EarlierAttempts}}<li>{{.Text}}</li>{{end}}</ul>
 {{end}}
 {{end}}
+<section class="section-heading" id="reading">
+  <h2>Completed readings</h2>
+  <p>Each reading has its own dates, rating, and review. Corrections stay yours on later imports.</p>
+</section>
+{{with .ReadingNotice}}<div class="notice" role="status">{{.}}</div>{{end}}
+{{range .Readings}}{{$e := .}}
+<article class="panel reading-entry" aria-label="Completed reading">
+  <div class="event"><span>{{with .StartedAt}}Started <time datetime="{{.}}">{{.}}</time> · {{end}}{{with .FinishedAt}}<time datetime="{{.}}">{{$e.When}}</time>{{else}}Date not recorded{{end}}</span><strong>{{if .Rating}}{{stars .Rating}}{{else}}Unrated{{end}}</strong><span>{{if .AddedByHand}}Logged by you{{else if eq .Source "manual"}}Edited by you{{else if eq .Source "hardcover"}}Hardcover{{else}}Goodreads{{end}}</span></div>
+  {{if .Review}}<div class="review">{{.ReviewHTML}}</div>{{end}}
+  <details class="reading-editor">
+    <summary>{{if .Rating}}Edit reading &amp; review{{else}}Rate &amp; review{{end}}</summary>
+<form class="form-grid" method="post" action="/readings/{{.ID}}">
+  {{template "fields" $}}
+  <label><span>Started <small class="muted">optional</small></span><input type="date" name="started_at" value="{{with .StartedAt}}{{.}}{{end}}"></label>
+  <label><span>Finished <small class="muted">optional</small></span><input type="date" name="finished_at" value="{{with .FinishedAt}}{{.}}{{end}}"></label>
+  {{template "rating-input" .Rating}}
+  <p class="span-2 muted"><small>{{if .AddedByHand}}Logged by you.{{else if eq .Source "manual"}}Imported, edited by you.{{else if eq .Source "hardcover"}}From Hardcover.{{else}}From Goodreads.{{end}}{{if .Review}} Your review is below.{{else if .ReviewChars}} You wrote a {{.ReviewChars}}-character review on Goodreads; its text is not kept here (see Preferences).{{end}}</small></p>
+  {{template "review-input" .Review}}
+  <div class="span-2 button-row">
+    <button class="button primary" name="action" value="save">Save reading &amp; review</button>
+    {{if .AddedByHand}}<button class="text-button delete-reading" name="action" value="delete">Delete reading</button>{{end}}
+  </div>
+</form>
+  </details>
+  {{if and $.HardcoverReady $.HardcoverLink}}
+  <div class="button-row">
+  {{if and $.HardcoverReady $.HardcoverLink .Review (eq .ReviewFormat "markdown")}}
+  <form method="post" action="/readings/{{.ID}}/hardcover/review">{{template "fields" $}}<button class="button small">Share review to Hardcover…</button></form>
+  {{end}}
+  {{if and $.HardcoverReady $.HardcoverLink .FinishedAt}}
+  <form method="post" action="/readings/{{.ID}}/hardcover/send">{{template "fields" $}}<button class="button small">Send this reading to Hardcover…</button></form>
+  {{end}}
+  </div>
+  {{end}}
+</article>
+{{else}}
+<p class="muted">No completed readings yet. Log a past reading below without changing your reading status.</p>
+{{end}}
+<details class="panel reading-editor log-reading" id="log-reading" {{if .LogReading}}open{{end}}>
+  <summary>Log a completed reading</summary>
+  <p class="muted">Add a past reading without changing your current reading status or queue position.</p>
+<form class="form-grid" method="post" action="/books/{{.Book.ID}}/readings">
+  {{template "fields" .}}
+  <label>Started <span class="muted">optional</span><input type="date" name="started_at"></label>
+  <label>Finished <span class="muted">optional</span><input type="date" name="finished_at"></label>
+  {{template "rating-input" noRating}}
+  {{template "review-input" noRating}}
+  <div class="span-2"><button class="button">Add completed reading</button></div>
+</form>
+</details>
 <section class="section-heading" id="details">
   <h2>Details</h2>
 </section>
@@ -287,28 +338,6 @@
   <label>Percent <span class="muted">optional</span><input type="number" name="percent" min="0" max="100" inputmode="numeric"></label>
   <div class="span-2"><button class="button">Add note</button></div>
 </form>
-<section class="section-heading" id="reading">
-  <h2>Completed readings</h2>
-  <p>Past readings, each with its own dates and rating.</p>
-</section>
-{{with .ReadingNotice}}<div class="notice" role="status">{{.}}</div>{{end}}
-{{if .Readings}}
-<div class="panel">
-  {{range .Readings}}{{$e := .}}
-  <div class="event"><span>{{with .StartedAt}}Started <time datetime="{{.}}">{{.}}</time> · {{end}}{{with .FinishedAt}}<time datetime="{{.}}">{{$e.When}}</time>{{else}}Date not recorded{{end}}</span><strong>{{if .Rating}}{{stars .Rating}}{{else}}Unrated{{end}}</strong><span>{{if .AddedByHand}}Logged by you{{else if eq .Source "manual"}}Edited by you{{else if eq .Source "hardcover"}}Hardcover{{else}}Goodreads{{end}}</span></div>
-  {{if .Review}}<div class="review">{{.ReviewHTML}}</div>{{end}}
-  <div class="button-row"><a class="button small" href="/books/{{$.Book.ID}}/edit#reading">Rate &amp; review</a>
-  {{if and $.HardcoverReady $.HardcoverLink .Review (eq .ReviewFormat "markdown")}}
-  <form method="post" action="/readings/{{.ID}}/hardcover/review">{{template "fields" $}}<button class="button small">Share review to Hardcover…</button></form>
-  {{end}}</div>
-  {{if and $.HardcoverReady $.HardcoverLink .FinishedAt}}
-  <form method="post" action="/readings/{{.ID}}/hardcover/send">{{template "fields" $}}<button class="button small">Send this reading to Hardcover…</button></form>
-  {{end}}
-  {{end}}
-</div>
-{{else}}
-<p class="muted">No finished readings yet. They come from a Goodreads import, or you can <a href="/books/{{.Book.ID}}/edit#reading">log one</a>.</p>
-{{end}}
 <section class="section-heading" id="library">
   <h2>Library</h2>
 </section>

@@ -60,7 +60,7 @@ func (b Book) ProgressUnit() string {
 	return "page"
 }
 
-// ProgressValue is the saved form value (hours:minutes for time, empty when untracked).
+// ProgressValue is the saved form value (hours:minutes with optional seconds for time, empty when untracked).
 func (b Book) ProgressValue() string {
 	switch {
 	case b.ProgressSeconds != nil:
@@ -143,17 +143,49 @@ func percentPaceText(left, days int) string {
 	return fmt.Sprintf("%d%% left · about %d%% a day to finish in time", left, (left+days-1)/days)
 }
 
-// Pace says what is left to read before a loan is due: in percent when the
-// reader tracks the book that way, otherwise in pages. It is "" when neither
-// is known.
+// audioPaceText describes remaining audio and the daily amount needed before
+// a due date. Round up to whole minutes so a short remainder never looks done.
+func audioPaceText(left, days int) string {
+	if left <= 0 {
+		return ""
+	}
+	minutes := (left + 59) / 60
+	remaining := fmt.Sprintf("%d %s", minutes, plural(minutes, "minute", "minutes"))
+	if minutes >= 60 {
+		hours, rest := minutes/60, minutes%60
+		remaining = fmt.Sprintf("%d %s", hours, plural(hours, "hour", "hours"))
+		if rest > 0 {
+			remaining += fmt.Sprintf(" %d %s", rest, plural(rest, "minute", "minutes"))
+		}
+	}
+	text := remaining + " of audio left"
+	if days > 0 {
+		per := (left + days*60 - 1) / (days * 60)
+		text += fmt.Sprintf(" · about %d %s a day to finish in time", per, plural(per, "minute", "minutes"))
+	}
+	return text
+}
+
+// Pace says what is left before a loan is due, using audio duration when
+// available, otherwise the reader's saved percentage or page count.
 func (d dueSoon) Pace() string {
-	if d.Book.ProgressSeconds != nil && d.Book.HasProgress() {
-		return percentPaceText(100-d.Book.Percent(), d.Days)
+	b := d.Book
+	if b.AudioSeconds != nil && *b.AudioSeconds > 0 && b.ProgressPage == nil {
+		left := *b.AudioSeconds
+		if b.ProgressSeconds != nil {
+			left -= *b.ProgressSeconds
+		} else if b.ProgressPercent != nil {
+			left = (left*(100-*b.ProgressPercent) + 99) / 100
+		}
+		return audioPaceText(left, d.Days)
 	}
-	if d.Book.ProgressPercent != nil {
-		return percentPaceText(100-*d.Book.ProgressPercent, d.Days)
+	if b.ProgressSeconds != nil {
+		return ""
 	}
-	left, ok := d.Book.PagesLeft()
+	if b.ProgressPercent != nil {
+		return percentPaceText(100-*b.ProgressPercent, d.Days)
+	}
+	left, ok := b.PagesLeft()
 	if !ok {
 		return ""
 	}
@@ -235,7 +267,7 @@ func (a *App) bookProgress(w http.ResponseWriter, r *http.Request) error {
 	}
 	unit := r.FormValue("unit")
 	if unit != "page" && unit != "percent" && unit != "seconds" {
-		return bad("Choose pages, percentage, or hours:minutes.")
+		return bad("Choose pages, percentage, or an audio position in hours:minutes:seconds.")
 	}
 	raw := strings.TrimSpace(r.FormValue("progress"))
 	var value *int
@@ -425,7 +457,7 @@ func audioPosition(seconds int) string {
 
 func parseAudioPosition(raw string) (int, error) {
 	parts := strings.Split(strings.TrimSpace(raw), ":")
-	invalid := bad("Enter elapsed hours:minutes, such as 2:30 (minutes 00–59, up to 9999:59:59). Seconds are optional.")
+	invalid := bad("Enter hours:minutes:seconds, such as 2:30:15, or hours:minutes, such as 2:30 (minutes and seconds 00–59, up to 9999:59:59).")
 	if len(parts) < 2 || len(parts) > 3 {
 		return 0, invalid
 	}
@@ -452,7 +484,7 @@ func parseAudioPosition(raw string) (int, error) {
 	return seconds, nil
 }
 
-// AudioDuration is the total edition length as an editable hours:minutes value.
+// AudioDuration is the total edition length as an editable hours:minutes value with optional seconds.
 func (b Book) AudioDuration() string {
 	if b.AudioSeconds == nil {
 		return ""

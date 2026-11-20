@@ -3,22 +3,11 @@
 <header class="page-heading">
   <div>
     <h1>{{if .Editing}}Edit book details{{else}}What caught your eye?{{end}}</h1>
-    <p>Your want-to-read and preferences help it find the right place.</p>
+    <p>{{if .Editing}}Book information and queue preferences. Manage readings, ratings, and reviews on <a href="/books/{{.Book.ID}}#reading">the book page</a>.{{else}}Your want-to-read and preferences help it find the right place.{{end}}</p>
   </div>
 </header>
 {{with .LookupNote}}<div class="notice" role="status">{{.}}</div>{{end}}
 {{with .LookupError}}<div class="notice error" role="alert">{{.}}</div>{{end}}
-{{if and .Editing (eq .Book.Status "reading")}}
-<section class="panel current-reading-editor" aria-labelledby="current-reading-title">
-  <h2 id="current-reading-title">Current reading</h2>
-  <p class="muted">When you started this reading. Past readings have their own dates <a href="#reading">below</a>.</p>
-  <form class="start-date-form" method="post" action="/books/{{.Book.ID}}/start-date">
-    {{template "fields" .}}
-    <label>Started on<input type="date" name="started_at" value="{{with .Book.StartedAt}}{{.}}{{end}}"></label>
-    <button class="button">Save start date</button>
-  </form>
-</section>
-{{end}}
 <form class="panel form-grid" method="post">
   {{if and .LookupOn (not .Editing)}}<button class="default-submit" tabindex="-1" aria-hidden="true">Add &amp; suggest a position</button>{{end}}
   {{template "fields" .}}
@@ -52,7 +41,7 @@
   {{if not .Editing}}<label>Reading start date <span class="muted">optional, when adding as Reading; defaults to today</span><input type="date" name="started_at" value="{{with .Book.StartedAt}}{{.}}{{end}}"></label>{{end}}
   <label class="span-2 check"><input type="checkbox" name="owned" value="1" {{if .Book.Owned}}checked{{end}}> I own a copy <span class="muted">your own flag; library loans and imports never change it</span></label>
   <label class="span-2">Why I want to read this <span class="muted">optional, private; never imported or sent to an AI</span><textarea name="reason" rows="3" maxlength="500" placeholder="Who recommended it, what you hope to find">{{.Book.Reason}}</textarea></label>
-  <label>Total audiobook duration <span class="muted">optional · hours:minutes</span><input name="audio_duration" id="audio_duration" type="text" placeholder="e.g. 10:00" value="{{.Book.AudioDuration}}"></label>
+  <label>Total audiobook duration <span class="muted">optional · hours:minutes:seconds or hours:minutes</span><input name="audio_duration" id="audio_duration" type="text" placeholder="e.g. 10:00" value="{{.Book.AudioDuration}}"></label>
   <label>Pages <span class="muted">optional</span><input name="pages" type="number" min="1" max="99999" value="{{pages .Book.Pages}}"></label>
   <p class="span-2 muted"><small>Use the full length of your audiobook edition. Hardcover imports can fill an empty duration from your selected edition. Goodreads CSV exports do not include audio duration or start dates.</small></p>
   <details class="span-2 more-details" {{if or .Book.AudioSeconds .Book.Pages .Book.Tags .Book.Series .Book.SeriesNumber .Book.Description}}open{{end}}>
@@ -82,36 +71,6 @@
   </form>
   {{end}}
 </section>
-<section class="section-heading" id="reading">
-  <h2>Completed readings</h2>
-  <p>Past readings of this book, each with its own dates and rating. Your corrections stay yours on later imports.</p>
-</section>
-{{with .ReadingNotice}}<div class="notice" role="status">{{.}}</div>{{end}}
-{{range .Readings}}
-<form class="panel form-grid reading-entry" method="post" action="/readings/{{.ID}}">
-  {{template "fields" $}}
-  <h3 class="span-2 reading-entry-title">{{with .When}}Finished {{.}}{{else}}Finish date unknown{{end}}</h3>
-  <label><span>Started <small class="muted">optional</small></span><input type="date" name="started_at" value="{{with .StartedAt}}{{.}}{{end}}"></label>
-  <label><span>Finished <small class="muted">optional</small></span><input type="date" name="finished_at" value="{{with .FinishedAt}}{{.}}{{end}}"></label>
-  {{template "rating-input" .Rating}}
-  <p class="span-2 muted"><small>{{if .AddedByHand}}Logged by you.{{else if eq .Source "manual"}}Imported, edited by you.{{else if eq .Source "hardcover"}}From Hardcover.{{else}}From Goodreads.{{end}}{{if .Review}} Your review is below.{{else if .ReviewChars}} You wrote a {{.ReviewChars}}-character review on Goodreads; its text is not kept here (see Preferences).{{end}}</small></p>
-  {{template "review-input" .Review}}
-  {{if .Review}}<details class="span-2"><summary>Saved review</summary><div class="review">{{.ReviewHTML}}</div></details>{{end}}
-  <div class="span-2 button-row">
-    <button class="button primary" name="action" value="save">Save reading &amp; review</button>
-    {{if .AddedByHand}}<button class="text-button delete-reading" name="action" value="delete">Delete reading</button>{{end}}
-  </div>
-</form>
-{{end}}
-<form class="panel form-grid" method="post" action="/books/{{.Book.ID}}/readings">
-  {{template "fields" .}}
-  <h3 class="span-2">Log a completed reading</h3>
-  <label>Started <span class="muted">optional</span><input type="date" name="started_at"></label>
-  <label>Finished <span class="muted">optional</span><input type="date" name="finished_at"></label>
-  {{template "rating-input" noRating}}
-  {{template "review-input" noRating}}
-  <div class="span-2"><button class="button">Add completed reading</button></div>
-</form>
 <section class="section-heading" id="library">
   <h2>At the library</h2>
   <p>Log a checkout, hold, or return. This never marks the book as finished.</p>

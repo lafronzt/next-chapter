@@ -39,7 +39,7 @@
         <form class="progress-form reading-progress" method="post" action="/books/{{.ID}}/progress">
           {{template "fields" $}}
           <input type="hidden" name="return" value="{{$.Pager.Self}}">
-          <label><span data-progress-label>{{.ProgressLabel}}</span><input type="text" name="progress" inputmode="{{if eq .ProgressUnit "seconds"}}text{{else}}numeric{{end}}" placeholder="{{if eq .ProgressUnit "seconds"}}e.g. 2:30{{else if eq .ProgressUnit "percent"}}e.g. 35{{else}}e.g. 120{{end}}" value="{{.ProgressValue}}" aria-label="How far you are in {{.Title}}"></label>
+          <label><span data-progress-label>{{.ProgressLabel}}</span><input type="text" name="progress" inputmode="{{if eq .ProgressUnit "seconds"}}text{{else}}numeric{{end}}" placeholder="{{if eq .ProgressUnit "seconds"}}e.g. 2:30:15{{else if eq .ProgressUnit "percent"}}e.g. 35{{else}}e.g. 120{{end}}" value="{{.ProgressValue}}" aria-label="How far you are in {{.Title}}"></label>
           <label>Track by <select name="unit" aria-label="Tracking method for {{.Title}}"><option value="page" {{if eq .ProgressUnit "page"}}selected{{end}}>Page</option><option value="percent" {{if eq .ProgressUnit "percent"}}selected{{end}}>Percentage</option><option value="seconds" {{if eq .ProgressUnit "seconds"}}selected{{end}}>Audio position</option></select></label>
           <button class="button small"><span>Save</span></button>
         </form>

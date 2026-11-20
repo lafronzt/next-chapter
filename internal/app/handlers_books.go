@@ -147,7 +147,7 @@ func (a *App) bookPageData(id int64) (page, error) {
 	return data, nil
 }
 
-// viewBook is the read-only page for a book: what it is, where it stands,
+// viewBook shows a book and its everyday reading controls: where it stands,
 // the one obvious next step, and its readings, library activity, and estimate.
 func (a *App) viewBook(w http.ResponseWriter, r *http.Request) error {
 	id, err := requestID(r)
@@ -158,11 +158,11 @@ func (a *App) viewBook(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
+	data["LogReading"] = r.URL.Query().Get("log-reading") == "1"
 	return a.render(w, r, "book_view.html", data, 200)
 }
 
-// editBook shows and saves the edit form, with the forms for readings and
-// library events beneath it.
+// editBook shows and saves book details, with library event and cleanup tools.
 func (a *App) editBook(w http.ResponseWriter, r *http.Request) error {
 	id, err := requestID(r)
 	if err != nil {

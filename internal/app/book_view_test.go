@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-func TestBookViewIsReadOnlyAndEditHasTheForm(t *testing.T) {
+func TestBookViewKeepsBookDetailsInEditForm(t *testing.T) {
 	t.Parallel()
 	a := testApp(t, true)
 	addRecords(t, a, records("Viewed"))
@@ -15,7 +15,7 @@ func TestBookViewIsReadOnlyAndEditHasTheForm(t *testing.T) {
 	b := &browser{t: t, handler: a.Handler()}
 	view := b.request("GET", fmt.Sprintf("/books/%d", id), nil).Body.String()
 	if strings.Contains(view, `name="title"`) || strings.Contains(view, `name="interest"`) || !strings.Contains(view, fmt.Sprintf(`href="/books/%d/edit"`, id)) {
-		t.Fatal("view page has form fields or lacks the Edit details link")
+		t.Fatal("view page has book detail fields or lacks the Edit details link")
 	}
 	edit := b.request("GET", fmt.Sprintf("/books/%d/edit", id), nil).Body.String()
 	if !strings.Contains(edit, `name="title"`) || !strings.Contains(edit, `name="interest"`) {
@@ -50,6 +50,9 @@ func TestEachStatusShowsItsOwnPrimaryAction(t *testing.T) {
 	all := []string{"Start reading", "Finished ", "Add another reading", "Want to read ", "Already read ", "Not interested in ", "back to my queue"}
 	for title, labels := range want {
 		body := b.request("GET", fmt.Sprintf("/books/%d", bookNamed(t, a, title).ID), nil).Body.String()
+		// Check status actions independently of date labels in reading forms.
+		body = strings.SplitN(body, `id="progress-history"`, 2)[0]
+		body = strings.SplitN(body, `id="reading"`, 2)[0]
 		for _, l := range labels {
 			if !strings.Contains(body, l) {
 				t.Errorf("%s: missing %q", title, l)
@@ -130,5 +133,34 @@ func TestEditBookChangesISBNAndYear(t *testing.T) {
 	got = bookNamed(t, a, "Fixable")
 	if got.ISBN != "" || got.PublishedYear != nil {
 		t.Fatalf("isbn %q year %v", got.ISBN, got.PublishedYear)
+	}
+}
+
+func TestBookReadingControlsLiveOnMainPage(t *testing.T) {
+	t.Parallel()
+	a := testApp(t, true)
+	addRecords(t, a, []Record{finished("Rereading", "2026-10-01", 4.25)})
+	id := bookNamed(t, a, "Rereading").ID
+	b := &browser{t: t, handler: a.Handler()}
+	expect(t, b.form(fmt.Sprintf("/books/%d/edit", id), bookForm("Rereading", "reading")), 303)
+	path := fmt.Sprintf("/books/%d", id)
+	view := b.request("GET", path, nil).Body.String()
+	for _, want := range []string{`id="current-reading-title"`, `action="` + path + `/start-date"`, `id="reading"`, `action="` + path + `/readings"`, `name="rating"`, `name="review"`} {
+		if !strings.Contains(view, want) {
+			t.Errorf("main page missing %s", want)
+		}
+	}
+	if strings.Index(view, `id="reading"`) > strings.Index(view, `id="details"`) || strings.Contains(view, "/edit#reading") {
+		t.Fatal("reading actions buried under details or linked to old editor")
+	}
+	edit := b.request("GET", path+"/edit", nil).Body.String()
+	for _, removed := range []string{`/start-date"`, `name="rating"`, `name="review"`, `<h2>Completed readings</h2>`} {
+		if strings.Contains(edit, removed) {
+			t.Errorf("edit details still has %s", removed)
+		}
+	}
+	opened := b.request("GET", path+"?log-reading=1", nil).Body.String()
+	if !strings.Contains(opened, `id="log-reading" open`) {
+		t.Fatal("add reading destination did not open the form")
 	}
 }
