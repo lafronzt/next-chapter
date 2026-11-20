@@ -3323,19 +3323,8 @@ main section.hc-panel[aria-labelledby]>h2 {
 .progress-format>summary { color:var(--muted); font-size:var(--text-sm); cursor:pointer; min-height:44px; padding:10px 0; }
 .book-summary .progress-format label { margin-top:12px; max-width:320px; }
 .book-summary .progress-format p { margin:8px 0 0; max-width:48ch; }
-.current-reading-editor { max-width:870px; margin:0 0 24px; }
-.current-reading-editor h2 { margin:0; font:24px/1.25 var(--serif); }
-.current-reading-editor>p { margin:8px 0 0; max-width:65ch; }
-.current-reading-editor .start-date-form { margin-top:16px; }
 .reading-entry+.reading-entry { margin-top:20px; }
-.reading-entry-title { margin:0; font:20px/1.35 var(--serif); overflow-wrap:anywhere; }
-.reading-entry+.form-grid { margin-top:20px; }
 .hc-sync-scope { margin:16px 0 0; max-width:70ch; }
-@media(max-width:600px) {
-  .current-reading-editor { padding:20px; }
-  .current-reading-editor .start-date-form { gap:12px; }
-  .current-reading-editor .start-date-form label { flex:1 1 160px; min-width:0; }
-}
 
 .reading-entry .delete-reading { min-height:44px; color:var(--accent); font-size:var(--text-sm); padding:8px 4px; cursor:pointer; }
 .reading-entry .button-row { gap:12px; }
@@ -3383,3 +3372,10 @@ main section.hc-panel[aria-labelledby]>h2 {
   .review-editor textarea { padding:14px; }
   .review-preview { padding:16px; }
 }
+
+/* Reading actions live on the book page; editors expand only when needed. */
+.current-reading-title { margin:0 0 12px; font:22px/1.3 var(--serif); }
+.reading-editor>summary { cursor:pointer; min-height:44px; padding:10px 0; font-weight:600; }
+.reading-editor>.form-grid { margin-top:16px; }
+.reading-entry>.event { padding-top:0; }
+.log-reading { margin-top:20px; }

@@ -101,7 +101,7 @@ document.querySelectorAll('.reading-progress').forEach(function (form) {
     if (label) label.textContent = unit.value === 'seconds' ? 'Audio position' : unit.value === 'percent' ? 'Progress (%)' : 'Page reached';
     if (method) method.textContent = unit.value === 'seconds' ? 'Audio position' : unit.value === 'percent' ? 'Percentage' : 'Page';
     input.inputMode = unit.value === 'seconds' ? 'text' : 'numeric';
-    input.placeholder = unit.value === 'seconds' ? 'e.g. 2:30' : unit.value === 'percent' ? 'e.g. 35' : 'e.g. 120';
+    input.placeholder = unit.value === 'seconds' ? 'e.g. 2:30:15' : unit.value === 'percent' ? 'e.g. 35' : 'e.g. 120';
   }
   unit.addEventListener('change', function () {
     drafts[previous] = input.value;

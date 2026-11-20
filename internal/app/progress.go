@@ -60,7 +60,7 @@ func (b Book) ProgressUnit() string {
 	return "page"
 }
 
-// ProgressValue is the saved form value (hours:minutes for time, empty when untracked).
+// ProgressValue is the saved form value (hours:minutes with optional seconds for time, empty when untracked).
 func (b Book) ProgressValue() string {
 	switch {
 	case b.ProgressSeconds != nil:
@@ -235,7 +235,7 @@ func (a *App) bookProgress(w http.ResponseWriter, r *http.Request) error {
 	}
 	unit := r.FormValue("unit")
 	if unit != "page" && unit != "percent" && unit != "seconds" {
-		return bad("Choose pages, percentage, or hours:minutes.")
+		return bad("Choose pages, percentage, or an audio position in hours:minutes:seconds.")
 	}
 	raw := strings.TrimSpace(r.FormValue("progress"))
 	var value *int
@@ -425,7 +425,7 @@ func audioPosition(seconds int) string {
 
 func parseAudioPosition(raw string) (int, error) {
 	parts := strings.Split(strings.TrimSpace(raw), ":")
-	invalid := bad("Enter elapsed hours:minutes, such as 2:30 (minutes 00–59, up to 9999:59:59). Seconds are optional.")
+	invalid := bad("Enter hours:minutes:seconds, such as 2:30:15, or hours:minutes, such as 2:30 (minutes and seconds 00–59, up to 9999:59:59).")
 	if len(parts) < 2 || len(parts) > 3 {
 		return 0, invalid
 	}
@@ -452,7 +452,7 @@ func parseAudioPosition(raw string) (int, error) {
 	return seconds, nil
 }
 
-// AudioDuration is the total edition length as an editable hours:minutes value.
+// AudioDuration is the total edition length as an editable hours:minutes value with optional seconds.
 func (b Book) AudioDuration() string {
 	if b.AudioSeconds == nil {
 		return ""

@@ -41,12 +41,12 @@ func TestAudioProgressSaveSyncHistoryRestore(t *testing.T) {
 	}
 	optIn(t, b, id)
 	rev := revisionOf(t, a)
-	loc := saveProgress(t, a, b, id, "seconds", "2:30")
-	if !strings.Contains(loc, "hc-progress-sent") || f.seconds != 9000 || f.pages != 0 {
+	loc := saveProgress(t, a, b, id, "seconds", "2:30:15")
+	if !strings.Contains(loc, "hc-progress-sent") || f.seconds != 9015 || f.pages != 0 {
 		t.Fatalf("%s: %+v", loc, f)
 	}
 	book, _ := getBook(a.store.DB, id)
-	if book.ProgressSeconds == nil || *book.ProgressSeconds != 9000 || book.ProgressPercent != nil || book.ProgressPage != nil || book.ProgressText() != "2:30 elapsed" || book.HasProgress() {
+	if book.ProgressSeconds == nil || *book.ProgressSeconds != 9015 || book.ProgressPercent != nil || book.ProgressPage != nil || book.ProgressText() != "2:30:15 elapsed" || book.HasProgress() {
 		t.Fatalf("%+v", book)
 	}
 	if _, ok := book.PagesLeft(); ok {
@@ -56,7 +56,7 @@ func TestAudioProgressSaveSyncHistoryRestore(t *testing.T) {
 		t.Fatal("progress moved library revision")
 	}
 	cps, err := loadAllCheckpoints(a.store.DB)
-	if err != nil || len(cps) != 1 || cps[0].Unit != "seconds" || cps[0].Text() != "2:30 elapsed" {
+	if err != nil || len(cps) != 1 || cps[0].Unit != "seconds" || cps[0].Text() != "2:30:15 elapsed" {
 		t.Fatalf("%+v %v", cps, err)
 	}
 	if rr := b.request("POST", bookPath(id)+"/progress", url.Values{"unit": {"seconds"}, "progress": {"2:60"}}); rr.Code != 400 {
