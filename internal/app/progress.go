@@ -143,17 +143,49 @@ func percentPaceText(left, days int) string {
 	return fmt.Sprintf("%d%% left · about %d%% a day to finish in time", left, (left+days-1)/days)
 }
 
-// Pace says what is left to read before a loan is due: in percent when the
-// reader tracks the book that way, otherwise in pages. It is "" when neither
-// is known.
+// audioPaceText describes remaining audio and the daily amount needed before
+// a due date. Round up to whole minutes so a short remainder never looks done.
+func audioPaceText(left, days int) string {
+	if left <= 0 {
+		return ""
+	}
+	minutes := (left + 59) / 60
+	remaining := fmt.Sprintf("%d %s", minutes, plural(minutes, "minute", "minutes"))
+	if minutes >= 60 {
+		hours, rest := minutes/60, minutes%60
+		remaining = fmt.Sprintf("%d %s", hours, plural(hours, "hour", "hours"))
+		if rest > 0 {
+			remaining += fmt.Sprintf(" %d %s", rest, plural(rest, "minute", "minutes"))
+		}
+	}
+	text := remaining + " of audio left"
+	if days > 0 {
+		per := (left + days*60 - 1) / (days * 60)
+		text += fmt.Sprintf(" · about %d %s a day to finish in time", per, plural(per, "minute", "minutes"))
+	}
+	return text
+}
+
+// Pace says what is left before a loan is due, using audio duration when
+// available, otherwise the reader's saved percentage or page count.
 func (d dueSoon) Pace() string {
-	if d.Book.ProgressSeconds != nil && d.Book.HasProgress() {
-		return percentPaceText(100-d.Book.Percent(), d.Days)
+	b := d.Book
+	if b.AudioSeconds != nil && *b.AudioSeconds > 0 && b.ProgressPage == nil {
+		left := *b.AudioSeconds
+		if b.ProgressSeconds != nil {
+			left -= *b.ProgressSeconds
+		} else if b.ProgressPercent != nil {
+			left = (left*(100-*b.ProgressPercent) + 99) / 100
+		}
+		return audioPaceText(left, d.Days)
 	}
-	if d.Book.ProgressPercent != nil {
-		return percentPaceText(100-*d.Book.ProgressPercent, d.Days)
+	if b.ProgressSeconds != nil {
+		return ""
 	}
-	left, ok := d.Book.PagesLeft()
+	if b.ProgressPercent != nil {
+		return percentPaceText(100-*b.ProgressPercent, d.Days)
+	}
+	left, ok := b.PagesLeft()
 	if !ok {
 		return ""
 	}

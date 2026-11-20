@@ -138,3 +138,56 @@ func TestMigrateAudioDuration(t *testing.T) {
 		t.Fatal(got)
 	}
 }
+
+func TestAudioDueDatePace(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name string
+		book Book
+		days int
+		want string
+	}{
+		{"position", Book{AudioSeconds: intp(36000), ProgressSeconds: intp(9000)}, 5, "7 hours 30 minutes of audio left · about 90 minutes a day to finish in time"},
+		{"percentage", Book{AudioSeconds: intp(36000), ProgressPercent: intp(25)}, 5, "7 hours 30 minutes of audio left · about 90 minutes a day to finish in time"},
+		{"not started", Book{AudioSeconds: intp(36000), Pages: intp(300)}, 5, "10 hours of audio left · about 120 minutes a day to finish in time"},
+		{"round up seconds", Book{AudioSeconds: intp(36000), ProgressSeconds: intp(35939)}, 2, "2 minutes of audio left · about 1 minute a day to finish in time"},
+		{"due today", Book{AudioSeconds: intp(36000), ProgressSeconds: intp(9000)}, 0, "7 hours 30 minutes of audio left"},
+		{"overdue", Book{AudioSeconds: intp(36000), ProgressSeconds: intp(9000)}, -1, "7 hours 30 minutes of audio left"},
+		{"finished", Book{AudioSeconds: intp(36000), ProgressSeconds: intp(36000)}, 5, ""},
+		{"past total", Book{AudioSeconds: intp(36000), ProgressSeconds: intp(36001)}, 5, ""},
+		{"unknown total", Book{ProgressSeconds: intp(9000), Pages: intp(300)}, 5, ""},
+		{"zero total", Book{AudioSeconds: intp(0), ProgressSeconds: intp(9000)}, 5, ""},
+		{"percent without total", Book{ProgressPercent: intp(25)}, 5, "75% left · about 15% a day to finish in time"},
+		{"page tracking", Book{AudioSeconds: intp(36000), Pages: intp(300), ProgressPage: intp(100)}, 5, "200 pages left · about 40 a day to finish in time"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := (dueSoon{Book: tc.book, Days: tc.days}).Pace(); got != tc.want {
+				t.Fatalf("got %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestAudioDueDatePaceOnHomeAndCalendar(t *testing.T) {
+	t.Parallel()
+	a, b := calendarApp(t)
+	today := time.Now()
+	a.now = func() time.Time { return today }
+	addRecords(t, a, records("Audio Due"))
+	id := bookIDs(t, a)["Audio Due"]
+	if _, err := a.store.DB.Exec("UPDATE books SET reading_status='reading',pages=300,audio_seconds=36000,progress_seconds=9000 WHERE id=?", id); err != nil {
+		t.Fatal(err)
+	}
+	setLoan(t, a, "Audio Due", "libby", "audiobook", "borrowed", today.AddDate(0, 0, 5).Format(time.DateOnly), "")
+	revision, snapshot := revisionOf(t, a), queueSnapshot(t, a)
+	for _, path := range []string{"/", "/calendar"} {
+		rr := b.request("GET", path, nil)
+		expect(t, rr, 200)
+		if !strings.Contains(rr.Body.String(), "7 hours 30 minutes of audio left · about 90 minutes a day to finish in time") {
+			t.Fatalf("missing audio deadline guidance on %s", path)
+		}
+	}
+	if revisionOf(t, a) != revision || queueSnapshot(t, a) != snapshot {
+		t.Fatal("viewing audio deadline guidance changed the library")
+	}
+}
