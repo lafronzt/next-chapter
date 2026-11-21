@@ -1,6 +1,6 @@
 # Pinned by digest (the multi-arch index for golang:1.27-alpine). Dependabot's
 # docker ecosystem proposes digest updates; see CONTRIBUTING.md to bump by hand.
-FROM --platform=$BUILDPLATFORM golang:1.27-alpine@sha256:d200d2dd76b03a99b52651fd1325aff7dcd35422c35c01bac56571b0507f3deb AS build
+FROM --platform=$BUILDPLATFORM golang:1.27-alpine@sha256:70bd7ddea8b6cbe5d6943cde279d6b67feb10cc924fb9100d1d8757c1575b280 AS build
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
