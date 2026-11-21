@@ -15,6 +15,7 @@
     <li>{{.Plan.History}} sync history row(s)</li>
     <li>{{.Plan.Cached}} cached catalog row(s)</li>
     <li>{{.Plan.ReadIDs}} reading(s) tied to a Hardcover read: the reading stays, only the tie is removed</li>
+    <li>{{.Plan.Follows}} followed series with {{.Plan.Discoveries}} saved result(s): they are keyed by Hardcover ids, so following starts over; your books are unchanged</li>
     <li>{{.Plan.NoteIDs}} note(s) tied to a Hardcover journal entry: the note and its remote copy stay, only the tie is removed</li>
   </ul>
   <p class="muted">A later import will match books by title and author again, and a book you deleted could come back from Hardcover, since its id is forgotten.</p>

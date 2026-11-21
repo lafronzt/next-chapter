@@ -36,6 +36,7 @@ var migrations = []migration{
 	{27, "formatted reader reviews", migrateReaderReviews},
 	{28, "quotes in the reading journal", migrateJournalQuotes},
 	{29, "Hardcover journal baselines", migrateJournalBaselines},
+	{30, "followed series and discoveries", migrateSeriesFollows},
 }
 
 func migrateBaseline(tx *sql.Tx) error {
@@ -520,5 +521,38 @@ ALTER TABLE book_notes ADD COLUMN hc_base_entry TEXT NOT NULL DEFAULT '';
 ALTER TABLE book_notes ADD COLUMN hc_base_page INTEGER NULL;
 ALTER TABLE book_notes ADD COLUMN hc_base_privacy INTEGER NOT NULL DEFAULT 0 CHECK(hc_base_privacy BETWEEN 0 AND 3);
 ALTER TABLE book_notes ADD COLUMN hc_synced_at TEXT NOT NULL DEFAULT '';`)
+	return err
+}
+
+// series_follows holds the series a reader chose to follow, by Hardcover
+// series id, and series_discoveries what each check saw of their members:
+// when a book was first seen, whether it was already there when the reader
+// started following (baseline), and what the reader did about it. Both are
+// the reader's own choices and history, kept in exports and backups. The
+// older series_cache stays what it was, a disposable cache. Nothing existing
+// changes and no book is touched.
+//
+// Backup: the migration framework writes <database>.pre-v30.bak first.
+// Rollback: restore that file and run the previous release; follows,
+// dismissals and discovery history written since are lost, so export first.
+func migrateSeriesFollows(tx *sql.Tx) error {
+	_, err := tx.Exec(`CREATE TABLE series_follows (
+ series_id INTEGER PRIMARY KEY, name TEXT NOT NULL, slug TEXT NOT NULL DEFAULT '', local_series TEXT NOT NULL DEFAULT '',
+ followed_at TEXT NOT NULL, canonical_id INTEGER NOT NULL DEFAULT 0, gone INTEGER NOT NULL DEFAULT 0 CHECK(gone IN (0,1)),
+ total INTEGER NOT NULL DEFAULT 0, run INTEGER NOT NULL DEFAULT 0, complete_checks INTEGER NOT NULL DEFAULT 0,
+ next_offset INTEGER NOT NULL DEFAULT 0, last_check_at TEXT NOT NULL DEFAULT '', last_complete_at TEXT NOT NULL DEFAULT '',
+ last_error TEXT NOT NULL DEFAULT ''
+);
+CREATE TABLE series_discoveries (
+ series_id INTEGER NOT NULL REFERENCES series_follows(series_id), hardcover_book_id INTEGER NOT NULL,
+ title TEXT NOT NULL, author TEXT NOT NULL DEFAULT '', slug TEXT NOT NULL DEFAULT '', position REAL NULL,
+ details TEXT NOT NULL DEFAULT '', compilation INTEGER NOT NULL DEFAULT 0 CHECK(compilation IN (0,1)),
+ release_date TEXT NOT NULL DEFAULT '', year INTEGER NULL, pages INTEGER NULL,
+ first_seen_at TEXT NOT NULL, baseline INTEGER NOT NULL DEFAULT 0 CHECK(baseline IN (0,1)),
+ seen_run INTEGER NOT NULL DEFAULT 0, listed INTEGER NOT NULL DEFAULT 1 CHECK(listed IN (0,1)),
+ state TEXT NOT NULL DEFAULT 'open' CHECK(state IN ('open','acknowledged','dismissed','added')),
+ resolved_at TEXT NOT NULL DEFAULT '', version INTEGER NOT NULL DEFAULT 1,
+ PRIMARY KEY(series_id, hardcover_book_id)
+);`)
 	return err
 }

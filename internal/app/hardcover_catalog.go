@@ -285,6 +285,14 @@ type hcSeriesMember struct {
 	Position        *float64
 	Title, Author   string
 	Year, Pages     int
+	// The rest is set for books chosen from a followed series' results: the
+	// result's version when previewed, and why and how it was shown.
+	Version     int    `json:",omitempty"`
+	ReleaseText string `json:",omitempty"`
+	Why         string `json:",omitempty"`
+	Upcoming    bool   `json:",omitempty"`
+	Compilation bool   `json:",omitempty"`
+	Details     string `json:",omitempty"`
 }
 
 // storeCatalog replaces everything cached for a linked book. It is a cache of

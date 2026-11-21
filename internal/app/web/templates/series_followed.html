@@ -1,0 +1,93 @@
+{{template "top" .}}
+<a class="back" href="/series"><span aria-hidden="true">←</span> Back to your series</a>
+<header class="page-heading"><div>
+  <h1>{{.Follow.Name}}</h1>
+  <p>New and not-yet-owned books in this series, from what Hardcover listed the last time you checked. Reading this page never contacts Hardcover and never changes your library or queue.</p>
+</div></header>
+<div class="stack followed">
+<section class="panel stack hc-panel" aria-labelledby="status">
+  <h2 id="status">Status</h2>
+  <p>
+    {{if .Follow.Gone}}Hardcover no longer has this series. Your saved results are kept.
+    {{else if .Follow.CanonicalID}}Hardcover merged this series into series number {{.Follow.CanonicalID}}. This follow was not moved: follow the current series from the Series page after refreshing a linked book. Saved results are kept.
+    {{else if not .Follow.CompleteChecks}}No complete check yet. The first complete check records what the series already has as a starting point; none of it is called new.
+    {{else}}Last complete check: {{day .Follow.LastCompleteAt}}.{{if .Stale}} That was over 30 days ago, so this may be out of date.{{end}}
+    {{end}}
+  </p>
+  {{if .Follow.Partial}}<p class="notice" role="status">Partial: the latest check read up to member {{.Follow.NextOffset}} of about {{.Follow.Total}} and stopped. Nothing is treated as missing until a check reads the whole series. Continue it below.</p>{{end}}
+  {{if .ErrorText}}<p class="notice error" role="alert">The last check stopped early: {{.ErrorText}} What it had read was kept.</p>{{end}}
+  <p class="muted"><small>Source: Hardcover’s catalog, community-curated and possibly incomplete or wrong.{{with .Follow.LastCheckAt}} Last check attempt {{day .}}.{{end}} Hardcover series number {{.Follow.SeriesID}}{{with .Follow.URL}} · <a href="{{.}}" rel="noopener noreferrer">View on Hardcover</a>{{end}}{{if .Follow.Total}} · lists about {{.Follow.Total}} books{{end}}.</small></p>
+  {{if .Ready}}
+  <form method="post" action="/series/check" class="button-row">
+    {{template "fields" .}}
+    <input type="hidden" name="series" value="{{.Follow.SeriesID}}">
+    <button class="button primary" data-busy-label="Reading Hardcover…">{{if .Follow.Partial}}Continue the check{{else}}Check for new books{{end}}</button>
+    {{if .Follow.Partial}}<button class="button" name="restart" value="1" data-busy-label="Reading Hardcover…">Start over</button>{{end}}
+    <span class="muted"><small>About {{.Follow.EstimatedRequests}} {{if eq .Follow.EstimatedRequests 1}}request{{else}}requests{{end}} ({{.PageSize}} books each, at most 5 a press).</small></span>
+  </form>
+  {{else}}
+  <p class="muted">Hardcover is off or not connected, so checking is unavailable. The saved results below stay readable.</p>
+  {{end}}
+</section>
+
+<nav class="tabs" aria-label="Kinds of result">
+  <ul class="tab-list">
+    {{range .Tabs}}<li><a href="/series/followed/{{$.Follow.SeriesID}}?view={{.Key}}" {{if .Current}}aria-current="page"{{end}}>{{.Label}} <span class="muted">{{.Count}}</span></a></li>{{end}}
+  </ul>
+</nav>
+
+<section class="panel stack hc-panel" aria-label="Results">
+  {{if eq .View "new"}}<p class="muted">Hardcover’s list for this series gained these after your previous complete check. That says when they were cataloged, not when they were published.</p>
+  {{else if eq .View "upcoming"}}<p class="muted">Hardcover lists a release date that has not happened yet for these. It does not say how precise a date is, so a future date is a hint, not a promise.</p>
+  {{else if eq .View "known"}}<p class="muted">Not in your library. These were already in Hardcover’s list when you started following, or you acknowledged them. Older volumes are not new releases.</p>{{end}}
+  {{if .Items}}
+  <form method="post" action="/series/followed/{{.Follow.SeriesID}}/discoveries" class="stack">
+    {{template "fields" .}}
+    <input type="hidden" name="view" value="{{.View}}">
+    <ul class="discovery-list">
+      {{range .Items}}
+      <li>
+        {{if or $.Offerable (eq $.View "dismissed")}}<label class="discovery-item"><input type="checkbox" name="item" value="{{.HardcoverBookID}}"> <span class="discovery-body">{{template "discovery" .}}</span></label>
+        {{else}}<div class="discovery-item plain"><span class="discovery-body">{{template "discovery" .}}</span></div>{{end}}
+      </li>
+      {{end}}
+    </ul>
+    {{if .Offerable}}
+    <div class="button-row">
+      <button class="button primary" formaction="/series/followed/{{.Follow.SeriesID}}/add">Preview adding to my list…</button>
+      {{if eq .View "new"}}<button class="button" name="action" value="ack">Acknowledge</button><button class="button" name="action" value="ack" formaction="/series/followed/{{.Follow.SeriesID}}/discoveries?all=new">Acknowledge all new</button>{{end}}
+      <button class="button" name="action" value="dismiss">Dismiss</button>
+    </div>
+    <p class="muted"><small>Acknowledging says “seen it”: it stays listed under Not in your library, no longer as new. Dismissing hides it; the Dismissed tab brings it back. Neither changes your library.</small></p>
+    {{else if eq .View "dismissed"}}
+    <div class="button-row"><button class="button" name="action" value="restore">Restore selected</button></div>
+    {{end}}
+  </form>
+  {{else}}
+  <p class="muted">{{if eq .Total 0}}Nothing has been read for this series yet. Press “Check for new books”.{{else if eq .View "new"}}No new books since your previous complete check.{{else if eq .View "upcoming"}}No book here has a future release date. Hardcover may simply not list upcoming books.{{else}}Nothing in this list.{{end}}</p>
+  {{end}}
+</section>
+{{template "pager" .Pager}}
+
+<section class="panel stack hc-panel" aria-labelledby="stop">
+  <h2 id="stop">Stop following</h2>
+  <p class="muted">This clears the saved results and acknowledgements for this series, including anything you dismissed. Your books, queue, and Hardcover are not changed. Following again starts with a fresh first check.</p>
+  <form method="post" action="/series/followed/{{.Follow.SeriesID}}/unfollow" class="stack">
+    {{template "fields" .}}
+    <label class="checkbox"><input type="checkbox" name="confirm" value="unfollow" required> <span>Stop following {{.Follow.Name}}</span></label>
+    <div><button class="button danger">Unfollow</button></div>
+  </form>
+</section>
+</div>
+{{template "bottom" .}}
+
+{{define "discovery"}}
+<span class="vol-number">{{.Label}}</span> <strong>{{.Title}}</strong> <span class="muted">{{.Author}}</span>
+{{if eq .Category "new"}}<span class="badge">New to the list</span>{{end}}
+{{if .Upcoming}}<span class="badge">Future date listed</span>{{end}}
+{{if .Compilation}}<span class="badge">Collection or omnibus</span>{{end}}
+{{if .SamePosition}}<span class="badge">Same number as another book</span>{{end}}
+{{if .Fractional}}<span class="badge">In between</span>{{end}}
+<br><small class="muted">{{.ReleaseText}}{{with .Link}} · <a href="{{.}}" rel="noopener noreferrer">View on Hardcover</a>{{end}}</small>
+{{if or (eq .Category "possible") (eq .Category "library") (eq .Category "removed") (eq .Category "unlisted") (eq .Category "dismissed")}}<br><small class="muted">{{.Why}}{{with .LocalTitle}} Your book: “{{.}}”.{{end}}{{if .LocalID}} <a href="/books/{{.LocalID}}">Open it</a>.{{end}}</small>{{end}}
+{{end}}

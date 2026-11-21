@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"slices"
 	"strings"
+	"time"
 )
 
 // seriesVolume is one local book in a series, as the dashboard lists it.
@@ -63,6 +64,12 @@ type seriesGroup struct {
 	// Hardcover is the cached complete series, when a linked book of this
 	// series was refreshed. It never adds or changes a book.
 	Hardcover *seriesCatalog
+	// Follows are the followed Hardcover series tied to this group (a group
+	// can follow more than one), and Candidates the Hardcover series its
+	// refreshed books belong to that can still be followed. Neither is read
+	// from Hardcover on this page.
+	Follows    []followSummary
+	Candidates []followCandidate
 }
 
 type seriesRow struct {
@@ -253,9 +260,44 @@ func (a *App) seriesPage(w http.ResponseWriter, r *http.Request) error {
 			return err
 		}
 	}
+	follows, err := loadFollows(a.store.DB)
+	if err != nil {
+		return err
+	}
+	today := a.now().UTC().Truncate(24 * time.Hour)
+	summaries, err := summarizeFollows(a.store.DB, follows, today)
+	if err != nil {
+		return err
+	}
+	cands, err := followCandidatesByGroup(a.store.DB)
+	if err != nil {
+		return err
+	}
+	followed := map[int64]bool{}
+	byLocal := map[string][]followSummary{}
+	for i := range summaries {
+		followed[summaries[i].SeriesID] = true
+		if k := foldKey(strings.TrimSpace(summaries[i].LocalSeries)); k != "" {
+			byLocal[k] = append(byLocal[k], summaries[i])
+		}
+	}
+	for i := range shown {
+		k := foldKey(strings.TrimSpace(shown[i].Name))
+		shown[i].Follows = byLocal[k]
+		for _, c := range cands[k] {
+			if !followed[c.SeriesID] {
+				shown[i].Candidates = append(shown[i].Candidates, c)
+			}
+		}
+	}
 	var standalone int
 	if err = a.store.DB.QueryRow("SELECT count(*) FROM books WHERE trim(series)=''").Scan(&standalone); err != nil {
 		return err
 	}
-	return a.render(w, r, "series.html", page{"Title": pageTitle("Series", pages), "Groups": shown, "Pager": pages, "Query": query, "TotalSeries": len(all), "Standalone": standalone}, 200)
+	now := a.now()
+	for i := range summaries {
+		summaries[i].Stale = summaries[i].staleAt(now)
+	}
+	return a.render(w, r, "series.html", page{"Title": pageTitle("Series", pages), "Groups": shown, "Pager": pages, "Query": query, "TotalSeries": len(all), "Standalone": standalone,
+		"Follows": summaries, "ShowFollows": query == "" && pages.Page == 1, "Ready": a.hardcoverReady() == nil, "CheckBatch": hcSeriesCheckMaxBatch}, 200)
 }
