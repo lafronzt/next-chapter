@@ -110,7 +110,7 @@ func TestNoteLifecycle(t *testing.T) {
 	expect(t, b.request("POST", path, url.Values{"body": {"one too many"}}), 400)
 	// The empty state.
 	other := bookNamed(t, a, "Other").ID
-	if !strings.Contains(b.request("GET", fmt.Sprintf("/books/%d", other), nil).Body.String(), "No notes yet") {
+	if !strings.Contains(b.request("GET", fmt.Sprintf("/books/%d", other), nil).Body.String(), "No notes or quotes yet") {
 		t.Fatal("no empty state")
 	}
 }

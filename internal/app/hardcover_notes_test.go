@@ -13,14 +13,38 @@ type journalFake struct {
 	calls, writes     int
 	queries           []string
 	ambiguous, refuse bool
+	// multi appends inserts with fresh ids instead of keeping one entry.
+	multi  bool
+	nextID int
+	// listFail makes the list query fail from this offset on.
+	listFail  int
+	listCalls int
+	// lastVars is the variables of the latest write.
+	lastVars map[string]any
+	// listVars records every list query's variables.
+	listVars []map[string]any
 }
 
 func (f *journalFake) handle(query string, vars map[string]any, _ int) (int, map[string]string, string) {
-	if !strings.Contains(query, "Note") {
+	if !strings.Contains(query, "Note") && !strings.Contains(query, "JournalList") {
 		return 500, nil, `{}`
 	}
 	f.calls++
 	f.queries = append(f.queries, query)
+	if strings.Contains(query, "NextChapterJournalList") {
+		f.listCalls++
+		f.listVars = append(f.listVars, vars)
+		offset, limit := int(vars["offset"].(float64)), int(vars["limit"].(float64))
+		if f.listFail > 0 && offset >= f.listFail {
+			return 500, nil, `{}`
+		}
+		page := []hcJournal{}
+		for i := offset; i < len(f.entries) && i < offset+limit; i++ {
+			page = append(page, f.entries[i])
+		}
+		raw, _ := json.Marshal(map[string]any{"data": map[string]any{"reading_journals": page}})
+		return 200, nil, string(raw)
+	}
 	if strings.Contains(query, "NextChapterNoteJournal") || strings.Contains(query, "NextChapterNoteMatch") {
 		entries := []hcJournal{}
 		for _, e := range f.entries {
@@ -37,6 +61,7 @@ func (f *journalFake) handle(query string, vars map[string]any, _ int) (int, map
 	}
 	if strings.Contains(query, "NextChapterInsertNote") || strings.Contains(query, "NextChapterUpdateNote") {
 		f.writes++
+		f.lastVars = vars
 		key := "insert_reading_journal"
 		if strings.Contains(query, "NextChapterUpdateNote") {
 			key = "update_reading_journal"
@@ -45,10 +70,32 @@ func (f *journalFake) handle(query string, vars map[string]any, _ int) (int, map
 			return 200, nil, fmt.Sprintf(`{"data":{%q:{"errors":["refused"],"reading_journal":null}}}`, key)
 		}
 		e := hcJournal{ID: 123, Entry: vars["entry"].(string), Privacy: int(vars["privacy"].(float64))}
+		if ev, ok := vars["event"].(string); ok {
+			e.Event = ev
+		}
+		if m, ok := vars["metadata"]; ok {
+			e.Metadata, _ = json.Marshal(m)
+		}
 		if id, ok := vars["id"].(float64); ok {
 			e.ID = flexInt(id)
+		} else if f.multi {
+			f.nextID++
+			e.ID = flexInt(f.nextID)
 		}
-		f.entries = []hcJournal{e}
+		if f.multi {
+			replaced := false
+			for i := range f.entries {
+				if f.entries[i].ID == e.ID {
+					e.Event = f.entries[i].Event
+					f.entries[i], replaced = e, true
+				}
+			}
+			if !replaced {
+				f.entries = append(f.entries, e)
+			}
+		} else {
+			f.entries = []hcJournal{e}
+		}
 		if f.ambiguous {
 			f.ambiguous = false
 			return 200, nil, `not json`
@@ -85,11 +132,15 @@ func notePreview(t *testing.T, a *App, b *browser, nid int64) string {
 	b.request("GET", bookPath(n.BookID), nil)
 	return locationOf(t, b.form(fmt.Sprintf("/notes/%d/hardcover", nid), url.Values{"version": {fmt.Sprint(n.Version)}}))
 }
-func shareNote(t *testing.T, a *App, b *browser, path, privacy string) {
+func shareNote(t *testing.T, a *App, b *browser, path, privacy string, extra ...string) {
 	t.Helper()
 	b.request("GET", path, nil)
 	refill(a)
-	expect(t, b.form(path, url.Values{"confirm": {"share"}, "privacy": {privacy}}), 303)
+	v := url.Values{"confirm": {"share"}, "privacy": {privacy}}
+	for i := 0; i+1 < len(extra); i += 2 {
+		v.Set(extra[i], extra[i+1])
+	}
+	expect(t, b.form(path, v), 303)
 }
 func TestHardcoverNoteExplicitShareAndUpdate(t *testing.T) {
 	a, b, nid, f := hcNoteApp(t)
@@ -129,7 +180,14 @@ func TestHardcoverNoteExplicitShareAndUpdate(t *testing.T) {
 		t.Fatal("local edit shared itself")
 	}
 	path = notePreview(t, a, b, nid)
-	shareNote(t, a, b, path, "2")
+	// A wider audience than the entry has now needs its own confirmation.
+	b.request("GET", path, nil)
+	refill(a)
+	expect(t, b.form(path, url.Values{"confirm": {"share"}, "privacy": {"2"}}), 400)
+	if f.writes != 1 {
+		t.Fatal("widened an audience without confirmation")
+	}
+	shareNote(t, a, b, path, "2", "widen", "confirm")
 	if f.writes != 2 || f.entries[0].Privacy != 2 || f.entries[0].Entry != "Updated locally" || !strings.Contains(f.queries[len(f.queries)-1], "NextChapterUpdateNote") {
 		t.Fatalf("%+v", f)
 	}
@@ -175,7 +233,15 @@ func TestHardcoverNoteAmbiguousSendIsNotDuplicated(t *testing.T) {
 		t.Fatal(f.writes)
 	}
 	refill(a)
-	shareNote(t, a, b, path, "3")
+	// Identical text alone is not proof: without the explicit link choice
+	// nothing is adopted and nothing is written.
+	b.gateway = false
+	expect(t, b.form(path, url.Values{"confirm": {"share"}, "privacy": {"3"}}), 409)
+	if n, _ := getNote(a.store.DB, nid); n.HardcoverJournalID != 0 || f.writes != 1 {
+		t.Fatal("adopted a text match without consent")
+	}
+	refill(a)
+	shareNote(t, a, b, path, "3", "link", "existing")
 	n, _ := getNote(a.store.DB, nid)
 	if f.writes != 1 || n.HardcoverJournalID != 123 {
 		t.Fatalf("%d %+v", f.writes, n)
