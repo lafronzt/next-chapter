@@ -3,7 +3,7 @@ module github.com/lafronzt/next-chapter
 go 1.27.0
 
 require (
-	github.com/yuin/goldmark v1.7.17
+	github.com/yuin/goldmark v1.8.7
 	golang.org/x/text v0.44.0
 	modernc.org/sqlite v1.62.0
 )
