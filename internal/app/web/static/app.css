@@ -3387,3 +3387,14 @@ main section.hc-panel[aria-labelledby]>h2 {
 .export-meta span { overflow-wrap:anywhere; }
 .export-page .panel { gap:14px; }
 .export-page .panel>h2,.export-page .panel>p,.export-page .panel>ul,.export-page .panel>form { margin:0; }
+.tab-list { display:flex; flex-wrap:wrap; gap:8px; list-style:none; margin:0; padding:0; }
+.tab-list a { display:inline-block; padding:8px 14px; border:1px solid var(--line); border-radius:999px; text-decoration:none; min-height:44px; line-height:28px; }
+.tab-list a[aria-current="page"] { background:var(--green); border-color:var(--green); color:#fff; }
+.tab-list a[aria-current="page"] .muted { color:inherit; opacity:.85; }
+.discovery-list { list-style:none; margin:0; padding:0; }
+.discovery-list>li { padding:14px 0; border-top:1px solid var(--line); }
+.discovery-list>li:first-child { border-top:0; padding-top:0; }
+.discovery-item { display:grid; grid-template-columns:auto minmax(0,1fr); gap:12px; align-items:start; cursor:pointer; }
+.discovery-item.plain { grid-template-columns:minmax(0,1fr); cursor:auto; }
+.discovery-item input[type=checkbox] { margin-top:3px; }
+.discovery-body { overflow-wrap:anywhere; line-height:1.5; }

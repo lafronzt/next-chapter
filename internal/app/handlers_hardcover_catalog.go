@@ -14,6 +14,12 @@ type hcSeriesPlan struct {
 	SourceBookID int64            `json:"source_book_id"`
 	LocalSeries  string           `json:"local_series"`
 	Items        []hcSeriesMember `json:"items"`
+	// SeriesID is set when the books come from a followed series' results
+	// rather than the cached catalog of a linked book. FollowedAt identifies
+	// that follow, so a plan made for an earlier follow is refused.
+	SeriesID   int64  `json:"series_id,omitempty"`
+	FollowedAt string `json:"followed_at,omitempty"`
+	SeriesName string `json:"series_name,omitempty"`
 }
 
 const hcSeriesAddLimit = 50
@@ -131,6 +137,7 @@ func (a *App) seriesAddPlan(w http.ResponseWriter, r *http.Request) error {
 		return a.render(w, r, "hardcover_series.html", page{"Title": "Add series volumes", "Nav": "hardcover", "PlanID": id, "Plan": p.HardcoverSeries, "Stale": rev != state(r).Revision}, 200)
 	}
 	var added, skipped int
+	var followed int64
 	err := a.store.Write(func(tx *sql.Tx) error {
 		if err := current(tx, r); err != nil {
 			return err
@@ -148,6 +155,21 @@ func (a *App) seriesAddPlan(w http.ResponseWriter, r *http.Request) error {
 			return conflict("Your library changed. Preview the volumes again.")
 		}
 		plan := p.HardcoverSeries
+		at := canonicalTime(a.now())
+		if plan.SeriesID > 0 {
+			followed = plan.SeriesID
+			added, skipped, err = a.applyDiscoveryAdd(tx, plan, at)
+			if err != nil {
+				return err
+			}
+			if _, err = tx.Exec("DELETE FROM plans WHERE id=?", id); err != nil {
+				return err
+			}
+			if added > 0 {
+				return bump(tx)
+			}
+			return nil
+		}
 		cat, err := catalogFor(tx, seriesGroup{Name: plan.LocalSeries})
 		if err != nil {
 			return err
@@ -159,7 +181,6 @@ func (a *App) seriesAddPlan(w http.ResponseWriter, r *http.Request) error {
 		for _, m := range cat.Missing {
 			still[m.HardcoverBookID] = true
 		}
-		at := canonicalTime(a.now())
 		for _, m := range plan.Items {
 			if !still[m.HardcoverBookID] {
 				skipped++
@@ -193,6 +214,9 @@ func (a *App) seriesAddPlan(w http.ResponseWriter, r *http.Request) error {
 	})
 	if err != nil {
 		return err
+	}
+	if followed > 0 {
+		return redirect(w, r, fmt.Sprintf("/series/followed/%d?notice=hc-series-added&added=%d&skipped=%d", followed, added, skipped))
 	}
 	return redirect(w, r, fmt.Sprintf("/series?notice=hc-series-added&added=%d&skipped=%d", added, skipped))
 }

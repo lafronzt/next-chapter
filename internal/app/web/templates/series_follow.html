@@ -1,0 +1,28 @@
+{{template "top" .}}
+<a class="back" href="/series"><span aria-hidden="true">←</span> Back to your series</a>
+<header class="page-heading"><div>
+  <h1>Follow this series on Hardcover?</h1>
+  <p>Following is a note to yourself. It reads nothing from Hardcover, changes no book, and adds no volume.</p>
+</div></header>
+<section class="panel stack hc-panel">
+  <h2>{{.Candidate.Name}}</h2>
+  <p class="muted">Hardcover series number {{.Candidate.SeriesID}}, matched to your series “{{.Group}}” through {{.Candidate.Books}} linked {{if eq .Candidate.Books 1}}book{{else}}books{{end}}. Two Hardcover series can share a name, so the number is what is followed.</p>
+  <ul class="plain-list">
+    <li>Your first check records what the series already has as a starting point. None of it is called new.</li>
+    <li>Later checks show books Hardcover’s list gained since your previous complete check. That is when a book was cataloged, not when it was published.</li>
+    <li>Checks only happen when you press the button. There is no schedule, notification, or email.</li>
+    <li>Nothing is added to your library or queue unless you preview and confirm it.</li>
+  </ul>
+  {{if .Existing}}
+  <p class="notice" role="status">You already follow this series. <a href="/series/followed/{{.Existing.SeriesID}}">Open it</a>.</p>
+  {{else}}
+  <form method="post" action="/series/follow" class="button-row">
+    {{template "fields" .}}
+    <input type="hidden" name="group" value="{{.Group}}">
+    <input type="hidden" name="series" value="{{.Candidate.SeriesID}}">
+    <button class="button primary">Follow {{.Candidate.Name}}</button>
+    <a class="button" href="/series">Cancel</a>
+  </form>
+  {{end}}
+</section>
+{{template "bottom" .}}

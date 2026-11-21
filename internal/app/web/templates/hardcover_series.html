@@ -1,8 +1,8 @@
 {{template "top" .}}
-<a class="back" href="/series"><span aria-hidden="true">←</span> Back to your series</a>
+<a class="back" href="{{if .Plan.SeriesID}}/series/followed/{{.Plan.SeriesID}}{{else}}/series{{end}}"><span aria-hidden="true">←</span> Back to {{if .Plan.SeriesID}}{{.Plan.SeriesName}}{{else}}your series{{end}}</a>
 <header class="page-heading"><div>
   <h1>Add series volumes</h1>
-  <p>These books come from Hardcover’s catalog. Confirming adds them as ordinary books in “{{.Plan.LocalSeries}}”. They wait at the end of your queue marked Needs placement, and nothing already in your queue moves.</p>
+  <p>These books come from Hardcover’s catalog. Confirming adds them as ordinary books in “{{.Plan.LocalSeries}}”: status To read, marked Needs placement, at the end of your queue. Nothing already in your queue moves, and nothing is sent to Hardcover.</p>
 </div></header>
 {{if .Stale}}
 <div class="notice error" role="alert">Your library has changed since this preview. Preview the volumes again.</div>
@@ -10,7 +10,9 @@
 <form method="post" action="/hardcover/series/{{.PlanID}}" class="panel stack hc-panel">
   {{template "fields" .}}
   <ul class="plain-list">
-    {{range .Plan.Items}}<li><strong>{{.Label}} {{.Title}}</strong> <span class="muted">· {{.Author}}{{if .Year}} · {{.Year}}{{end}}{{if .Pages}} · {{.Pages}} pages{{end}}</span></li>{{end}}
+    {{range .Plan.Items}}<li><strong>{{.Label}} {{.Title}}</strong> <span class="muted">· {{.Author}}{{if .Year}} · {{.Year}}{{end}}{{if .Pages}} · {{.Pages}} pages{{end}}</span>
+      {{if .ReleaseText}}<br><small class="muted">{{.ReleaseText}}{{if .Upcoming}}. A future date may mean the book is not published yet; the book is added as one you want to read, nothing more.{{end}}{{if .Compilation}} Listed as a collection or omnibus.{{end}}</small>{{end}}
+      {{if .Why}}<br><small class="muted">{{.Why}}</small>{{end}}</li>{{end}}
   </ul>
   <p class="muted">Each is linked to its Hardcover book, so a later import matches it. Nothing is sent to Hardcover.</p>
   <button class="button primary">Add {{len .Plan.Items}} to my list</button>

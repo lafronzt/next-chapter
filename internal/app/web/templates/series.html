@@ -9,6 +9,30 @@
   <input aria-label="Search series names" name="q" value="{{.Query}}" placeholder="Find a series…">
   <button aria-label="Search"><span aria-hidden="true">{{template "icon" "search"}}</span></button>
 </form>
+<div class="stack">
+{{if .ShowFollows}}
+<section class="panel stack followed-list" aria-labelledby="followed">
+  <h2 id="followed">Followed series</h2>
+  {{if .Follows}}
+  <p class="muted">Series you chose to follow on Hardcover. Checking happens only when you press the button; there is no schedule or notification. Results never add a book or change your queue.</p>
+  <form method="post" action="/series/check" class="stack">
+    {{template "fields" .}}
+    <ul class="discovery-list">
+      {{range .Follows}}
+      <li>
+        {{if $.Ready}}<label class="discovery-item"><input type="checkbox" name="series" value="{{.SeriesID}}" aria-label="Check {{.Name}}"> <span class="discovery-body">{{template "followRow" .}}</span></label>
+        {{else}}<div class="discovery-item plain"><span class="discovery-body">{{template "followRow" .}}</span></div>{{end}}
+      </li>
+      {{end}}
+    </ul>
+    {{if .Ready}}<div class="button-row"><button class="button" data-busy-label="Reading Hardcover…">Check selected series</button><span class="muted"><small>Up to {{.CheckBatch}} at a time.</small></span></div>
+    {{else}}<p class="muted"><small>Hardcover is off or not connected, so checking is unavailable. Saved results stay readable.</small></p>{{end}}
+  </form>
+  {{else}}
+  <p class="muted">You are not following any series. Open a series below that has a book linked to Hardcover, refresh it, and choose Follow to be told what new books Hardcover lists for it. Local-only series work as before without this.</p>
+  {{end}}
+</section>
+{{end}}
 {{range $i, $g := .Groups}}
 <section class="panel series-card stack" aria-labelledby="series-{{$i}}">
   <h2 id="series-{{$i}}">{{.Name}}</h2>
@@ -54,6 +78,22 @@
   {{else}}<p class="muted">You have every volume Hardcover lists for this series.</p>{{end}}
   <form method="post" action="/books/{{.SourceBookID}}/hardcover/refresh">{{template "fields" $}}<input type="hidden" name="back" value="series"><button class="button small" data-busy-label="Reading Hardcover…">Refresh from Hardcover</button></form>
   {{end}}
+  {{if .Follows}}
+  <h3>New books</h3>
+  <ul class="plain-list">
+    {{range .Follows}}<li>Following <strong>{{.Name}}</strong> (Hardcover series {{.SeriesID}}): {{if .New}}<strong>{{.New}} new</strong>{{else}}nothing new{{end}}{{if .Upcoming}}, {{.Upcoming}} with a future date listed{{end}}, {{.Known}} not in your library. <a href="/series/followed/{{.SeriesID}}">See results</a></li>{{end}}
+  </ul>
+  {{end}}
+  {{if and (not .Follows) (not .Candidates) $.Ready}}
+  <p class="muted"><small>To follow this series for new books, link one of its books to Hardcover and refresh it from its book page; its Hardcover series can then be chosen here.</small></p>
+  {{end}}
+  {{if .Candidates}}
+  <h3>{{if .Follows}}Follow another Hardcover series{{else}}Follow on Hardcover{{end}}</h3>
+  <p class="muted"><small>Following does not read Hardcover or change anything. Pick the Hardcover series this is; the number tells same-named series apart.</small></p>
+  <ul class="plain-list">
+    {{range .Candidates}}<li><a class="button small" href="/series/follow?group={{$g.Name}}&series={{.SeriesID}}">Follow {{.Name}} (series {{.SeriesID}})…</a></li>{{end}}
+  </ul>
+  {{end}}
   {{if .Unnumbered}}
   <h3>No number</h3>
   <ul class="series-volumes">
@@ -72,5 +112,11 @@
 <p class="muted">No series yet. A book joins one when its edit page has a series name, or when an import or lookup fills it in.{{if .Standalone}} {{.Standalone}} {{if eq .Standalone 1}}book has{{else}}books have{{end}} no series.{{end}}</p>
 {{end}}
 {{end}}
+</div>
 {{template "pager" .Pager}}
 {{template "bottom" .}}
+
+{{define "followRow"}}<a href="/series/followed/{{.SeriesID}}"><strong>{{.Name}}</strong></a><br>
+<small class="muted">{{if .Gone}}No longer on Hardcover{{else if .CanonicalID}}Merged on Hardcover{{else if not .CompleteChecks}}First check not done{{else}}Checked {{day .LastCompleteAt}}{{if .Stale}} (over 30 days ago){{end}}{{end}}{{if .Partial}} · partial{{end}}{{if .LastError}} · last check stopped early{{end}}
+ · {{if .New}}<strong>{{.New}} new</strong>{{else}}0 new{{end}}{{if .Upcoming}} · {{.Upcoming}} with a future date{{end}} · {{.Known}} not in your library{{if .Dismissed}} · {{.Dismissed}} dismissed{{end}}
+ · about {{.EstimatedRequests}} {{if eq .EstimatedRequests 1}}request{{else}}requests{{end}}</small>{{end}}

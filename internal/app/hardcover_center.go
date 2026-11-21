@@ -281,12 +281,15 @@ func addHistory(q queryer, e hcHistoryEntry) error {
 // hcForgetPlan counts what "Forget Hardcover ids" would clear.
 type hcForgetPlan struct {
 	Links, Aliases, History, Cached, ReadIDs, NoteIDs int
+	// Follows and Discoveries are the followed series and what checks saw of
+	// them. Both are keyed by Hardcover ids, so both go.
+	Follows, Discoveries int
 }
 
 func countForget(q queryer) (hcForgetPlan, error) {
 	var p hcForgetPlan
 	err := q.QueryRow(`SELECT (SELECT count(*) FROM book_hardcover),(SELECT count(*) FROM hardcover_alias),(SELECT count(*) FROM hardcover_sync),
- (SELECT count(*) FROM hardcover_catalog)+(SELECT count(*) FROM series_cache),(SELECT count(*) FROM reading_log WHERE hardcover_read_id IS NOT NULL),(SELECT count(*) FROM book_notes WHERE hardcover_journal_id>0)`).Scan(&p.Links, &p.Aliases, &p.History, &p.Cached, &p.ReadIDs, &p.NoteIDs)
+ (SELECT count(*) FROM hardcover_catalog)+(SELECT count(*) FROM series_cache),(SELECT count(*) FROM reading_log WHERE hardcover_read_id IS NOT NULL),(SELECT count(*) FROM book_notes WHERE hardcover_journal_id>0),(SELECT count(*) FROM series_follows),(SELECT count(*) FROM series_discoveries)`).Scan(&p.Links, &p.Aliases, &p.History, &p.Cached, &p.ReadIDs, &p.NoteIDs, &p.Follows, &p.Discoveries)
 	return p, err
 }
 
@@ -294,7 +297,7 @@ func countForget(q queryer) (hcForgetPlan, error) {
 // and everything else stay; a reading that came from Hardcover keeps its
 // source, only its tie to the Hardcover read is removed.
 func forgetIDs(q queryer) error {
-	for _, stmt := range []string{"DELETE FROM book_hardcover", "DELETE FROM hardcover_alias", "DELETE FROM hardcover_sync", "DELETE FROM hardcover_catalog", "DELETE FROM series_cache", "UPDATE reading_log SET hardcover_read_id=NULL", "UPDATE book_notes SET hardcover_journal_id=0,hardcover_user_id=0,hardcover_book_id=0", "DELETE FROM meta WHERE key IN ('hardcover_pull_since','hardcover_history')"} {
+	for _, stmt := range []string{"DELETE FROM book_hardcover", "DELETE FROM hardcover_alias", "DELETE FROM hardcover_sync", "DELETE FROM hardcover_catalog", "DELETE FROM series_cache", "DELETE FROM series_discoveries", "DELETE FROM series_follows", "UPDATE reading_log SET hardcover_read_id=NULL", "UPDATE book_notes SET hardcover_journal_id=0,hardcover_user_id=0,hardcover_book_id=0", "DELETE FROM meta WHERE key IN ('hardcover_pull_since','hardcover_history')"} {
 		if _, err := q.Exec(stmt); err != nil {
 			return err
 		}

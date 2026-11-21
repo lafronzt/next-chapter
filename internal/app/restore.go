@@ -49,6 +49,11 @@ type exportFile struct {
 	HardcoverBooks   []hcBookLink `json:"hardcover_books,omitempty"`
 	HardcoverAliases []hcAlias    `json:"hardcover_aliases,omitempty"`
 	HardcoverSync    []hcSyncRow  `json:"hardcover_sync,omitempty"`
+	// SeriesFollows and SeriesDiscoveries are the series the reader follows
+	// and what checks saw of them, from schema version 28. They are keyed by
+	// Hardcover ids, which are global, so they restore like book links.
+	SeriesFollows     []seriesFollow    `json:"series_follows,omitempty"`
+	SeriesDiscoveries []seriesDiscovery `json:"series_discoveries,omitempty"`
 }
 
 // savedViewExport is a saved view as exported.
@@ -63,13 +68,15 @@ const (
 	// maxRestoreSchema is the newest export this build can restore. A test
 	// fails when a migration is added, so the restore code is checked against
 	// the new schema before this is raised.
-	maxRestoreSchema = 27
-	maxRestoreUpload = 10_000_000
-	maxRestoreEvents = 100_000
-	maxRestoreAlias  = 20_000
-	maxRestoreSync   = 20_000
-	maxRestoreLog    = 100_000
-	maxProblemsShown = 30
+	maxRestoreSchema      = 28
+	maxRestoreFollows     = 1000
+	maxRestoreDiscoveries = 200_000
+	maxRestoreUpload      = 10_000_000
+	maxRestoreEvents      = 100_000
+	maxRestoreAlias       = 20_000
+	maxRestoreSync        = 20_000
+	maxRestoreLog         = 100_000
+	maxProblemsShown      = 30
 )
 
 var fingerprintPattern = regexp.MustCompile(`^[0-9a-f]{64}$`)
@@ -84,6 +91,8 @@ type restorePlan struct {
 	Aliases        int        `json:"aliases"`
 	Readings       int        `json:"readings"`
 	Notes          int        `json:"notes"`
+	Follows        int        `json:"series_follows"`
+	Discoveries    int        `json:"series_discoveries"`
 	SavedViews     int        `json:"saved_views"`
 	Attempts       int        `json:"attempts"`
 	Updates        int        `json:"updates"`
@@ -177,6 +186,10 @@ func validateExport(f *exportFile) []string {
 	}
 	if len(f.SavedViews) > maxRestoreViews {
 		add("The export has %d saved views; restore at most %d.", len(f.SavedViews), maxRestoreViews)
+		return problems
+	}
+	if len(f.SeriesFollows) > maxRestoreFollows || len(f.SeriesDiscoveries) > maxRestoreDiscoveries {
+		add("The export has %d followed series and %d saved results; restore at most %d and %d.", len(f.SeriesFollows), len(f.SeriesDiscoveries), maxRestoreFollows, maxRestoreDiscoveries)
 		return problems
 	}
 	if len(f.Aliases) > maxRestoreAlias {
@@ -472,6 +485,7 @@ func validateExport(f *exportFile) []string {
 			add("%s: the unit or value is out of range.", label)
 		}
 	}
+	problems = append(problems, validateSeriesFollows(f)...)
 	viewNames := map[string]bool{}
 	for i := range f.SavedViews {
 		v := &f.SavedViews[i]
@@ -684,6 +698,18 @@ func restoreExport(q queryer, f exportFile) (restorePlan, error) {
 		}
 		result.SavedViews++
 	}
+	for _, x := range f.SeriesFollows {
+		if _, err = q.Exec("INSERT INTO series_follows("+followColumns+") VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)", x.SeriesID, x.Name, x.Slug, x.LocalSeries, x.FollowedAt, x.CanonicalID, x.Gone, x.Total, x.Run, x.CompleteChecks, x.NextOffset, x.LastCheckAt, x.LastCompleteAt, x.LastError); err != nil {
+			return result, err
+		}
+		result.Follows++
+	}
+	for _, d := range f.SeriesDiscoveries {
+		if _, err = q.Exec("INSERT INTO series_discoveries("+discoveryColumns+") VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", d.SeriesID, d.HardcoverBookID, d.Title, d.Author, d.Slug, d.Position, d.Details, d.Compilation, d.ReleaseDate, d.Year, d.Pages, d.FirstSeenAt, d.Baseline, d.SeenRun, d.Listed, d.State, d.ResolvedAt, d.Version); err != nil {
+			return result, err
+		}
+		result.Discoveries++
+	}
 	if f.Preferences != nil {
 		if err = setMeta(q, "preferences", *f.Preferences); err != nil {
 			return result, err
@@ -754,6 +780,12 @@ func exportLibrary(tx *sql.Tx) (exportFile, error) {
 	if f.ProgressCheckpoints, err = loadAllCheckpoints(tx); err != nil {
 		return f, err
 	}
+	if f.SeriesFollows, err = loadFollows(tx); err != nil {
+		return f, err
+	}
+	if f.SeriesDiscoveries, err = queryDiscoveries(tx, ""); err != nil {
+		return f, err
+	}
 	views, err := loadSavedViews(tx)
 	if err != nil {
 		return f, err
@@ -763,4 +795,78 @@ func exportLibrary(tx *sql.Tx) (exportFile, error) {
 		f.SavedViews = append(f.SavedViews, savedViewExport{v.Name, v.Definition, v.CreatedAt, v.UpdatedAt})
 	}
 	return f, nil
+}
+
+// validateSeriesFollows checks the followed series and their saved results,
+// and normalizes their times. Exports from before version 28 have neither.
+func validateSeriesFollows(f *exportFile) []string {
+	var problems []string
+	add := func(format string, args ...any) {
+		if len(problems) < 20 {
+			problems = append(problems, fmt.Sprintf(format, args...))
+		}
+	}
+	errClasses := []string{"", "rate-limit", "scope", "auth", "timeout", "unavailable", "response", "error"}
+	followed := map[int64]bool{}
+	timeOK := func(s *string, required bool) bool {
+		if *s == "" && !required {
+			return true
+		}
+		t, err := parseTime(*s)
+		if err != nil || t == "" {
+			return false
+		}
+		*s = t
+		return true
+	}
+	for i := range f.SeriesFollows {
+		x := &f.SeriesFollows[i]
+		label := fmt.Sprintf("Followed series %d", i+1)
+		switch {
+		case x.SeriesID < 1 || followed[x.SeriesID]:
+			add("%s: the series id must be a unique positive number.", label)
+		case x.Name == "" || cleanText(x.Name, 200) != x.Name || len(x.Slug) > 200 || len(x.LocalSeries) > 200:
+			add("%s: the name or slug is not valid.", label)
+		case x.CanonicalID < 0 || x.Total < 0 || x.Total > 1_000_000 || x.Run < 0 || x.CompleteChecks < 0 || x.NextOffset < 0 || x.NextOffset > 1_000_000:
+			add("%s: a count is out of range.", label)
+		case !slices.Contains(errClasses, x.LastError):
+			add("%s: the last error is not recognized.", label)
+		case !timeOK(&x.FollowedAt, true) || !timeOK(&x.LastCheckAt, false) || !timeOK(&x.LastCompleteAt, false):
+			add("%s: a date is not valid.", label)
+		}
+		followed[x.SeriesID] = true
+	}
+	seen := map[[2]int64]bool{}
+	perSeries := map[int64]int{}
+	for i := range f.SeriesDiscoveries {
+		d := &f.SeriesDiscoveries[i]
+		label := fmt.Sprintf("Saved series result %d", i+1)
+		key := [2]int64{d.SeriesID, d.HardcoverBookID}
+		switch {
+		case !followed[d.SeriesID]:
+			add("%s refers to a series that is not followed in the file.", label)
+		case d.HardcoverBookID < 1 || seen[key]:
+			add("%s: the book id must be a unique positive number within its series.", label)
+		case d.Title == "" || cleanText(d.Title, 300) != d.Title || len(d.Author) > 300 || len(d.Slug) > 200 || len(d.Details) > 40:
+			add("%s: the title, author or slug is not valid.", label)
+		case d.Position != nil && (*d.Position < 0 || *d.Position > 100000):
+			add("%s: the position is out of range.", label)
+		case !slices.Contains([]string{"open", "acknowledged", "dismissed", "added"}, d.State) || d.Version < 1 || d.SeenRun < 0:
+			add("%s: the state or version is not valid.", label)
+		case d.Year != nil && (*d.Year < 1000 || *d.Year > 2200) || d.Pages != nil && (*d.Pages < 1 || *d.Pages > 100_000):
+			add("%s: the year or page count is out of range.", label)
+		case !timeOK(&d.FirstSeenAt, true) || !timeOK(&d.ResolvedAt, false):
+			add("%s: a date is not valid.", label)
+		}
+		if d.ReleaseDate != "" {
+			if t, err := time.Parse(time.DateOnly, d.ReleaseDate); err != nil || t.Format(time.DateOnly) != d.ReleaseDate {
+				add("%s: the release date is not valid.", label)
+			}
+		}
+		seen[key] = true
+		if perSeries[d.SeriesID]++; perSeries[d.SeriesID] > maxSeriesMembers {
+			add("%s: a series can keep at most %d results.", label, maxSeriesMembers)
+		}
+	}
+	return problems
 }
