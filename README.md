@@ -597,7 +597,7 @@ Do not restore over a running database or mix an older database with newer `-wal
 | Title, Author | The book. |
 | ISBN | The stored ISBN as text (leading zeros and `X` kept). Never guessed. |
 | Shelves | `read` → `read`, `reading` → `currently-reading`, `to-read` → `to-read`. Always filled in. Loans, returns, placement, and old readings never decide it. |
-| My Rating | The newest reading's rating, only if it is a whole star (1–5). |
+| My Rating | The newest reading's rating as stored, quarter stars included (for example `4.25`). |
 | Date Read | Read shelf only: the newest reading's finish date, only when the full day is known (`YYYY-MM-DD`). |
 | Original Publication Year | The stored publication year (imports prefer Goodreads' original year). |
 | My Review | Only with **Include my reviews**: the newest non-empty review written here (Markdown), converted to simple HTML (`b`, `i`, links, quotes, lists, line breaks). Reviews imported from Goodreads, private notes, and "why I want to read this" are never exported. |
@@ -605,7 +605,7 @@ Do not restore over a running database or mix an older database with newer `-wal
 
 **Left out, and listed on the preview:** books with no ISBN or an invalid one (length or check digit); books sharing an ISBN (ISBN-10 and ISBN-13 forms of one edition count as the same), since Goodreads would treat them as one and nothing is merged for you; and `unreviewed`, `abandoned`, and `archived` books, which have no honest Goodreads shelf. With rereads, "newest" follows the reading history order (undated last).
 
-**Limits.** Goodreads' import help needs a login and was not available when this was built, so these rules are conservative and no real import was tested: only the local file structure is verified (parsed with `encoding/csv`). It is unconfirmed whether Goodreads accepts fractional ratings, whether blank ratings or reviews leave existing values alone, how it renders each HTML tag, and whether a valid ISBN matches its catalog. Ratings and reviews in the file can overwrite what is on Goodreads, and re-importing does not move a book off the exclusive shelf it already has. Try a few books first.
+**Limits.** Goodreads' import help needs a login and was not available when this was built, so these rules are conservative and no real import was tested: only the local file structure is verified (parsed with `encoding/csv`). Quarter-star ratings are exported as stored because Goodreads now supports them (as reported by the reader, not checked against its documentation). It is unconfirmed whether blank ratings or reviews leave existing values alone, how it renders each HTML tag, and whether a valid ISBN matches its catalog. Ratings and reviews in the file can overwrite what is on Goodreads, and re-importing does not move a book off the exclusive shelf it already has. Try a few books first.
 
 ### Restore from the JSON export
 

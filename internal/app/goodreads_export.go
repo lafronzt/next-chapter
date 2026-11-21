@@ -119,14 +119,17 @@ func isbn13Check(first12 string) int {
 	return (10 - sum%10) % 10
 }
 
+// exportRating passes the reader's rating through unchanged. Goodreads takes
+// quarter stars (reported by the reader); a value outside 0.25 steps from 0.25
+// to 5 is not a rating this app stores, so it is left blank and reported.
 func exportRating(r *float64) (value, note string) {
 	if r == nil || *r == 0 {
 		return "", ""
 	}
-	if *r == math.Trunc(*r) && *r >= 1 && *r <= 5 {
-		return strconv.Itoa(int(*r)), ""
+	if *r >= 0.25 && *r <= 5 && *r*4 == math.Trunc(*r*4) {
+		return strconv.FormatFloat(*r, 'f', -1, 64), ""
 	}
-	return "", fmt.Sprintf("Your %s-star rating is not exported: Goodreads' support for fractional ratings is unverified, and rounding would change it.", strconv.FormatFloat(*r, 'f', -1, 64))
+	return "", fmt.Sprintf("Your %s-star rating is not a quarter-star value, so it is left blank rather than rounded.", strconv.FormatFloat(*r, 'f', -1, 64))
 }
 
 var (

@@ -29,7 +29,7 @@ func TestExportRating(t *testing.T) {
 		in   *float64
 		want string
 		note bool
-	}{{nil, "", false}, {f(4), "4", false}, {f(4.25), "", true}, {f(0.5), "", true}, {f(5), "5", false}} {
+	}{{nil, "", false}, {f(4), "4", false}, {f(4.25), "4.25", false}, {f(0.5), "0.5", false}, {f(4.3), "", true}, {f(5.25), "", true}, {f(5), "5", false}} {
 		got, note := exportRating(c.in)
 		if got != c.want || (note != "") != c.note {
 			t.Errorf("exportRating(%v) = %q, %q", c.in, got, note)
@@ -124,9 +124,9 @@ func TestGoodreadsExportRowsAndExclusions(t *testing.T) {
 			}
 		}
 		zed := e.Rows[2].Fields
-		// The newest reading by date is the 2025-06-01 import with a
-		// quarter-star rating: left blank, not rounded.
-		if zed[3] != "" || zed[9] != "2025-06-01" || zed[11] != "read" {
+		// The newest reading by date is the 2025-06-01 import; its
+		// quarter-star rating is passed through unchanged.
+		if zed[3] != "4.25" || zed[9] != "2025-06-01" || zed[11] != "read" {
 			t.Errorf("zed fields %q", zed)
 		}
 		// Only authored Markdown reviews count: the two newer readings
