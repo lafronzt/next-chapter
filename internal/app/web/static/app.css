@@ -3379,3 +3379,10 @@ main section.hc-panel[aria-labelledby]>h2 {
 .reading-editor>.form-grid { margin-top:16px; }
 .reading-entry>.event { padding-top:0; }
 .log-reading { margin-top:20px; }
+
+.export-table { border-collapse:collapse; width:100%; margin-top:16px; }
+.export-table th,.export-table td { text-align:left; vertical-align:top; padding:10px 12px 10px 0; border-top:1px solid var(--line); overflow-wrap:anywhere; }
+.export-table thead th { font-size:.8em; color:var(--muted, inherit); border-top:0; }
+@media(max-width:760px) {
+  .export-table { font-size:.9em; }
+}

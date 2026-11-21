@@ -1,0 +1,60 @@
+{{template "top" .}}
+<header class="page-heading">
+  <div>
+    <h1>Export for Goodreads.</h1>
+    <p>Download a CSV of your whole library, then upload it yourself on Goodreads. Nothing is sent to Goodreads from here.</p>
+  </div>
+  <a class="button" href="/settings#about"><span>Back to settings</span></a>
+</header>
+<div class="panel">
+  <h2>Before you upload</h2>
+  <ul>
+    <li>Goodreads needs an ISBN for every row, and the book must exist in its catalog. Books without a usable ISBN are listed below and left out.</li>
+    <li>Every row names its shelf: <strong>read</strong>, <strong>currently-reading</strong> or <strong>to-read</strong>. Goodreads keeps the shelf a book is already on, so re-uploading does not move existing books.</li>
+    <li>Ratings and reviews in the file can overwrite the ones already on Goodreads. What a blank value does there is not confirmed, so check a few books after uploading.</li>
+    <li>Only whole-star ratings are exported. Quarter-star ratings are left blank rather than rounded.</li>
+    <li>Date Read comes from your newest reading of a book on the read shelf, and only when it is a full date. Date Added, publisher, binding, average rating, and tags are left blank.</li>
+    <li>Private notes and “why I want to read this” are never exported. The order of your queue is not affected.</li>
+  </ul>
+  <form class="filters" method="get" action="/export/goodreads">
+    <label class="checkbox"><input type="checkbox" name="reviews" value="1" {{if .Export.IncludeReviews}}checked{{end}}> <span>Include my reviews (the newest one you wrote here for each book; reviews imported from Goodreads are not re-sent)</span></label>
+    <button class="button small">Update preview</button>
+  </form>
+</div>
+<div class="panel">
+  <h2>{{len .Export.Rows}} {{if eq (len .Export.Rows) 1}}book{{else}}books{{end}} in the file</h2>
+  {{if .Export.Rows}}
+  <p class="muted">Sorted by title.{{if .Export.IncludeReviews}} {{.Export.ReviewCount}} will carry a review.{{end}}</p>
+  <div class="button-row">
+    <a class="button primary" href="/export/goodreads.csv{{if .Export.IncludeReviews}}?reviews=1{{end}}"><span>Download CSV <span aria-hidden="true">↓</span></span></a>
+  </div>
+  <div class="table-scroll">
+  <table class="export-table">
+    <thead><tr><th scope="col">Book</th><th scope="col">ISBN</th><th scope="col">Shelf</th>{{if .Export.IncludeReviews}}<th scope="col">Review</th>{{end}}<th scope="col">Left blank</th></tr></thead>
+    <tbody>
+    {{range .Export.Rows}}
+    <tr>
+      <th scope="row"><a href="/books/{{.Book.ID}}">{{.Book.Title}}</a><br><small>{{.Book.Author}}</small></th>
+      <td>{{.ISBN}}</td>
+      <td>{{.Shelf}}</td>
+      {{if $.Export.IncludeReviews}}<td>{{if .ReviewFrom}}From {{.ReviewFrom}}{{else}}None{{end}}</td>{{end}}
+      <td>{{range .Notes}}<small>{{.}}</small><br>{{end}}</td>
+    </tr>
+    {{end}}
+    </tbody>
+  </table>
+  </div>
+  {{else}}
+  <div class="empty"><p>No books can be exported yet. Add an ISBN to the books you want on Goodreads, then come back.</p></div>
+  {{end}}
+</div>
+{{if .Export.Excluded}}
+<div class="panel">
+  <h2>{{len .Export.Excluded}} left out</h2>
+  <p class="muted">Nothing here is changed or merged; fix it in the book if you want it included.</p>
+  <ul>
+    {{range .Export.Excluded}}<li><a href="/books/{{.BookID}}"><strong>{{.Title}}</strong></a> by {{.Author}}: {{.Reason}}</li>{{end}}
+  </ul>
+</div>
+{{end}}
+{{template "bottom" .}}
