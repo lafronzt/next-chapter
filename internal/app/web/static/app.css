@@ -3379,9 +3379,25 @@ main section.hc-panel[aria-labelledby]>h2 {
 .reading-editor>.form-grid { margin-top:16px; }
 .reading-entry>.event { padding-top:0; }
 .log-reading { margin-top:20px; }
-.journal .panel.form-grid,.journal details.panel { width:100%; max-width:none; }
 .journal .note-body { margin:0; }
 .journal .note>p { margin:0 0 10px; }
 .journal blockquote.quote { margin:0 0 14px; padding:2px 0 2px 18px; border-left:3px solid var(--accent); font-family:var(--serif); font-size:1.08em; line-height:1.55; }
-.journal .note + .note,.journal .note + form { margin-top:0; }
 .journal .add-quote>summary { font-weight:600; cursor:pointer; min-height:44px; display:flex; align-items:center; }
+.journal-items { list-style:none; margin:0; padding:0; }
+.journal-items>li { padding:16px 0; border-top:1px solid var(--line); display:flex; flex-direction:column; gap:8px; }
+.journal-items>li:first-child { border-top:0; padding-top:0; }
+.journal-meta { display:flex; flex-wrap:wrap; gap:4px 12px; align-items:center; margin:0; font-size:var(--text-sm); }
+.journal-label { margin:0; font-size:var(--text-xs); text-transform:uppercase; letter-spacing:.06em; }
+.journal-choice { border:0; padding:0; margin:4px 0 0; display:flex; flex-direction:column; gap:6px; }
+.journal-check .quote { margin:0; padding:2px 0 2px 18px; border-left:3px solid var(--accent); font-family:var(--serif); }
+.hc-panel blockquote.quote { margin:0; padding:2px 0 2px 18px; border-left:3px solid var(--accent); font-family:var(--serif); }
+
+/* A panel has no outside spacing of its own, so every page had to supply it
+   (a .stack wrapper, or a one-off margin like .hc-panel's) and some forgot,
+   leaving panels touching. Adjacent panels now space themselves by the same
+   16px those margins use, so they collapse into it; a .stack already has a
+   gap, and a form panel is as wide as its neighbours instead of stopping at
+   the form grid's 870px. */
+.panel + .panel { margin-top:var(--space-4); }
+.stack > .panel + .panel { margin-top:0; }
+.panel.form-grid { max-width:none; }

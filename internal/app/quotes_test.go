@@ -81,24 +81,51 @@ func TestQuoteLifecycleKeepsProgressAndQueue(t *testing.T) {
 	}
 }
 
-func TestQuoteIsNeverSharedToHardcover(t *testing.T) {
+func TestQuoteSharesAsQuoteEventWithPageMetadata(t *testing.T) {
 	a, b, _, f := hcNoteApp(t)
+	logs := captureLog(a)
 	var bookID int64
 	a.store.DB.QueryRow("SELECT book_id FROM book_notes LIMIT 1").Scan(&bookID)
-	expect(t, b.form(bookPath(bookID)+"/notes", url.Values{"kind": {"quote"}, "quote": {quoteSecret}}), 303)
+	expect(t, b.form(bookPath(bookID)+"/notes", url.Values{"kind": {"quote"}, "quote": {quoteSecret}, "body": {"COMMENTARY-STAYS-HOME"}, "page": {"212"}}), 303)
 	var qid int64
 	if err := a.store.DB.QueryRow("SELECT id FROM book_notes WHERE kind='quote'").Scan(&qid); err != nil {
 		t.Fatal(err)
 	}
+	before := f.calls
 	page := b.request("GET", bookPath(bookID), nil).Body.String()
-	if strings.Contains(page, fmt.Sprintf(`action="/notes/%d/hardcover"`, qid)) {
-		t.Fatal("a quote offers Hardcover sharing")
+	if !strings.Contains(page, fmt.Sprintf(`action="/notes/%d/hardcover"`, qid)) || f.calls != before {
+		t.Fatal("a quote has no share button, or loading the page contacted Hardcover")
 	}
-	refill(a)
-	rr := b.form(fmt.Sprintf("/notes/%d/hardcover", qid), url.Values{"version": {"1"}})
-	expect(t, rr, 400)
-	if f.calls != 0 {
-		t.Fatal("quote contacted Hardcover")
+	path := notePreview(t, a, b, qid)
+	html := b.request("GET", path, nil).Body.String()
+	if !strings.Contains(html, quoteSecret) || strings.Contains(html, "COMMENTARY-STAYS-HOME") || !strings.Contains(html, "commentary stays here") || !strings.Contains(html, `value="3" selected`) {
+		t.Fatal("preview wrong")
+	}
+	shareNote(t, a, b, path, "3")
+	if f.writes != 1 || f.lastVars["event"] != "quote" || f.lastVars["entry"] != quoteSecret || f.lastVars["privacy"].(float64) != 3 {
+		t.Fatalf("%+v", f.lastVars)
+	}
+	if m, _ := f.lastVars["metadata"].(map[string]any); m["page"].(float64) != 212 {
+		t.Fatalf("%+v", f.lastVars)
+	}
+	if strings.Contains(fmt.Sprint(f.lastVars), "COMMENTARY") {
+		t.Fatal("commentary was sent")
+	}
+	n, _ := getNote(a.store.DB, qid)
+	if n.HardcoverJournalID != 123 || n.BasePrivacy != 3 || n.BaseEntry != quoteSecret || n.BasePage == nil || *n.BasePage != 212 || n.SyncedAt == "" || n.ChangedHere() {
+		t.Fatalf("%+v", n)
+	}
+	// An edit after sharing shows as pending, and does not send itself.
+	writes := f.writes
+	expect(t, b.form(fmt.Sprintf("/notes/%d", qid), url.Values{"action": {"save"}, "version": {fmt.Sprint(n.Version)}, "quote": {quoteSecret + " edited"}, "page": {"212"}}), 303)
+	n, _ = getNote(a.store.DB, qid)
+	if !n.ChangedHere() || f.writes != writes {
+		t.Fatal("pending change not shown, or it was sent")
+	}
+	for _, text := range []string{quoteSecret, "COMMENTARY-STAYS-HOME"} {
+		if strings.Contains(logs.String(), text) {
+			t.Fatalf("%q reached the logs", text)
+		}
 	}
 }
 

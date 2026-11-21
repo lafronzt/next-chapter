@@ -301,22 +301,23 @@
 </div>
 <section class="section-heading" id="notes">
   <h2>Your journal</h2>
-  <p>Notes and quotes are private by default. Share an individual <em>note</em> to Hardcover only when you choose; quotes stay here, because Hardcover's quote format is not verified. Nothing here is sent to an AI or used for ranking, and none of it changes reading progress or status.</p>
+  <p>Notes and quotes are private by default. Share an individual note or quote to Hardcover only when you choose, or check what is already in your Hardcover journal. Nothing here is sent to an AI or used for ranking, and none of it changes reading progress or status.</p>
 </section>
-<div class="stack journal">
+<div class="journal">
+{{if and .HardcoverReady .HardcoverLink}}<div class="panel stack"><form method="post" action="/books/{{.Book.ID}}/journal/check">{{template "fields" .}}<button class="button">Check journal on Hardcover…</button></form><p class="muted"><small>Reads only your own entries for this book, now, and changes nothing until you choose. Saving here never contacts Hardcover. Deleting an entry on Hardcover is not done from here.</small></p></div>{{end}}
 {{with .Book.Reason}}<div class="panel"><p><strong>Why you wanted to read it</strong></p><p class="note-body">{{.}}</p><p class="muted"><small><a href="/books/{{$.Book.ID}}/edit">Change this</a> on the edit page. It never leaves the app.</small></p></div>{{end}}
 {{range .Notes}}
 <div class="panel note" id="note-{{.ID}}">
-  <p class="muted"><small><span class="badge">{{if .IsQuote}}Quote{{else}}Note{{end}}</span> <time datetime="{{day .CreatedAt}}">{{day .CreatedAt}}</time>{{with .Where}} · at {{.}}{{end}}{{if .Edited}} · edited {{day .UpdatedAt}}{{end}}{{if .HardcoverJournalID}} · shared to Hardcover{{end}}</small></p>
+  <p class="muted"><small><span class="badge">{{if .IsQuote}}Quote{{else}}Note{{end}}</span> <time datetime="{{day .CreatedAt}}">{{day .CreatedAt}}</time>{{with .Where}} · at {{.}}{{end}}{{if .Edited}} · edited {{day .UpdatedAt}}{{end}}{{if eq .Origin "hardcover"}} · from Hardcover{{end}}{{if .Linked}} · on Hardcover{{with .SyncedAt}}, last exchanged {{day .}}{{end}}{{if .ChangedHere}} · <strong>changed here since</strong>{{end}}{{end}}</small></p>
   {{if .IsQuote}}<blockquote class="quote note-body">{{.Quote}}</blockquote>{{with .Body}}<p class="commentary note-body"><small class="muted">Your commentary</small><br>{{.}}</p>{{end}}{{else}}<p class="note-body">{{.Body}}</p>{{end}}
-  {{if and $.HardcoverReady $.HardcoverLink (not .IsQuote)}}
+  {{if and $.HardcoverReady $.HardcoverLink}}
   <form method="post" action="/notes/{{.ID}}/hardcover">
     {{template "fields" $}}
     <input type="hidden" name="version" value="{{.Version}}">
-    <button class="button small">Share to Hardcover…</button>
+    <button class="button small">{{if .Linked}}Update on Hardcover…{{else}}Share to Hardcover…{{end}}</button>
   </form>
   {{end}}
-  {{if .HardcoverJournalID}}<p class="muted"><small>Previously shared to Hardcover. Edits and deletion here do not change that copy; sharing again updates it.</small></p>{{end}}
+  {{if .Linked}}<p class="muted"><small>Edits and deletion here do not change the Hardcover copy; use Update on Hardcover to send a change.</small></p>{{end}}
   <details class="more-details">
     <summary>Edit or delete this {{if .IsQuote}}quote{{else}}note{{end}}</summary>
     <form class="form-grid" method="post" action="/notes/{{.ID}}">

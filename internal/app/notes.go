@@ -41,10 +41,60 @@ type bookNote struct {
 	HardcoverJournalID int64  `json:"hardcover_journal_id,omitempty"`
 	HardcoverUserID    int64  `json:"hardcover_user_id,omitempty"`
 	HardcoverBookID    int64  `json:"hardcover_book_id,omitempty"`
+	// Origin is "hardcover" for an entry the reader imported from Hardcover.
+	Origin string `json:"origin,omitempty"`
+	// The Base fields are what both sides held when the entry was last
+	// exchanged: the text sent or received, its page, and its Hardcover
+	// privacy (0 when no exchange was recorded).
+	BaseEntry   string `json:"hardcover_base_entry,omitempty"`
+	BasePage    *int   `json:"hardcover_base_page,omitempty"`
+	BasePrivacy int    `json:"hardcover_base_privacy,omitempty"`
+	SyncedAt    string `json:"hardcover_synced_at,omitempty"`
 }
 
 // IsQuote reports whether the entry is a quote rather than a plain note.
 func (n bookNote) IsQuote() bool { return n.Kind == "quote" }
+
+// Event is the Hardcover journal event this entry is shared as.
+func (n bookNote) Event() string {
+	if n.IsQuote() {
+		return "quote"
+	}
+	return "note"
+}
+
+// PayloadEntry is the text that is sent for this entry. A quote sends the
+// passage alone: Hardcover has no field for commentary, which stays here. A
+// note keeps the established convention of ending with its location.
+func (n bookNote) PayloadEntry() string {
+	if n.IsQuote() {
+		return n.Quote
+	}
+	if where := n.Where(); where != "" {
+		return n.Body + "\n\n(" + where + ")"
+	}
+	return n.Body
+}
+
+// PayloadPage is the page sent in an entry's metadata. Only a quote carries
+// one: a note's location is part of its text, and a percentage has no field.
+func (n bookNote) PayloadPage() *int {
+	if n.IsQuote() {
+		return n.Page
+	}
+	return nil
+}
+
+// Linked reports whether the entry is tied to a Hardcover journal entry.
+func (n bookNote) Linked() bool { return n.HardcoverJournalID > 0 }
+
+// ChangedHere reports a local edit since the last recorded exchange. It is
+// false when no exchange was recorded, because nothing is known to compare.
+func (n bookNote) ChangedHere() bool {
+	return n.Linked() && n.BasePrivacy != 0 && (n.PayloadEntry() != n.BaseEntry || !samePage(n.PayloadPage(), n.BasePage))
+}
+
+func samePage(a, b *int) bool { return (a == nil && b == nil) || (a != nil && b != nil && *a == *b) }
 
 // Edited reports whether the note was changed after it was written.
 func (n bookNote) Edited() bool { return n.UpdatedAt != n.CreatedAt }
@@ -127,10 +177,10 @@ func noteFields(r *http.Request, kind string) (quote, body string, page, percent
 	return quote, body, page, percent, nil
 }
 
-const noteColumns = "id,book_id,kind,quote,body,page,percent,version,created_at,updated_at,hardcover_journal_id,hardcover_user_id,hardcover_book_id"
+const noteColumns = "id,book_id,kind,quote,body,page,percent,version,created_at,updated_at,hardcover_journal_id,hardcover_user_id,hardcover_book_id,origin,hc_base_entry,hc_base_page,hc_base_privacy,hc_synced_at"
 
 func (n *bookNote) scan() []any {
-	return []any{&n.ID, &n.BookID, &n.Kind, &n.Quote, &n.Body, &n.Page, &n.Percent, &n.Version, &n.CreatedAt, &n.UpdatedAt, &n.HardcoverJournalID, &n.HardcoverUserID, &n.HardcoverBookID}
+	return []any{&n.ID, &n.BookID, &n.Kind, &n.Quote, &n.Body, &n.Page, &n.Percent, &n.Version, &n.CreatedAt, &n.UpdatedAt, &n.HardcoverJournalID, &n.HardcoverUserID, &n.HardcoverBookID, &n.Origin, &n.BaseEntry, &n.BasePage, &n.BasePrivacy, &n.SyncedAt}
 }
 
 func loadNotes(q queryer, bookID int64) ([]bookNote, error) {

@@ -35,6 +35,7 @@ var migrations = []migration{
 	{26, "reading start dates", migrateReadingStartDates},
 	{27, "formatted reader reviews", migrateReaderReviews},
 	{28, "quotes in the reading journal", migrateJournalQuotes},
+	{29, "Hardcover journal baselines", migrateJournalBaselines},
 }
 
 func migrateBaseline(tx *sql.Tx) error {
@@ -501,5 +502,23 @@ func migrateReaderReviews(tx *sql.Tx) error {
 func migrateJournalQuotes(tx *sql.Tx) error {
 	_, err := tx.Exec(`ALTER TABLE book_notes ADD COLUMN kind TEXT NOT NULL DEFAULT 'note' CHECK(kind IN ('note','quote'));
 ALTER TABLE book_notes ADD COLUMN quote TEXT NOT NULL DEFAULT '';`)
+	return err
+}
+
+// book_notes gains where an entry came from and what both sides held the last
+// time the reader exchanged it with Hardcover, so a later check can tell a
+// local-only edit from a remote-only one. hc_base_privacy is 0 for an entry
+// with no recorded exchange, which every earlier share is; those are compared
+// conservatively. Nothing existing changes.
+//
+// Backup: the migration framework writes <database>.pre-v29.bak first.
+// Rollback: restore that file and run the previous release; baselines and
+// entries imported from Hardcover since are lost, so export first.
+func migrateJournalBaselines(tx *sql.Tx) error {
+	_, err := tx.Exec(`ALTER TABLE book_notes ADD COLUMN origin TEXT NOT NULL DEFAULT 'local' CHECK(origin IN ('local','hardcover'));
+ALTER TABLE book_notes ADD COLUMN hc_base_entry TEXT NOT NULL DEFAULT '';
+ALTER TABLE book_notes ADD COLUMN hc_base_page INTEGER NULL;
+ALTER TABLE book_notes ADD COLUMN hc_base_privacy INTEGER NOT NULL DEFAULT 0 CHECK(hc_base_privacy BETWEEN 0 AND 3);
+ALTER TABLE book_notes ADD COLUMN hc_synced_at TEXT NOT NULL DEFAULT '';`)
 	return err
 }

@@ -1,0 +1,69 @@
+{{template "top" .}}
+<a class="back" href="/books/{{.Plan.BookID}}#notes">← Back to {{.Plan.Title}}</a>
+{{if .Done}}
+<header class="page-heading"><div><h1>Journal check finished</h1><p>Only what is listed below was applied. Nothing was sent to Hardcover.</p></div></header>
+<section class="panel stack hc-panel">
+  {{range .Results}}<p><span class="badge">{{if .Applied}}Applied{{else}}Not applied{{end}}</span> <strong>{{.Title}}</strong><br><span class="muted">{{.Outcome}}</span></p>
+  {{else}}<p class="muted">You left every entry unchanged, so nothing was applied.</p>{{end}}
+  <div class="button-row"><a class="button primary" href="/books/{{.BookID}}#notes">Back to the journal</a></div>
+</section>
+{{else}}
+<header class="page-heading"><div><h1>Check your Hardcover journal</h1><p>Your own notes and quotes for {{.Plan.Title}}, read from Hardcover just now. Every entry starts as “leave as it is”; nothing changes until you choose and apply.</p></div></header>
+<div class="stack journal-check">
+<section class="panel stack hc-panel">
+  <p>Read {{.Plan.Fetched}} entries from Hardcover. In sync: {{.Plan.Unchanged}}.{{if .Plan.Automatic}} Written by Hardcover itself (status, progress, ratings, reviews) and never imported: {{.Plan.Automatic}}.{{end}}</p>
+  {{if .Plan.Truncated}}<p class="notice" role="status">Hardcover has more entries than one check reads, so entries not shown here are not treated as missing.</p>{{end}}
+  <p class="muted">Applying never deletes anything here or on Hardcover, never changes progress, status, ratings or queue order, and never sends your writing. To send a change, use the send preview on an entry.</p>
+</section>
+{{if .Sections}}
+<form class="stack" method="post" action="/hardcover/journal/{{.PlanID}}">
+  {{template "fields" .}}
+  {{range .Sections}}
+  <section class="panel stack hc-panel">
+    <h2>{{.Title}}</h2>
+    <p class="muted">{{.Help}}</p>
+    <ul class="journal-items">
+    {{range .Items}}{{$it := .}}
+      <li>
+        <p class="journal-meta"><span class="badge">{{if eq .Event "quote"}}Quote{{else}}Note{{end}}</span>
+          {{if .RemotePrivacy}}<span>On Hardcover: {{if eq .RemotePrivacy 3}}only you{{else if eq .RemotePrivacy 2}}followers{{else}}everyone{{end}}</span>{{end}}
+          {{with .RemotePage}}<span>page {{.}}</span>{{end}}
+          {{if and .NoBaseline .NoteID .RemotePrivacy}}<span>no earlier exchange recorded</span>{{end}}</p>
+        {{if .RemoteEntry}}<p class="journal-label muted">On Hardcover</p>{{if eq .Event "quote"}}<blockquote class="quote note-body">{{.RemoteEntry}}</blockquote>{{else}}<p class="note-body">{{.RemoteEntry}}</p>{{end}}{{end}}
+        {{if .NoteID}}<p class="journal-label muted">{{if eq .State "missing-remote"}}Your local entry{{else}}Here{{end}}</p>{{if eq .Event "quote"}}<blockquote class="quote note-body">{{.LocalText}}</blockquote>{{else}}<p class="note-body">{{.LocalText}}</p>{{end}}{{with .LocalPage}}<p class="muted"><small>page {{.}}</small></p>{{end}}{{end}}
+        <fieldset class="journal-choice">
+          <legend class="sr-only">What to do with this entry</legend>
+          <label class="checkbox"><input type="radio" name="act_{{.Key}}" value="leave" checked> <span>Leave as it is</span></label>
+          {{if eq .State "remote-only"}}
+          <label class="checkbox"><input type="radio" name="act_{{.Key}}" value="import"> <span>Import as a new local {{.Event}}</span></label>
+          {{range .Candidates}}<label class="checkbox"><input type="radio" name="act_{{$it.Key}}" value="link:{{.NoteID}}"> <span>It is my existing local entry{{with .Where}} (at {{.}}){{end}}: link them, send nothing</span></label>{{end}}
+          {{else if or (eq .State "remote-changed") (eq .State "both-changed")}}
+          <label class="checkbox"><input type="radio" name="act_{{.Key}}" value="remote"> <span>Use Hardcover’s text here</span></label>
+          {{else if eq .State "missing-remote"}}
+          <label class="checkbox"><input type="radio" name="act_{{.Key}}" value="unlink"> <span>Unlink it and keep my local entry</span></label>
+          {{end}}
+        </fieldset>
+        {{if or (eq .State "local-changed") (eq .State "both-changed")}}<p><button class="button small" form="send-{{.NoteID}}">Preview sending mine…</button></p>{{end}}
+      </li>
+    {{end}}
+    </ul>
+  </section>
+  {{end}}
+  <div class="button-row"><button class="button primary" data-busy-label="Applying…">Apply my choices</button><a class="button" href="/books/{{.Plan.BookID}}#notes">Cancel</a></div>
+</form>
+{{range .Sections}}{{range .Items}}{{if or (eq .State "local-changed") (eq .State "both-changed")}}
+<form id="send-{{.NoteID}}" method="post" action="/notes/{{.NoteID}}/hardcover">{{template "fields" $}}<input type="hidden" name="version" value="{{.NoteVersion}}"></form>
+{{end}}{{end}}{{end}}
+{{else}}
+<section class="panel stack hc-panel"><p class="muted">Nothing to review: your journal here and on Hardcover agree.</p></section>
+{{end}}
+{{if .Plan.Unsupported}}
+<section class="panel stack hc-panel">
+  <h2>Not importable</h2>
+  <p class="muted">These entries are left on Hardcover as they are. They are not shortened or changed to fit.</p>
+  <ul>{{range .Plan.Unsupported}}<li>Hardcover entry {{.RemoteID}} ({{.Event}}): {{.Reason}}</li>{{end}}</ul>
+</section>
+{{end}}
+</div>
+{{end}}
+{{template "bottom" .}}
