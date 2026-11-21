@@ -63,7 +63,7 @@ const (
 	// maxRestoreSchema is the newest export this build can restore. A test
 	// fails when a migration is added, so the restore code is checked against
 	// the new schema before this is raised.
-	maxRestoreSchema = 27
+	maxRestoreSchema = 28
 	maxRestoreUpload = 10_000_000
 	maxRestoreEvents = 100_000
 	maxRestoreAlias  = 20_000
@@ -373,8 +373,12 @@ func validateExport(f *exportFile) []string {
 		if perBook[n.BookID]++; perBook[n.BookID] > maxNotesPerBook {
 			add("%s: a book can have at most %d notes.", label, maxNotesPerBook)
 		}
-		n.Body = noteText(n.Body)
-		if message := checkNote(n.Body, n.Page, n.Percent); message != "" {
+		// Exports from before schema version 28 have only plain notes.
+		if n.Kind == "" {
+			n.Kind = "note"
+		}
+		n.Body, n.Quote = noteText(n.Body), noteText(n.Quote)
+		if message := checkNote(n.Kind, n.Quote, n.Body, n.Page, n.Percent); message != "" {
 			add("%s: %s", label, message)
 		}
 		created, err1 := parseTime(n.CreatedAt)
@@ -651,7 +655,7 @@ func restoreExport(q queryer, f exportFile) (restorePlan, error) {
 	notes := slices.Clone(f.Notes)
 	slices.SortStableFunc(notes, func(a, b bookNote) int { return cmp.Compare(a.ID, b.ID) })
 	for _, n := range notes {
-		if _, err = q.Exec("INSERT INTO book_notes(book_id,body,page,percent,created_at,updated_at,hardcover_journal_id,hardcover_user_id,hardcover_book_id) VALUES(?,?,?,?,?,?,?,?,?)", newID[n.BookID], n.Body, n.Page, n.Percent, n.CreatedAt, n.UpdatedAt, n.HardcoverJournalID, n.HardcoverUserID, n.HardcoverBookID); err != nil {
+		if _, err = q.Exec("INSERT INTO book_notes(book_id,kind,quote,body,page,percent,created_at,updated_at,hardcover_journal_id,hardcover_user_id,hardcover_book_id) VALUES(?,?,?,?,?,?,?,?,?,?,?)", newID[n.BookID], n.Kind, n.Quote, n.Body, n.Page, n.Percent, n.CreatedAt, n.UpdatedAt, n.HardcoverJournalID, n.HardcoverUserID, n.HardcoverBookID); err != nil {
 			return result, err
 		}
 		result.Notes++

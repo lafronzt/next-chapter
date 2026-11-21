@@ -85,11 +85,15 @@ func notePreview(t *testing.T, a *App, b *browser, nid int64) string {
 	b.request("GET", bookPath(n.BookID), nil)
 	return locationOf(t, b.form(fmt.Sprintf("/notes/%d/hardcover", nid), url.Values{"version": {fmt.Sprint(n.Version)}}))
 }
-func shareNote(t *testing.T, a *App, b *browser, path, privacy string) {
+func shareNote(t *testing.T, a *App, b *browser, path, privacy string, extra ...string) {
 	t.Helper()
 	b.request("GET", path, nil)
 	refill(a)
-	expect(t, b.form(path, url.Values{"confirm": {"share"}, "privacy": {privacy}}), 303)
+	v := url.Values{"confirm": {"share"}, "privacy": {privacy}}
+	for i := 0; i+1 < len(extra); i += 2 {
+		v.Set(extra[i], extra[i+1])
+	}
+	expect(t, b.form(path, v), 303)
 }
 func TestHardcoverNoteExplicitShareAndUpdate(t *testing.T) {
 	a, b, nid, f := hcNoteApp(t)
@@ -175,7 +179,15 @@ func TestHardcoverNoteAmbiguousSendIsNotDuplicated(t *testing.T) {
 		t.Fatal(f.writes)
 	}
 	refill(a)
-	shareNote(t, a, b, path, "3")
+	// Identical text alone is not proof: without the explicit link choice
+	// nothing is adopted and nothing is written.
+	b.gateway = false
+	expect(t, b.form(path, url.Values{"confirm": {"share"}, "privacy": {"3"}}), 409)
+	if n, _ := getNote(a.store.DB, nid); n.HardcoverJournalID != 0 || f.writes != 1 {
+		t.Fatal("adopted a text match without consent")
+	}
+	refill(a)
+	shareNote(t, a, b, path, "3", "link", "existing")
 	n, _ := getNote(a.store.DB, nid)
 	if f.writes != 1 || n.HardcoverJournalID != 123 {
 		t.Fatalf("%d %+v", f.writes, n)

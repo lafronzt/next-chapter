@@ -34,6 +34,7 @@ var migrations = []migration{
 	{25, "audiobook duration", migrateAudioDuration},
 	{26, "reading start dates", migrateReadingStartDates},
 	{27, "formatted reader reviews", migrateReaderReviews},
+	{28, "quotes in the reading journal", migrateJournalQuotes},
 }
 
 func migrateBaseline(tx *sql.Tx) error {
@@ -485,5 +486,20 @@ func migrateReadingStartDates(tx *sql.Tx) error {
 // Existing imported reviews retain their original plain-text interpretation.
 func migrateReaderReviews(tx *sql.Tx) error {
 	_, err := tx.Exec(`ALTER TABLE reading_log ADD COLUMN review_format TEXT NOT NULL DEFAULT 'plain' CHECK(review_format IN ('plain','markdown'));`)
+	return err
+}
+
+// book_notes gains an entry kind and a separate quoted passage. Existing rows
+// stay notes with their bodies, ids, timestamps and Hardcover share links
+// untouched; a quote keeps its passage in quote and any commentary in body.
+//
+// Backup: the migration framework writes <database>.pre-v28.bak first.
+// Rollback: stop the app, put that file back as the database, and run the
+// previous release; quotes written since are lost, so download an export first
+// if you want to keep them. Older releases would show a quote's commentary
+// as a note, so roll back only from the backup.
+func migrateJournalQuotes(tx *sql.Tx) error {
+	_, err := tx.Exec(`ALTER TABLE book_notes ADD COLUMN kind TEXT NOT NULL DEFAULT 'note' CHECK(kind IN ('note','quote'));
+ALTER TABLE book_notes ADD COLUMN quote TEXT NOT NULL DEFAULT '';`)
 	return err
 }

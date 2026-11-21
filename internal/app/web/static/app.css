@@ -3379,3 +3379,9 @@ main section.hc-panel[aria-labelledby]>h2 {
 .reading-editor>.form-grid { margin-top:16px; }
 .reading-entry>.event { padding-top:0; }
 .log-reading { margin-top:20px; }
+.journal .panel.form-grid,.journal details.panel { width:100%; max-width:none; }
+.journal .note-body { margin:0; }
+.journal .note>p { margin:0 0 10px; }
+.journal blockquote.quote { margin:0 0 14px; padding:2px 0 2px 18px; border-left:3px solid var(--accent); font-family:var(--serif); font-size:1.08em; line-height:1.55; }
+.journal .note + .note,.journal .note + form { margin-top:0; }
+.journal .add-quote>summary { font-weight:600; cursor:pointer; min-height:44px; display:flex; align-items:center; }

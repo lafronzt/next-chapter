@@ -7,7 +7,7 @@ Self-contained prompts for fixing and improving Next Chapter. Each file can be p
 - [48 · Journal entries and quotes between Next Chapter and Hardcover](48-hardcover-journals-and-quotes.md) extends existing explicit note sharing with local quotes, verified inbound/outbound journal actions, privacy previews, stable identity, and conflict handling.
 - [49 · Find new books in followed series](49-series-new-book-discovery.md) extends the series dashboard and catalog cache with followed series, new-member discovery, upcoming releases where supported, and previewed additions.
 
-Both are prompts only; implementation has not started. They require current API research and preserve reader-initiated changes. They can be implemented independently.
+49 is a prompt only. 48 is partly implemented: local quotes, quote export/restore, and the note-share retry audit are done; Hardcover journal import, quote sync, and reconciliation are not, because Hardcover's guide could not be fetched (403) and its quote event/privacy ids are unverified. Both require current API research and preserve reader-initiated changes.
 
 ## Goodreads library export (47)
 

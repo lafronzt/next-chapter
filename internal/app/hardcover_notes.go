@@ -70,7 +70,7 @@ func (c *hardcoverClient) noteJournal(ctx context.Context, p hcNotePlan, match b
 
 func getNote(q queryer, id int64) (bookNote, error) {
 	var n bookNote
-	err := q.QueryRow(`SELECT id,book_id,body,page,percent,version,created_at,updated_at,hardcover_journal_id,hardcover_user_id,hardcover_book_id FROM book_notes WHERE id=?`, id).Scan(&n.ID, &n.BookID, &n.Body, &n.Page, &n.Percent, &n.Version, &n.CreatedAt, &n.UpdatedAt, &n.HardcoverJournalID, &n.HardcoverUserID, &n.HardcoverBookID)
+	err := q.QueryRow("SELECT "+noteColumns+" FROM book_notes WHERE id=?", id).Scan(n.scan()...)
 	return n, err
 }
 
@@ -88,6 +88,9 @@ func (a *App) hardcoverNotePreview(w http.ResponseWriter, r *http.Request) error
 	}
 	if r.FormValue("version") != strconv.Itoa(n.Version) {
 		return conflict("This note changed. Reload it before sharing.")
+	}
+	if n.IsQuote() {
+		return bad("Quotes stay in Next Chapter. Hardcover's quote format is not verified, so a quote is never sent as a note.")
 	}
 	b, err := getBook(a.store.DB, n.BookID)
 	if err != nil {
@@ -195,11 +198,17 @@ func (a *App) hardcoverNotePlan(w http.ResponseWriter, r *http.Request) error {
 		return conflict("Hardcover has multiple notes with this text. Check them there before sharing again.")
 	}
 	journalID := p.JournalID
-	// Recover a successful send whose response was lost; never add another copy.
-	if len(entries) == 1 {
-		journalID = int64(entries[0].ID)
+	// Identical text is not proof of identity: another entry may be a different
+	// note the reader wrote on purpose. A match is linked only when the reader
+	// ticks "link", and linking writes nothing and leaves its privacy alone.
+	linked := false
+	if p.JournalID == 0 && len(entries) == 1 {
+		if r.FormValue("link") != "existing" {
+			return conflict("Hardcover already has a note on this book with exactly this text. Nothing was sent. If it is this note (for example, an earlier send whose answer was lost), submit again with “Link to it” ticked; otherwise change the note first.")
+		}
+		journalID, linked = int64(entries[0].ID), true
 	}
-	if len(entries) != 1 || entries[0].Entry != p.Entry || entries[0].Privacy != privacy {
+	if !linked && (len(entries) != 1 || entries[0].Entry != p.Entry || entries[0].Privacy != privacy) {
 		query := hcInsertNoteMutation
 		vars := map[string]any{"book": p.HardcoverBookID, "entry": p.Entry, "privacy": privacy}
 		if journalID > 0 {
@@ -213,7 +222,7 @@ func (a *App) hardcoverNotePlan(w http.ResponseWriter, r *http.Request) error {
 		}
 		if err := a.hardcover.do(r.Context(), query, vars, &out); err != nil {
 			if !definiteRefusal(err) {
-				return httpError{Status: http.StatusBadGateway, Message: "Hardcover did not confirm the note. It may have saved it. Share again to check for an existing copy before retrying; your local note is safe."}
+				return httpError{Status: http.StatusBadGateway, Message: "Hardcover did not confirm the note. It may have saved it. Check Hardcover, then share again: if it is there, tick “Link to it” instead of adding another copy. Your local note is safe."}
 			}
 			return hardcoverHTTPError(err)
 		}
