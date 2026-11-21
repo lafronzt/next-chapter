@@ -158,7 +158,7 @@ func TestAudioDueDatePace(t *testing.T) {
 		{"unknown total", Book{ProgressSeconds: intp(9000), Pages: intp(300)}, 5, ""},
 		{"zero total", Book{AudioSeconds: intp(0), ProgressSeconds: intp(9000)}, 5, ""},
 		{"percent without total", Book{ProgressPercent: intp(25)}, 5, "75% left · about 15% a day to finish in time"},
-		{"page tracking", Book{AudioSeconds: intp(36000), Pages: intp(300), ProgressPage: intp(100)}, 5, "200 pages left · about 40 a day to finish in time"},
+		{"page tracking", Book{AudioSeconds: intp(36000), Pages: intp(300), ProgressPage: intp(100)}, 5, "200 pages left · about 40 pages a day to finish in time"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			if got := (dueSoon{Book: tc.book, Days: tc.days}).Pace(); got != tc.want {

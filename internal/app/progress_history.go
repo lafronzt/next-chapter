@@ -387,6 +387,20 @@ func (a *App) progressPageData(data page, b Book) error {
 		return err
 	}
 	data["HistoryOn"] = on
+	today := a.now()
+	if b.Status == "reading" {
+		var duePaces []string
+		for _, loan := range b.Loans {
+			days, ok := daysUntil(loan.DueDate, today)
+			if loan.Status != "borrowed" || !ok {
+				continue
+			}
+			if pace := (dueSoon{Book: b, Days: days}).Pace(); pace != "" {
+				duePaces = append(duePaces, fmt.Sprintf("%s %s due %s · %s", strings.ToUpper(loan.Source), loan.Format, loan.DueDate, pace))
+			}
+		}
+		data["DuePaces"] = duePaces
+	}
 	rows, err := a.store.DB.Query(`SELECT a.id,a.started_on,COALESCE(a.ended_on,''),(SELECT count(*) FROM progress_checkpoints c WHERE c.attempt_id=a.id) FROM reading_attempts a WHERE a.book_id=? ORDER BY a.id DESC`, b.ID)
 	if err != nil {
 		return err
@@ -434,7 +448,7 @@ func (a *App) progressPageData(data page, b Book) error {
 		recent = recent[:recentCheckpoints]
 	}
 	data["Checkpoints"], data["CheckpointTotal"] = recent, len(cps)
-	data["Pace"] = estimatePace(cps, b, b.Loans, a.now())
+	data["Pace"] = estimatePace(cps, b, b.Loans, today)
 	data["AttemptStart"] = current.StartedOn
 	return nil
 }
