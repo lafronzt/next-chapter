@@ -595,7 +595,7 @@ func TestSeriesFollowsExportRestoreForgetAndMigration(t *testing.T) {
 
 func TestMigrateSeriesFollowsKeepsTheCache(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "library.sqlite3")
-	if err := migrateFile(path, migrations[:27]); err != nil {
+	if err := migrateFile(path, migrations[:29]); err != nil {
 		t.Fatal(err)
 	}
 	db, err := sql.Open("sqlite", path)
@@ -614,7 +614,7 @@ func TestMigrateSeriesFollowsKeepsTheCache(t *testing.T) {
 	if scalar[int](t, path, "SELECT count(*) FROM series_cache") != 1 || scalar[int](t, path, "SELECT count(*) FROM series_follows") != 0 || scalar[int](t, path, "SELECT count(*) FROM series_discoveries") != 0 {
 		t.Fatal("migration changed the cache or invented follows")
 	}
-	if got := backups(t, path); len(got) != 1 || got[0] != path+".pre-v28.bak" {
+	if got := backups(t, path); len(got) != 1 || got[0] != path+".pre-v30.bak" {
 		t.Fatal(got)
 	}
 }

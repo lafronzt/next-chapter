@@ -297,7 +297,7 @@ func countForget(q queryer) (hcForgetPlan, error) {
 // and everything else stay; a reading that came from Hardcover keeps its
 // source, only its tie to the Hardcover read is removed.
 func forgetIDs(q queryer) error {
-	for _, stmt := range []string{"DELETE FROM book_hardcover", "DELETE FROM hardcover_alias", "DELETE FROM hardcover_sync", "DELETE FROM hardcover_catalog", "DELETE FROM series_cache", "DELETE FROM series_discoveries", "DELETE FROM series_follows", "UPDATE reading_log SET hardcover_read_id=NULL", "UPDATE book_notes SET hardcover_journal_id=0,hardcover_user_id=0,hardcover_book_id=0", "DELETE FROM meta WHERE key IN ('hardcover_pull_since','hardcover_history')"} {
+	for _, stmt := range []string{"DELETE FROM book_hardcover", "DELETE FROM hardcover_alias", "DELETE FROM hardcover_sync", "DELETE FROM hardcover_catalog", "DELETE FROM series_cache", "DELETE FROM series_discoveries", "DELETE FROM series_follows", "UPDATE reading_log SET hardcover_read_id=NULL", "UPDATE book_notes SET hardcover_journal_id=0,hardcover_user_id=0,hardcover_book_id=0,hc_base_entry='',hc_base_page=NULL,hc_base_privacy=0,hc_synced_at=''", "DELETE FROM meta WHERE key IN ('hardcover_pull_since','hardcover_history')"} {
 		if _, err := q.Exec(stmt); err != nil {
 			return err
 		}

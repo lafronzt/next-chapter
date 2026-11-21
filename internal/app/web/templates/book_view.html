@@ -300,47 +300,68 @@
   {{end}}
 </div>
 <section class="section-heading" id="notes">
-  <h2>Your notes</h2>
-  <p>Private by default. Share an individual note to Hardcover only when you choose. Notes are never sent to an AI or used for ranking, and they never change reading progress or status.</p>
+  <h2>Your journal</h2>
+  <p>Notes and quotes are private by default. Share an individual note or quote to Hardcover only when you choose, or check what is already in your Hardcover journal. Nothing here is sent to an AI or used for ranking, and none of it changes reading progress or status.</p>
 </section>
-{{with .Book.Reason}}<div class="panel"><p><strong>Why you wanted to read it</strong></p><p class="note-body">{{.}}</p><p class="muted"><small><a href="/books/{{$.Book.ID}}/edit">Change this</a> on the edit page.</small></p></div>{{end}}
+<div class="journal">
+{{if and .HardcoverReady .HardcoverLink}}<div class="panel stack"><form method="post" action="/books/{{.Book.ID}}/journal/check">{{template "fields" .}}<button class="button">Check journal on Hardcover…</button></form><p class="muted"><small>Reads only your own entries for this book, now, and changes nothing until you choose. Saving here never contacts Hardcover. Deleting an entry on Hardcover is not done from here.</small></p></div>{{end}}
+{{with .Book.Reason}}<div class="panel"><p><strong>Why you wanted to read it</strong></p><p class="note-body">{{.}}</p><p class="muted"><small><a href="/books/{{$.Book.ID}}/edit">Change this</a> on the edit page. It never leaves the app.</small></p></div>{{end}}
 {{range .Notes}}
 <div class="panel note" id="note-{{.ID}}">
-  <p class="muted"><small><time datetime="{{day .CreatedAt}}">{{day .CreatedAt}}</time>{{with .Where}} · at {{.}}{{end}}{{if .Edited}} · edited {{day .UpdatedAt}}{{end}}</small></p>
-  <p class="note-body">{{.Body}}</p>
+  <p class="muted"><small><span class="badge">{{if .IsQuote}}Quote{{else}}Note{{end}}</span> <time datetime="{{day .CreatedAt}}">{{day .CreatedAt}}</time>{{with .Where}} · at {{.}}{{end}}{{if .Edited}} · edited {{day .UpdatedAt}}{{end}}{{if eq .Origin "hardcover"}} · from Hardcover{{end}}{{if .Linked}} · on Hardcover{{with .SyncedAt}}, last exchanged {{day .}}{{end}}{{if .ChangedHere}} · <strong>changed here since</strong>{{end}}{{end}}</small></p>
+  {{if .IsQuote}}<blockquote class="quote note-body">{{.Quote}}</blockquote>{{with .Body}}<p class="commentary note-body"><small class="muted">Your commentary</small><br>{{.}}</p>{{end}}{{else}}<p class="note-body">{{.Body}}</p>{{end}}
   {{if and $.HardcoverReady $.HardcoverLink}}
   <form method="post" action="/notes/{{.ID}}/hardcover">
     {{template "fields" $}}
     <input type="hidden" name="version" value="{{.Version}}">
-    <button class="button small">Share to Hardcover…</button>
+    <button class="button small">{{if .Linked}}Update on Hardcover…{{else}}Share to Hardcover…{{end}}</button>
   </form>
   {{end}}
-  {{if .HardcoverJournalID}}<p class="muted"><small>Previously shared to Hardcover. Edits and deletion here do not change that copy; sharing again updates it.</small></p>{{end}}
+  {{if .Linked}}<p class="muted"><small>Edits and deletion here do not change the Hardcover copy; use Update on Hardcover to send a change.</small></p>{{end}}
   <details class="more-details">
-    <summary>Edit or delete this note</summary>
+    <summary>Edit or delete this {{if .IsQuote}}quote{{else}}note{{end}}</summary>
     <form class="form-grid" method="post" action="/notes/{{.ID}}">
       {{template "csrf" $}}
       <input type="hidden" name="version" value="{{.Version}}">
+      {{if .IsQuote}}
+      <label class="span-2">Quoted passage <textarea name="quote" rows="4" maxlength="{{$.MaxQuote}}" required>{{.Quote}}</textarea></label>
+      <label class="span-2">Your commentary <span class="muted">optional</span><textarea name="body" rows="3" maxlength="{{$.MaxNote}}">{{.Body}}</textarea></label>
+      {{else}}
       <label class="span-2">Note <textarea name="body" rows="4" maxlength="{{$.MaxNote}}" required>{{.Body}}</textarea></label>
+      {{end}}
       <label>Page <span class="muted">optional</span><input type="number" name="page" min="1" inputmode="numeric" value="{{with .Page}}{{.}}{{end}}"></label>
       <label>Percent <span class="muted">optional</span><input type="number" name="percent" min="0" max="100" inputmode="numeric" value="{{with .Percent}}{{.}}{{end}}"></label>
       <div class="span-2 button-row">
-        <button class="button" name="action" value="save">Save note</button>
-        <button class="button danger" name="action" value="delete">Delete note</button>
+        <button class="button" name="action" value="save">Save {{if .IsQuote}}quote{{else}}note{{end}}</button>
+        <button class="button danger" name="action" value="delete">Delete {{if .IsQuote}}quote{{else}}note{{end}}</button>
       </div>
     </form>
   </details>
 </div>
 {{else}}
-<p class="muted">No notes yet. Write down what you notice while you read, or why a book caught your eye.</p>
+<p class="muted">No notes or quotes yet. Write down what you notice while you read, or save a passage worth keeping.</p>
 {{end}}
 <form class="panel form-grid" method="post" action="/books/{{.Book.ID}}/notes">
   {{template "csrf" .}}
+  <input type="hidden" name="kind" value="note">
   <label class="span-2">New note <span class="muted">plain text, up to {{.MaxNote}} characters</span><textarea name="body" rows="4" maxlength="{{.MaxNote}}" required></textarea></label>
   <label>Page <span class="muted">optional</span><input type="number" name="page" min="1" inputmode="numeric"></label>
   <label>Percent <span class="muted">optional</span><input type="number" name="percent" min="0" max="100" inputmode="numeric"></label>
   <div class="span-2"><button class="button">Add note</button></div>
 </form>
+<details class="panel more-details add-quote">
+  <summary>Add a quote</summary>
+  <form class="form-grid" method="post" action="/books/{{.Book.ID}}/notes">
+    {{template "csrf" .}}
+    <input type="hidden" name="kind" value="quote">
+    <label class="span-2">New quote <span class="muted">the passage itself, up to {{.MaxQuote}} characters</span><textarea name="quote" rows="4" maxlength="{{.MaxQuote}}" required></textarea></label>
+    <label class="span-2">Your commentary <span class="muted">optional</span><textarea name="body" rows="3" maxlength="{{.MaxNote}}"></textarea></label>
+    <label>Page <span class="muted">optional</span><input type="number" name="page" min="1" inputmode="numeric"></label>
+    <label>Percent <span class="muted">optional</span><input type="number" name="percent" min="0" max="100" inputmode="numeric"></label>
+    <div class="span-2"><button class="button">Add quote</button></div>
+  </form>
+</details>
+</div>
 <section class="section-heading" id="library">
   <h2>Library</h2>
 </section>

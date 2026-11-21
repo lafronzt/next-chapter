@@ -34,7 +34,9 @@ var migrations = []migration{
 	{25, "audiobook duration", migrateAudioDuration},
 	{26, "reading start dates", migrateReadingStartDates},
 	{27, "formatted reader reviews", migrateReaderReviews},
-	{28, "followed series and discoveries", migrateSeriesFollows},
+	{28, "quotes in the reading journal", migrateJournalQuotes},
+	{29, "Hardcover journal baselines", migrateJournalBaselines},
+	{30, "followed series and discoveries", migrateSeriesFollows},
 }
 
 func migrateBaseline(tx *sql.Tx) error {
@@ -489,6 +491,39 @@ func migrateReaderReviews(tx *sql.Tx) error {
 	return err
 }
 
+// book_notes gains an entry kind and a separate quoted passage. Existing rows
+// stay notes with their bodies, ids, timestamps and Hardcover share links
+// untouched; a quote keeps its passage in quote and any commentary in body.
+//
+// Backup: the migration framework writes <database>.pre-v28.bak first.
+// Rollback: stop the app, put that file back as the database, and run the
+// previous release; quotes written since are lost, so download an export first
+// if you want to keep them. Older releases would show a quote's commentary
+// as a note, so roll back only from the backup.
+func migrateJournalQuotes(tx *sql.Tx) error {
+	_, err := tx.Exec(`ALTER TABLE book_notes ADD COLUMN kind TEXT NOT NULL DEFAULT 'note' CHECK(kind IN ('note','quote'));
+ALTER TABLE book_notes ADD COLUMN quote TEXT NOT NULL DEFAULT '';`)
+	return err
+}
+
+// book_notes gains where an entry came from and what both sides held the last
+// time the reader exchanged it with Hardcover, so a later check can tell a
+// local-only edit from a remote-only one. hc_base_privacy is 0 for an entry
+// with no recorded exchange, which every earlier share is; those are compared
+// conservatively. Nothing existing changes.
+//
+// Backup: the migration framework writes <database>.pre-v29.bak first.
+// Rollback: restore that file and run the previous release; baselines and
+// entries imported from Hardcover since are lost, so export first.
+func migrateJournalBaselines(tx *sql.Tx) error {
+	_, err := tx.Exec(`ALTER TABLE book_notes ADD COLUMN origin TEXT NOT NULL DEFAULT 'local' CHECK(origin IN ('local','hardcover'));
+ALTER TABLE book_notes ADD COLUMN hc_base_entry TEXT NOT NULL DEFAULT '';
+ALTER TABLE book_notes ADD COLUMN hc_base_page INTEGER NULL;
+ALTER TABLE book_notes ADD COLUMN hc_base_privacy INTEGER NOT NULL DEFAULT 0 CHECK(hc_base_privacy BETWEEN 0 AND 3);
+ALTER TABLE book_notes ADD COLUMN hc_synced_at TEXT NOT NULL DEFAULT '';`)
+	return err
+}
+
 // series_follows holds the series a reader chose to follow, by Hardcover
 // series id, and series_discoveries what each check saw of their members:
 // when a book was first seen, whether it was already there when the reader
@@ -497,7 +532,7 @@ func migrateReaderReviews(tx *sql.Tx) error {
 // older series_cache stays what it was, a disposable cache. Nothing existing
 // changes and no book is touched.
 //
-// Backup: the migration framework writes <database>.pre-v28.bak first.
+// Backup: the migration framework writes <database>.pre-v30.bak first.
 // Rollback: restore that file and run the previous release; follows,
 // dismissals and discovery history written since are lost, so export first.
 func migrateSeriesFollows(tx *sql.Tx) error {
