@@ -3379,3 +3379,11 @@ main section.hc-panel[aria-labelledby]>h2 {
 .reading-editor>.form-grid { margin-top:16px; }
 .reading-entry>.event { padding-top:0; }
 .log-reading { margin-top:20px; }
+
+.export-list { list-style:none; margin:0; padding:0; }
+.export-list li { padding:12px 0; border-top:1px solid var(--line); }
+.export-list p { margin:4px 0 0; }
+.export-meta { display:flex; flex-wrap:wrap; gap:4px 14px; align-items:center; font-size:.9em; }
+.export-meta span { overflow-wrap:anywhere; }
+.export-page .panel { gap:14px; }
+.export-page .panel>h2,.export-page .panel>p,.export-page .panel>ul,.export-page .panel>form { margin:0; }

@@ -11,7 +11,7 @@ Both are prompts only; implementation has not started. They require current API 
 
 ## Goodreads library export (47)
 
-[47 · Export the library to Goodreads CSV](47-goodreads-library-export.md) adds a manual, read-only download alongside existing backups. Read the companion [research guide](47-goodreads-library-export-research.md) first to resolve ISBN eligibility, shelf mappings, rating precision, dates, and remote overwrite behavior. Status: prompt and research guide only; implementation not started.
+[47 · Export the library to Goodreads CSV](47-goodreads-library-export.md) adds a manual, read-only download alongside existing backups. Read the companion [research guide](47-goodreads-library-export-research.md) first to resolve ISBN eligibility, shelf mappings, rating precision, dates, and remote overwrite behavior. Status: implemented (`goodreads_export.go`). Goodreads' help pages need a login, so accepted rating precision, blank-value overwrite, and review HTML rules are unverified and handled conservatively; see the README section.
 
 They were first written against the Python/Flask version (commit `c54c785`) and have been re-validated against the Go rebuild at commit `4bafb11` ("Replace Python runtime with self-contained Go application"). The Python code no longer exists, so every reference below is to the Go code under `internal/app/`. Baseline: 8 Go tests passing, 72.1% statement coverage (`go test -cover ./internal/app`).
 
