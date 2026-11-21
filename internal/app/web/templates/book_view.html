@@ -89,10 +89,10 @@
   <p>Saved progress and estimated pace, not measured time spent reading.</p>
 </section>
 {{if eq .Book.Status "reading"}}
-{{if .Checkpoints}}
-{{with .Pace}}
+{{if or .Checkpoints .DuePaces}}
 <div class="panel pace-summary" role="status">
   <h3>Reading pace</h3>
+  {{if .Checkpoints}}{{with .Pace}}
   {{if .Rate}}
   <p class="pace-rate">{{.Rate}}</p>
   <p class="muted"><small>{{.Basis}}</small></p>
@@ -101,8 +101,11 @@
   {{else}}{{with .Finish}}<p>{{.}}</p>{{end}}{{end}}
   {{range .Deadline}}<p>{{.}}</p>{{end}}
   {{if .Rate}}<p class="muted"><small>A rough estimate from saved progress, not measured reading time.</small></p>{{end}}
+  {{end}}{{end}}
+  {{range .DuePaces}}<p>{{.}}</p>{{end}}
 </div>
 {{end}}
+{{if .Checkpoints}}
 <div class="panel checkpoint-list">
   {{range .Checkpoints}}
   <div class="checkpoint-row">

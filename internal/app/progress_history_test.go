@@ -121,6 +121,32 @@ func save(t *testing.T, b *browser, id int64, value, unit string, want int) {
 	expect(t, b.request("POST", fmt.Sprintf("/books/%d/progress", id), url.Values{"progress": {value}, "unit": {unit}}), want)
 }
 
+func TestBookReadingPaceShowsLoanPaceWithAndWithoutHistory(t *testing.T) {
+	t.Parallel()
+	a, b, clock, id := readingApp(t)
+	addRecords(t, a, []Record{dueLoan("Reading", "2026-03-17")})
+	path := fmt.Sprintf("/books/%d", id)
+
+	save(t, b, id, "200", "page", 303)
+	body := b.request("GET", path, nil).Body.String()
+	for _, want := range []string{"Reading pace", "LIBBY ebook due 2026-03-17 · 200 pages left · about 29 pages a day to finish in time"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("book page without history lacks %q", want)
+		}
+	}
+
+	historyOn(t, a, true)
+	save(t, b, id, "200", "page", 303)
+	*clock = clock.AddDate(0, 0, 2)
+	save(t, b, id, "250", "page", 303)
+	body = b.request("GET", path, nil).Body.String()
+	for _, want := range []string{"About 25 pages a day", "150 pages left · about 30 pages a day to finish in time"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("book page with history lacks %q", want)
+		}
+	}
+}
+
 func TestProgressHistoryRetention(t *testing.T) {
 	t.Parallel()
 	a, b, clock, id := readingApp(t)

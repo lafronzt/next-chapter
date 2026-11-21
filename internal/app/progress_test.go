@@ -21,9 +21,9 @@ func TestPaceText(t *testing.T) {
 	}{
 		{0, 5, ""},
 		{-3, 5, ""},
-		{100, 4, "100 pages left · about 25 a day to finish in time"},
-		{101, 4, "101 pages left · about 26 a day to finish in time"},
-		{1, 3, "1 page left · about 1 a day to finish in time"},
+		{100, 4, "100 pages left · about 25 pages a day to finish in time"},
+		{101, 4, "101 pages left · about 26 pages a day to finish in time"},
+		{1, 3, "1 page left · about 1 page a day to finish in time"},
 		{80, 0, "80 pages left"},
 		{80, -2, "80 pages left"},
 	} {
@@ -182,7 +182,7 @@ func TestDueSoonShowsPace(t *testing.T) {
 	}
 	b := &browser{t: t, handler: a.Handler()}
 	body := b.request("GET", "/", nil).Body.String()
-	if !strings.Contains(body, "200 pages left · about 40 a day to finish in time") {
+	if !strings.Contains(body, "200 pages left · about 40 pages a day to finish in time") {
 		t.Fatalf("no pace on home: %s", body)
 	}
 }

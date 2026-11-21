@@ -220,7 +220,7 @@ func TestCalendarPageAndDownload(t *testing.T) {
 	rr := b.request("GET", "/calendar", nil)
 	expect(t, rr, 200)
 	page := rr.Body.String()
-	for _, want := range []string{"Overdue", "Beta", "Due back (library deadline)", "Hold expected (your estimate, not confirmed)", "Alpha", "200 pages left · about 40 a day to finish in time", "/calendar.ics?start=2026-02-27&amp;days=30", "later changes here are not sent to your calendar app", `rel="next"`} {
+	for _, want := range []string{"Overdue", "Beta", "Due back (library deadline)", "Hold expected (your estimate, not confirmed)", "Alpha", "200 pages left · about 40 pages a day to finish in time", "/calendar.ics?start=2026-02-27&amp;days=30", "later changes here are not sent to your calendar app", `rel="next"`} {
 		if !strings.Contains(page, want) {
 			t.Fatalf("page lacks %q:\n%s", want, page)
 		}

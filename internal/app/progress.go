@@ -128,7 +128,7 @@ func paceText(left, days int) string {
 		return fmt.Sprintf("%d %s left", left, plural(left, "page", "pages"))
 	}
 	per := (left + days - 1) / days
-	return fmt.Sprintf("%d %s left · about %d a day to finish in time", left, plural(left, "page", "pages"), per)
+	return fmt.Sprintf("%d %s left · about %d %s a day to finish in time", left, plural(left, "page", "pages"), per, plural(per, "page", "pages"))
 }
 
 // percentPaceText is paceText for a book tracked in percent, such as an
